@@ -217,22 +217,33 @@ AUTH = Sequence(
         Step("face_match_search", awaits="face.matched", timeout_s=12.0,
              on_timeout="face_denied", when="face_ready", branch="face"),
         Step("face_authenticated", min_hold_s=0.5, when="face_ready", branch="face"),
-        # -- Voix. Branche INDÉPENDANTE : un visage non reconnu n'empêche pas
-        # d'essayer la voix.
-        # `voice_auth_ready` et non `voice_ready` : la synthèse debout ne sert
-        # à rien si le micro est débranché. On ouvrait le canal et on
-        # attendait douze secondes dans le vide, avant de conclure que
-        # l'utilisateur n'avait pas été reconnu.
-        Step("voice_channel_open", when="voice_auth_ready", branch="voice"),
-        # `voice_prompt` DEMANDE de parler et dit quoi dire — voir le
-        # commentaire de la ligne dans `dialogues/auth.yaml`. La relance
-        # d'attente sort à 8 s, soit avant le timeout : quelqu'un qui hésite
-        # doit être aidé, pas recalé.
-        Step("voice_prompt", awaits="voice.captured", timeout_s=12.0,
-             on_timeout="voice_denied", wait_event="voice_prompt_wait",
-             when="voice_auth_ready", branch="voice"),
-        Step("voice_analyzing", when="voice_auth_ready", branch="voice"),
-        Step("voice_validated", min_hold_s=0.4, when="voice_auth_ready", branch="voice"),
+        # -- Voix. BRANCHE DÉSACTIVÉE tant que la vérification du locuteur
+        # n'existe pas.
+        #
+        # `speaker_verified` renvoie False aujourd'hui, donc ces quatre étapes
+        # sont sautées. Ce n'est pas un oubli, c'est le correctif :
+        #
+        # Ce qui validait la voix, c'était `voice.captured` — signalé dès que
+        # la transcription rendait un texte non vide. Autrement dit :
+        # N'IMPORTE QUI QUI PARLE validait le facteur, puis JARVIS annonçait
+        # « Signature vocale validée » et « Authentification multimodale
+        # confirmée ». Aucune empreinte vocale n'est stockée nulle part, et
+        # aucune brique de vérification du locuteur n'existe dans le Core.
+        #
+        # Demander à quelqu'un de parler pour ensuite ne rien vérifier, c'est
+        # du théâtre — et du théâtre qui compte comme facteur d'accès. On se
+        # tait jusqu'à ce que la vérification soit réelle.
+        #
+        # Les phrases restent en cache : le jour où l'embedding locuteur
+        # arrive (cf. discussion WeSpeaker / CAM++), il suffira que
+        # `speaker_verified` dise vrai et que `awaits` pointe sur un signal de
+        # CORRESPONDANCE, pas de simple captation.
+        Step("voice_channel_open", when="speaker_verified", branch="voice"),
+        Step("voice_prompt", awaits="voice.matched", timeout_s=12.0,
+             on_timeout="voice_no_match", wait_event="voice_prompt_wait",
+             when="speaker_verified", branch="voice"),
+        Step("voice_analyzing", when="speaker_verified", branch="voice"),
+        Step("voice_validated", min_hold_s=0.4, when="speaker_verified", branch="voice"),
         # -- Fusion et salutation : UNIQUEMENT si quelqu'un est identifié.
         # Saluer sans session, c'est dire « Ravi de vous revoir » à un inconnu
         # et tirer un titre au hasard entre monsieur, madame et mademoiselle.

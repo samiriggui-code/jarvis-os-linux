@@ -361,6 +361,28 @@ lines:
     orb_state: error
 
   # --- Fusion MFA ---
+  #
+  # ⚠ CES VARIANTES SONT TIRÉES AU HASARD À LA LECTURE.
+  #
+  # C'est le fonctionnement normal du cache — quatre formulations pour un
+  # même événement évitent la répétition. Mais ici, les variantes ne disaient
+  # pas la même chose : elles ÉNUMÉRAIENT DES FACTEURS. Résultat, sur une
+  # authentification par visage seul, JARVIS pouvait annoncer :
+  #
+  #     « Voix : validée. »              → aucune vérification du locuteur
+  #                                        n'existe dans le Core
+  #     « Signature gestuelle : validée. » → aucune authentification gestuelle
+  #                                        n'existe NULLE PART
+  #     « Score global : optimal. »       → aucun score n'est calculé
+  #
+  # Et même « Visage : validé. » est faux quand la session a été ouverte au
+  # code d'accès.
+  #
+  # Ne restent donc que les lignes qui décrivent l'ACTION en cours, vraies
+  # dans tous les cas. Les relevés par facteur reviendront quand chaque
+  # facteur existera pour de bon ET que la séquence saura les émettre
+  # conditionnellement — une variante tirée au sort ne peut pas rendre compte
+  # d'un état.
   - event: auth_fusion
     tone: cinematic
     security_level: elevated
@@ -372,37 +394,9 @@ lines:
   - event: auth_fusion
     tone: cinematic
     security_level: elevated
-    text: "Analyse combinatoire des facteurs d'identification."
+    text: "Consolidation de l'identification."
     face_animation: scan
     orb_state: thinking
-
-  - event: auth_fusion
-    tone: cinematic
-    security_level: elevated
-    text: "Visage : validé."
-    face_animation: acknowledge
-    orb_state: idle
-
-  - event: auth_fusion
-    tone: cinematic
-    security_level: elevated
-    text: "Voix : validée."
-    face_animation: acknowledge
-    orb_state: idle
-
-  - event: auth_fusion
-    tone: cinematic
-    security_level: elevated
-    text: "Signature gestuelle : validée."
-    face_animation: acknowledge
-    orb_state: idle
-
-  - event: auth_fusion
-    tone: cinematic
-    security_level: elevated
-    text: "Score global d'authentification : optimal."
-    face_animation: smile
-    orb_state: idle
 
   - event: access_granted
     tone: cinematic

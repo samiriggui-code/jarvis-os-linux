@@ -270,11 +270,32 @@ class Orchestrator:
                 # Identification vocale = synthèse debout ET micro branché.
                 # `is not False` : un micro jamais rapporté ne bloque pas la
                 # branche — on ne suppose pas une panne qu'on n'a pas vue.
+                #
+                # Plus référencée par aucune étape depuis que la branche
+                # vocale est suspendue (cf. `speaker_verified`). Conservée
+                # parce qu'elle redeviendra nécessaire le jour où la
+                # vérification du locuteur arrivera : il faudra alors les
+                # DEUX conditions — matériel présent et locuteur vérifiable.
                 "voice_auth_ready": lambda: (
                     self.voice is not None
                     and self.voice.available
                     and self._peripherals.get("mic") is not False
                 ),
+                # ⚠ FAUX, ET C'EST VOULU.
+                #
+                # Il n'existe aujourd'hui AUCUNE vérification du locuteur :
+                # pas d'empreinte vocale stockée, pas de modèle d'embedding,
+                # rien. Le fichier `data/users/<id>/voice_profile` est un
+                # preset TTS — la voix que JARVIS emploie pour PARLER à cette
+                # personne, pas celle qui permet de la reconnaître.
+                #
+                # Tant que ça n'a pas changé, la branche vocale de l'auth est
+                # sautée : mieux vaut ne rien annoncer que d'annoncer une
+                # « signature vocale validée » sur une transcription non vide.
+                #
+                # À basculer en même temps que l'arrivée de l'embedding
+                # locuteur, et pas avant.
+                "speaker_verified": lambda: False,
                 **{
                     f"{name}_watched": watched(name)
                     for name in ("hermes", "voice", "face", "holomat", "users", "agents")
@@ -1398,11 +1419,19 @@ class Orchestrator:
                 await ws.send(json.dumps({"type": "voice_error", "error": "voice requis"}))
                 return
             saved = save_voice_profile(user_id, patch)
-            if self.auth is not None and user_id != "local":
-                try:
-                    self.auth.users.mark_biometrics(user_id, voice=True)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("mark voice_enrolled: %s", exc)
+            # ⚠ NE PAS poser `voice_enrolled` ici.
+            #
+            # `save_profile` enregistre un PRESET TTS : le timbre que JARVIS
+            # emploie pour PARLER à cette personne. Ça n'a rien à voir avec
+            # une empreinte vocale permettant de LA RECONNAÎTRE.
+            #
+            # Le drapeau était mis ici, si bien que choisir une voix de
+            # synthèse faisait afficher « biométrie vocale : enrôlée » sur le
+            # profil. Un drapeau de sécurité qui ment est pire que pas de
+            # drapeau du tout : il sera lu comme une garantie.
+            #
+            # Il ne sera reposé que par un enrôlement d'empreinte réel, quand
+            # la vérification du locuteur existera.
             await ws.send(json.dumps({"type": "voice_profile_saved", **saved}))
             return
 
