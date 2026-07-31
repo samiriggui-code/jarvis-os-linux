@@ -40,6 +40,25 @@ Base OS : Ubuntu **ou** CachyOS — peu importe.
     └── jarvis.target
 ```
 
+## Ports
+
+Tout écoute sur **127.0.0.1**, jamais `0.0.0.0` : l'accès extérieur passe par
+le tunnel sortant NUC → VPS, et rien n'est exposé sur le réseau local.
+
+| Port | Service | Servi par |
+|------|---------|-----------|
+| 8080 | **HUD** (build React) | nginx — `deploy/nginx/jarvis-hud.conf` |
+| 8081 | Dashboard | *réservé — front non finalisé* |
+| 8082 | Setup Center | *réservé — front non finalisé* |
+| 8642 | Hermes | `JARVIS_HERMES_URL` |
+| 8765 | Core WebSocket | `jarvis-core.service` |
+| 17600 | voicebox (TTS/STT) | `jarvis-voicebox.service` |
+
+8080 figurait dans `jarvis-hud.service` depuis le début, mais **personne ne
+servait ce port** : Chromium démarrait sur « connexion refusée ». `file://`
+n'est pas une solution de repli — Chromium bloque les modules ES chargés
+ainsi, et le build Vite en produit.
+
 ## Mapping monorepo → NUC
 
 | Repo (PC) | NUC |

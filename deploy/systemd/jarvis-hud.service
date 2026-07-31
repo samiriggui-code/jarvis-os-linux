@@ -1,7 +1,10 @@
 [Unit]
 Description=JARVIS HUD (Chromium kiosk → React)
-After=jarvis-core.service graphical-session.target
-Requires=jarvis-core.service
+# nginx sert le build sur 127.0.0.1:8080 (deploy/nginx/jarvis-hud.conf).
+# `Requires` et pas `Wants` : sans lui, Chromium démarre sur une page
+# d'erreur et le kiosque affiche « connexion refusée » en plein salon.
+After=jarvis-core.service nginx.service graphical-session.target
+Requires=jarvis-core.service nginx.service
 PartOf=jarvis.target
 
 [Service]

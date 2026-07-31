@@ -43,6 +43,11 @@ if [[ -d "${ROOT}/assets" ]]; then
   rsync -av "${ROOT}/assets/" "${USER}@${HOST}:${OPT}/share/"
 fi
 
+# Configuration nginx du HUD. Poussée dans share/, PUIS installée dans
+# /etc/nginx/conf.d/ par bootstrap-nuc-tree.sh — pour que la version de
+# référence reste celle du dépôt et non une copie éditée sur le NUC.
+rsync -av "${ROOT}/deploy/nginx/" "${USER}@${HOST}:${OPT}/share/nginx/"
+
 # Fronts produit (absents tant que figma* non promu)
 if [[ -d "${ROOT}/hud/dist" ]]; then
   rsync -av --delete "${ROOT}/hud/dist/" "${USER}@${HOST}:${OPT}/hud/dist/"
@@ -60,7 +65,11 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -q -r requirements.txt
 echo "OK — Core: python -m jarvis_core"
-echo "HUD kiosk: nécessite build React + JARVIS_HUD_URL (pas encore sync si dist absent)"
+if [[ -d ${OPT}/hud/dist ]]; then
+  echo "OK — HUD: build présent, servi par nginx sur 127.0.0.1:8080"
+else
+  echo "!! HUD: ${OPT}/hud/dist absent — 'npm run build' dans hud/ puis resynchroniser"
+fi
 EOF
 
 echo "==> Sync terminé"

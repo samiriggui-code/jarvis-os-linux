@@ -128,8 +128,10 @@ EOF
 cat > "${UNIT_DIR}/jarvis-hud.service" <<'EOF'
 [Unit]
 Description=JARVIS HUD (Chromium kiosk → React)
-After=jarvis-core.service graphical-session.target
-Requires=jarvis-core.service
+# nginx sert le build sur 127.0.0.1:8080. `Requires` et pas `Wants` : sans
+# lui, Chromium démarre sur « connexion refusée », en plein salon.
+After=jarvis-core.service nginx.service graphical-session.target
+Requires=jarvis-core.service nginx.service
 PartOf=jarvis.target
 
 [Service]
@@ -145,14 +147,34 @@ RestartSec=3
 WantedBy=jarvis.target
 EOF
 
+# ⚠ Doit rester IDENTIQUE à deploy/systemd/jarvis.target. Les deux ont
+# divergé une fois : celui-ci omettait voicebox, donc un NUC bootstrappé par
+# ce script ne démarrait jamais la synthèse vocale — et personne ne le voyait,
+# puisque le Core se rabat silencieusement sur le cache.
 cat > "${UNIT_DIR}/jarvis.target" <<'EOF'
 [Unit]
 Description=JARVIS OS stack
-Wants=jarvis-core.service jarvis-hud.service
+Wants=jarvis-core.service jarvis-hud.service jarvis-voicebox.service
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# ─── nginx : sert le build du HUD sur 127.0.0.1:8080 ─────────────────────
+# Sans lui, jarvis-hud.service lance Chromium sur une URL que personne ne
+# sert. La configuration vit dans le dépôt (deploy/nginx/jarvis-hud.conf) et
+# est poussée par sync-to-nuc.sh ; on ne la duplique pas ici.
+if [[ -d /etc/nginx/conf.d ]]; then
+  if [[ -f "${OPT}/share/nginx/jarvis-hud.conf" ]]; then
+    install -m 644 "${OPT}/share/nginx/jarvis-hud.conf" /etc/nginx/conf.d/jarvis-hud.conf
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx 2>/dev/null || true
+    echo "==> nginx : conf HUD installée"
+  else
+    echo "!! ${OPT}/share/nginx/jarvis-hud.conf absent — lancer sync-to-nuc.sh d'abord"
+  fi
+else
+  echo "!! nginx absent — le HUD ne sera pas servi. Installer : apt install nginx"
+fi
 
 systemctl daemon-reload 2>/dev/null || true
 
