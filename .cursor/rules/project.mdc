@@ -1,0 +1,48 @@
+---
+description: JARVIS OS — architecture, couches, principes non négociables
+alwaysApply: true
+---
+
+# JARVIS OS
+
+Spec vivante : `cahierdecharges.md` (§1–N, renvois `§N`).  
+Code produit actuel : `core/` + `setup/` + fronts React `hud/` (HUD) et `dashboard/` (Dashboard). **Pas de couche Qt/QML.** `vendor/figma1` / `figma2` = backup uniquement.
+
+## Couches
+
+| Couche | Techno | Emplacement |
+|--------|--------|-------------|
+| HUD | React | `hud/` |
+| Dashboard | React | `dashboard/` |
+| Core | Python + Policy + Provider + Auth | `core/` |
+| Setup | React + Vite | `setup/` |
+| Deploy | Manifestes / scripts | `deploy/` |
+| Assets | Orbe + fonts | `assets/` |
+| Holomat / vision | TBD | `vendor/vision/` |
+| Upstream voix / Hermes | refs | `vendor/refs/jarvis_ai/`, `vendor/agents/hermes-agent/` |
+
+- **Un service systemd par fonction** (`jarvis-hud`, `jarvis-core`, `jarvis-voice`…) — jamais un monolithe.
+- Orchestrateur **délègue** aux agents (voix, vision, maison, système, média, dev, sécu).
+- LLM **uniquement** via AI Provider Manager : **Ollama VPS → OpenRouter → mode sans LLM**. ProLiant = Plex/NAS Windows (**pas** Ollama, **pas** SSH). **PostgreSQL + SQLAlchemy + Alembic** (users / Dashboard / config). Hermes + seed dès le 1er chat. Clients externes = web (micro + caméra) ; ElevenLabs dehors.
+- **JARVIS BASE** (démarrage, diag, réseau, backup, maintenance) doit survivre sans HUD/IA/domotique.
+
+## Sécurité (non négociable)
+
+```
+IA → Proposition → Policy Engine → Autorisation → Exécution
+```
+
+Jamais IA → root. Secrets hors code / hors git. Niveaux : info < média < domotique < admin.  
+Données externes filtrées avant LLM. Discovery ≠ droits (appairage obligatoire). IoT isolé du Core.
+
+## Vendor
+
+- `hud/` · `dashboard/` = fronts produit React (Vite) — **développer ici**.
+- `vendor/figma1` · `vendor/figma2` = backup / archive — ne plus développer ici ; ne pas supprimer tout de suite.
+- `vendor/ui/` · `vendor/services/` · `vendor/vision/` = références.
+- `vendor/hors-scope/` = hors-sujet JARVIS OS (`relancr`).
+- Ne pas modifier le noyau Linux — apps/services **au-dessus**.
+
+## Avant de trancher (demander)
+
+Auth/appairage par appareil · coffre secrets (Secret Service / KWallet / Vault) · fusion profils install vs usages.

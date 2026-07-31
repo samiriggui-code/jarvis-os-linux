@@ -1,0 +1,25 @@
+---
+description: Édition du cahier des charges JARVIS OS
+globs: cahierdecharges.md
+alwaysApply: false
+---
+
+# Cahier des charges
+
+Fichier : `cahierdecharges.md` — document vivant, sections `## N.` + renvois `§N`.
+
+## Méthode
+
+1. **Étendre** une section existante si le sujet la complète.
+2. **Créer** une nouvelle `## N.` seulement si le sujet est vraiment nouveau.
+3. Après insertion : **renuméroter** tous les titres `## N.` et **tous** les renvois `§N` / « voir §N ».
+4. Garder le ton : architecture + garde-fous, pas de code d’implémentation long.
+5. Marquer les indécisions avec `> **Point ouvert** : …`.
+
+## Ne pas
+
+- Coller un pavé brut en fin de fichier sans intégration.
+- Dupliquer une idée déjà couverte — croiser avec `§N` à la place.
+- Casser la numérotation des renvois croisés.
+
+Skill Claude miroir : `.claude/skills/cahier-des-charges/SKILL.md`.

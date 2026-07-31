@@ -1,0 +1,15 @@
+---
+description: Conventions couche Core orchestrateur
+globs: core/**
+alwaysApply: false
+---
+
+# core/
+
+Orchestrateur Python : Policy Engine + AI Provider Manager + WS `:8765`.
+
+- Lancer : `python -m jarvis_core` depuis `core/` (venv + requirements)
+- Futurs clients : React HUD / Dashboard (`vendor/figma*`) — pas de Qt
+- Agents dans `jarvis_core/agents/` — stubs ; réf. voix `vendor/refs/jarvis_ai`
+- Jamais IA → root : passer par `policy.py`
+- Providers via `providers.py` uniquement

@@ -1,0 +1,12 @@
+# Snippet à fusionner dans $HERMES_HOME/config.yaml
+#
+# Pointe Hermes vers les skills produit versionnés dans le monorepo
+# (chemins relatifs = adapter après install, ou utiliser le script seed).
+
+skills:
+  external_dirs:
+    # Exemple Windows (adapter) :
+    # - "C:/laragon/www/jarvis-os-linux/deploy/hermes/skills"
+    # Exemple NUC :
+    # - "/opt/jarvis/jarvis-os-linux/deploy/hermes/skills"
+    - "./deploy/hermes/skills"

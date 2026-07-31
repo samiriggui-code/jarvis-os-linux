@@ -1,0 +1,227 @@
+# Remise en service — réamorçage, mode de secours, repli console.
+#
+# ─── REGISTRE : CELUI DE `auth.yaml` ──────────────────────────────────────
+#
+# Même grammaire que le protocole d'identification, et pour la même raison :
+# c'est la même voix, dans la même minute. Un boot qui bascule du registre
+# cinéma (« Extraction des vecteurs biométriques ») au rapport d'incident
+# (« Une dépendance manque à l'appel ») s'entend immédiatement.
+#
+#   • GROUPES NOMINAUX, pas de « je » : « Séquence de réamorçage engagée »
+#     et non « Je vais essayer de relancer ».
+#   • LECTURE À DEUX-POINTS pour les valeurs — « Module : synthèse vocale. »,
+#     calqué sur « Visage : validé. » et « Score global : optimal. »
+#   • VOCABULAIRE SF TECHNIQUE : réamorçage, sous-systèmes, paramètres
+#     nominaux, chaîne d'exécution, élévation de privilèges, intégrité.
+#   • AUCUN trait d'esprit sur un incident (règle de `mission.yaml`).
+#
+# ─── CE QUE CE DOMAINE ANNONCE ────────────────────────────────────────────
+#
+# Une brique ne répond pas. Avant de la déclarer perdue, JARVIS TENTE quelque
+# chose. Ces phrases accompagnent la tentative.
+#
+# ⚠ « Séquence de réamorçage engagée » ANNONCE UNE ACTION RÉELLE. Si rien
+# n'est tenté derrière, la phrase est un mensonge — pire que le silence. Même
+# règle que `mission_search_start` : à ne câbler que sur les composants qui
+# ont une stratégie dans `jarvis_core/recovery.py`.
+#
+# ⚠ Jamais « Hermes », jamais « voicebox » : `{module}` porte le nom du
+# SERVICE RENDU (`cache_config.yaml`).
+version: 1
+domain: recovery
+default_voice: jarvis
+
+lines:
+
+  # ══ RÉAMORÇAGE ══════════════════════════════════════════════════════════
+  #
+  # Prononcé AVANT l'action : seul endroit du démarrage où la phrase annonce
+  # au lieu d'affirmer. Partout ailleurs, le constat suit la sonde.
+
+  - event: recovery_restart_start
+    tone: cinematic
+    security_level: public
+    text:
+      - "Séquence de réamorçage engagée. Module : {module}."
+      - "Tentative de réinitialisation. Module ciblé : {module}."
+    face_animation: boot
+    orb_state: thinking
+
+  # Pas de `{module}` : la ligne suit immédiatement la tentative, le contexte
+  # est posé. Un WAV au lieu de six, et l'enchaînement est plus net.
+  - event: recovery_restart_ok
+    tone: cinematic
+    security_level: public
+    text:
+      - "Réamorçage réussi. Paramètres nominaux rétablis."
+      - "Module réinitialisé. Reprise de la séquence."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: recovery_restart_failed
+    tone: security_alert
+    security_level: public
+    # ⚠ Pas de vocabulaire administratif ici — « infructueux », « négatif »,
+    # « non conforme » sonnent rapport d'incident et cassent net le registre
+    # de `auth.yaml`. Constat sec, lecture à deux-points, rien d'autre.
+    text:
+      - "Échec du réamorçage. Module : {module}."
+      - "Aucune réponse après réinitialisation. Module : {module}."
+    face_animation: alert
+    orb_state: error
+
+  # Relance d'attente pendant un réamorçage long (un conteneur qui recharge
+  # ses modèles). Deux maximum, puis silence — règle de `mission.yaml`.
+  - event: recovery_wait
+    tone: technical
+    security_level: public
+    text:
+      - "Séquence en cours. Stabilisation des sous-systèmes."
+      - "Réamorçage toujours en cours."
+    orb_state: thinking
+
+  # ══ NATURE DE L'AVARIE ══════════════════════════════════════════════════
+  #
+  # Dites AVANT le réamorçage quand la stratégie est connue. Registre
+  # technique, mais sans jargon d'exploitation : la maison n'a pas à savoir ce
+  # qu'est un conteneur pour comprendre qu'une couche est tombée.
+
+  - event: recovery_container_down
+    tone: cinematic
+    security_level: public
+    text:
+      - "Conteneur d'exécution hors ligne."
+      - "Perte d'une couche d'exécution."
+    orb_state: thinking
+
+  - event: recovery_service_down
+    tone: cinematic
+    security_level: public
+    text:
+      - "Unité système inactive."
+      - "Interruption d'une unité système."
+    orb_state: thinking
+
+  - event: recovery_dependency_missing
+    tone: cinematic
+    security_level: public
+    text:
+      - "Composant absent de la chaîne d'exécution."
+      - "Dépendance manquante détectée dans la chaîne d'exécution."
+    orb_state: thinking
+
+  - event: recovery_dependency_install
+    tone: cinematic
+    security_level: public
+    text:
+      - "Acquisition du composant manquant."
+    orb_state: thinking
+
+  - event: recovery_dependency_done
+    tone: cinematic
+    security_level: public
+    text:
+      - "Composant intégré à la chaîne d'exécution."
+    orb_state: idle
+
+  # ══ ÉLÉVATION DE PRIVILÈGES ═════════════════════════════════════════════
+  #
+  # Réamorcer une unité système ou acquérir un composant touche à la machine.
+  # Le cahier est sans ambiguïté : l'IA propose, la Policy Engine dispose,
+  # l'humain confirme. JARVIS ne s'accorde jamais ce droit — surtout pas pour
+  # se réparer lui-même.
+  #
+  # Vocabulaire calé sur `auth.yaml` : « Élévation des permissions autorisée. »
+  # Vouvoiement : c'est une demande d'autorisation, pas une conversation.
+
+  - event: recovery_permission_system
+    tone: security_alert
+    security_level: elevated
+    address: vous
+    text:
+      - "Cette opération requiert une élévation de privilèges. Autorisez-vous ?"
+    orb_state: listening
+    pause_ms: 400
+
+  - event: recovery_permission_denied
+    tone: cinematic
+    security_level: public
+    text:
+      - "Élévation refusée. Opération suspendue."
+    orb_state: idle
+
+  # ══ MODE DE SECOURS ═════════════════════════════════════════════════════
+  #
+  # Annoncé quand le démarrage se termine avec au moins un sous-système perdu
+  # malgré les tentatives. Ce n'est PAS un échec de démarrage : les autres
+  # modules ont répondu, la maison fonctionne, en retrait.
+  #
+  # Trois choses à dire, pas une de plus : ce qui se passe, que c'est
+  # volontaire, que ce n'est pas définitif.
+
+  - event: recovery_mode_entered
+    tone: cinematic
+    security_level: public
+    text:
+      - "Bascule sur les protocoles de secours. Fonctions vitales maintenues."
+      - "Mode de secours engagé. Le noyau cognitif demeure opérationnel."
+    face_animation: alert
+    orb_state: thinking
+    pause_ms: 400
+
+  - event: recovery_mode_diagnostic
+    tone: cinematic
+    security_level: public
+    text:
+      - "Analyse différentielle des sous-systèmes en cours."
+      - "Relevé d'intégrité en cours."
+    orb_state: thinking
+
+  - event: recovery_mode_retry
+    tone: cinematic
+    security_level: public
+    text:
+      - "Nouvelle passe de réamorçage sur les modules défaillants."
+    orb_state: thinking
+
+  - event: recovery_mode_recovered
+    tone: cinematic
+    security_level: public
+    text:
+      - "Intégrité restaurée. Sortie du mode de secours."
+      - "L'ensemble des sous-systèmes répond dans les paramètres nominaux."
+    face_animation: acknowledge
+    orb_state: idle
+    pause_ms: 500
+
+  # ══ REPLI CONSOLE — bas niveau ══════════════════════════════════════════
+  #
+  # Dernier étage de la dégradation : plus d'interface, plus de capteurs,
+  # plus d'agents. Il reste le système et un terminal. JARVIS BASE doit
+  # survivre là aussi (cahier §11), donc il parle encore — depuis le cache,
+  # qui ne dépend de rien.
+
+  - event: recovery_console_mode
+    tone: security_alert
+    security_level: public
+    text:
+      - "Couche graphique hors ligne. Repli sur l'interface système."
+    face_animation: alert
+    orb_state: error
+    pause_ms: 400
+
+  - event: recovery_console_ready
+    tone: cinematic
+    security_level: public
+    text:
+      - "Interface système active. Le noyau reste à votre disposition."
+    orb_state: idle
+
+  - event: recovery_manual_required
+    tone: security_alert
+    security_level: public
+    text:
+      - "Protocoles de restauration épuisés. Intervention manuelle requise."
+      - "Je ne peux rétablir ce module seul. Votre intervention est requise."
+    face_animation: alert
+    orb_state: error

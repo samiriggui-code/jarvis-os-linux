@@ -1,0 +1,216 @@
+# Diagnostics, calibration, tests matériel — et surtout : les ÉCHECS.
+#
+# ─── LA RÈGLE DE CE FICHIER ───────────────────────────────────────────────
+#
+# Chaque `*_start` a son `*_failed`. Une séquence qui ne sait qu'annoncer le
+# succès ment à l'utilisateur dès que quelque chose casse — et c'est
+# précisément là qu'il a besoin d'être informé.
+#
+# COROLLAIRE CRITIQUE : ces phrases d'échec ne doivent JAMAIS passer par un
+# TTS cloud. Si la caméra ne répond pas parce que le réseau est tombé,
+# appeler ElevenLabs pour l'annoncer échoue aussi. Une annonce de panne qui
+# dépend du cloud est une annonce de panne qui ne sort pas.
+#
+# Tout ce fichier est donc en cache, sans exception, y compris hors domicile.
+#
+# ─── AVANCEMENT SUR ÉVÉNEMENT, PAS SUR MINUTERIE ──────────────────────────
+#
+# L'Experience Orchestrator enchaîne les étapes sur des ÉVÉNEMENTS RÉELS
+# (caméra ouverte, visage détecté, micro capté), jamais sur un `sleep()`.
+# Sinon JARVIS annonce « Analyse terminée » avant que la caméra ait démarré,
+# et l'illusion tombe au premier incident.
+version: 1
+domain: diagnostic
+default_voice: jarvis
+
+lines:
+
+  # ── Caméra ─────────────────────────────────────────────────────────────
+
+  - event: camera_test_start
+    tone: technical
+    security_level: public
+    text:
+      - "Test de la caméra."
+      - "Vérification du flux vidéo."
+    orb_state: thinking
+
+  - event: camera_test_ok
+    tone: technical
+    security_level: public
+    text:
+      - "Caméra opérationnelle."
+    orb_state: idle
+
+  - event: camera_failed
+    tone: security_alert
+    security_level: public
+    address: vous
+    text:
+      - "Je ne parviens pas à activer la caméra, {titre}."
+      - "La caméra ne répond pas. Souhaitez-vous réessayer ?"
+    orb_state: error
+    pause_ms: 400
+
+  - event: camera_busy
+    tone: technical
+    security_level: public
+    text:
+      - "La caméra est utilisée par une autre application."
+    orb_state: error
+
+  # ── Micro ──────────────────────────────────────────────────────────────
+
+  - event: mic_test_start
+    tone: technical
+    security_level: public
+    address: vous
+    text:
+      - "Test du microphone. Parlez normalement."
+      - "Vérification du micro. Dites quelques mots."
+    orb_state: listening
+
+  - event: mic_test_ok
+    tone: technical
+    security_level: public
+    text:
+      - "Micro opérationnel."
+      - "Niveau sonore correct."
+    orb_state: idle
+
+  - event: mic_too_low
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Le niveau est trop faible. Rapprochez-vous du micro."
+    orb_state: listening
+
+  - event: mic_too_loud
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Le niveau est trop élevé. Éloignez-vous légèrement."
+    orb_state: listening
+
+  - event: mic_failed
+    tone: security_alert
+    security_level: public
+    text:
+      - "Aucun microphone détecté, {titre}."
+      - "Le microphone ne répond pas."
+    orb_state: error
+
+  # ── Calibration gestuelle (Holomat) ────────────────────────────────────
+
+  - event: gesture_calib_start
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Calibration gestuelle. Placez votre main dans le champ."
+    orb_state: thinking
+    pause_ms: 300
+
+  - event: gesture_hand_detected
+    tone: technical
+    security_level: public
+    text:
+      - "Main détectée."
+    orb_state: idle
+
+  - event: gesture_calib_hold
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Maintenez la position."
+    orb_state: thinking
+
+  - event: gesture_calib_ok
+    tone: cinematic
+    security_level: public
+    text:
+      - "Calibration gestuelle terminée."
+      - "Suivi de la main opérationnel."
+    orb_state: idle
+
+  - event: gesture_calib_failed
+    tone: security_alert
+    security_level: public
+    address: vous
+    text:
+      - "Je ne détecte pas votre main. Vérifiez l'éclairage."
+      - "Calibration interrompue. Souhaitez-vous recommencer ?"
+    orb_state: error
+
+  # ── Vérification des services et API ───────────────────────────────────
+  # Les comptes sont des fragments numériques assemblés à la lecture :
+  # « ... sur ... services sont opérationnels ».
+
+  - event: diag_start
+    tone: technical
+    security_level: public
+    text:
+      - "Diagnostic système en cours."
+      - "Vérification des services."
+    orb_state: thinking
+
+  - event: diag_all_ok
+    tone: technical
+    security_level: public
+    text:
+      - "Tous les services sont opérationnels."
+      - "Aucune anomalie détectée."
+    orb_state: idle
+
+  - event: diag_partial
+    tone: security_alert
+    security_level: public
+    text:
+      - "Certains services sont hors ligne."
+    orb_state: error
+
+  - event: api_check_ok
+    tone: technical
+    security_level: public
+    text:
+      - "Connexions aux services externes établies."
+    orb_state: idle
+
+  - event: api_check_failed
+    tone: security_alert
+    security_level: public
+    text:
+      - "Un service externe est injoignable."
+      - "Clé d'accès refusée par le service."
+    orb_state: error
+
+  # ── Échec générique d'une séquence ─────────────────────────────────────
+  # Filet de sécurité : une étape qui n'a pas sa propre ligne d'échec tombe
+  # ici plutôt que de laisser l'utilisateur devant une orbe figée.
+
+  - event: sequence_failed
+    tone: security_alert
+    security_level: public
+    text:
+      - "La procédure n'a pas abouti."
+      - "Interruption. Aucune modification n'a été enregistrée."
+    orb_state: error
+    pause_ms: 400
+
+  - event: sequence_retry
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Souhaitez-vous réessayer ?"
+    orb_state: listening
+
+  - event: sequence_aborted
+    tone: human
+    security_level: public
+    text:
+      - "Procédure abandonnée."
+    orb_state: idle

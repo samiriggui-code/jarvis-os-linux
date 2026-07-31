@@ -1,0 +1,45 @@
+# Alertes sécurité / accès — Dialogue Manager (§13.10)
+version: 1
+domain: security
+default_voice: jarvis
+
+lines:
+
+  - event: unauthorized_access
+    tone: security_alert
+    security_level: alert
+    text: "Alerte."
+    face_animation: alert
+    orb_state: error
+    hud_overlay: access_denied
+    holo_sfx: alert_pulse
+
+  - event: unauthorized_access
+    tone: security_alert
+    security_level: alert
+    text: "Une tentative d'accès non autorisée a été détectée."
+    face_animation: alert
+    orb_state: error
+
+  - event: protection_protocol
+    tone: security_alert
+    security_level: alert
+    text: "Activation du protocole de protection."
+    face_animation: scan
+    orb_state: error
+
+  - event: identity_required
+    tone: security_alert
+    security_level: alert
+    text: "Vérification d'identité obligatoire."
+    face_animation: speak
+    orb_state: listening
+    hud_overlay: face_scan_active
+
+  - event: access_suspended
+    tone: security_alert
+    security_level: alert
+    text: "Accès suspendu jusqu'à validation complète."
+    face_animation: alert
+    orb_state: error
+    hud_overlay: access_denied

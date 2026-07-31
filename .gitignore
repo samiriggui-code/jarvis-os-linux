@@ -1,0 +1,41 @@
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+# Toute variante de .env : sauvegardes, copies datées, .env.bak, .env.old…
+# Le motif `.env` seul ne couvrait pas `.env.env.bak` et laissait passer un
+# fichier contenant les clés.
+.env*
+!.env.example
+secrets.env
+*.log
+.DS_Store
+core/.venv/
+core/data/*.db
+core/data/users/
+core/jarvis_core/holomat/data/*.onnx
+setup/node_modules/
+setup/dist/
+hud/dist/
+dashboard/dist/
+
+# ─── Upstream tiers ───────────────────────────────────────────────────────
+# 449 Mo, 13 000 fichiers, code que nous n'écrivons pas. Marqué « backup /
+# upstream » dans CLAUDE.md : ça se re-télécharge, ça n'a rien à faire dans
+# notre historique.
+vendor/
+
+# ─── Cache vocal ──────────────────────────────────────────────────────────
+# 174 Mo de WAV — un artefact de build, produit par
+# `scripts/generate_voice_cache.py`. `sync-to-nuc.sh` le qualifie lui-même de
+# « régénérable » et se charge de le pousser sur le NUC.
+#
+# ⚠ Régénérable ne veut PAS dire gratuit : chaque clip est un appel
+# ElevenLabs facturé. La sauvegarde de référence est `/storage/jarvis/backups`
+# sur le NUC, pas ce dépôt. Git est le mauvais outil ici : à chaque
+# régénération, les anciens binaires resteraient dans l'historique à jamais.
+core/data/voice/cache/

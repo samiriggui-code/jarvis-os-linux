@@ -1,0 +1,20 @@
+[Unit]
+Description=JARVIS Core (orchestrator)
+After=network.target
+PartOf=jarvis.target
+
+[Service]
+# notify + WatchdogSec : couvre le Core qui se FIGE, que Restart=on-failure ne
+# voit pas. Le superviseur envoie WATCHDOG=1 à chaque tick ; s'il se taise
+# 30 s, systemd tue et relance. Voir jarvis_core/supervisor.py.
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
+WorkingDirectory=/opt/jarvis/core
+Environment=JARVIS_CONFIG_DIR=/etc/jarvis
+ExecStart=/opt/jarvis/bin/jarvis-core
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=jarvis.target

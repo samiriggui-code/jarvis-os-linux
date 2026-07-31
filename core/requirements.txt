@@ -1,0 +1,15 @@
+websockets>=12.0
+python-dotenv>=1.0.0
+PyYAML>=6.0
+numpy>=2.0
+Pillow>=10.0
+opencv-python-headless>=4.8
+SQLAlchemy>=2.0.36
+alembic>=1.14.0
+psycopg[binary]>=3.2.0
+
+# Wake word — NUC uniquement (micro physique). Optionnel : absentes, le Core
+# démarre sans réveil mains libres et le push-to-talk du HUD suffit.
+# Sous Linux, sounddevice réclame portaudio : apt install portaudio19-dev
+openwakeword>=0.6.0
+sounddevice>=0.4.6

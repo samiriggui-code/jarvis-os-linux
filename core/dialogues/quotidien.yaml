@@ -1,0 +1,469 @@
+# Quotidien — réponses aux intentions déterministes (sans LLM).
+#
+# Ces lignes sont pré-générées en WAV et mises en cache sur le NUC : elles ne
+# coûtent ni token ni caractère ElevenLabs, et elles répondent même quand
+# Ollama, OpenRouter ou Internet sont tombés.
+#
+# Discipline d'écriture : ÉVITER LES PRONOMS. Une phrase sans « vous » ni
+# « tu » sert les cinq profils avec un seul fichier audio. On ne duplique que
+# là où c'est vraiment inévitable (salutations, questions directes).
+version: 1
+domain: quotidien
+default_voice: jarvis
+
+lines:
+
+  # ── Accusés de réception ───────────────────────────────────────────────
+  # 4 variantes tirées au hasard : entendre le même fichier 40 fois par jour
+  # est ce qui transforme un assistant en distributeur automatique.
+
+  - event: ack_done
+    tone: human
+    security_level: public
+    text:
+      - "C'est fait."
+      - "Voilà."
+      - "Entendu."
+      - "Terminé."
+      - "Action effectuée."
+      - "Opération terminée."
+    orb_state: idle
+    pause_ms: 200
+
+  - event: ack_working
+    tone: human
+    security_level: public
+    text:
+      - "Un instant."
+      - "Je m'en occupe."
+      - "Tout de suite."
+      - "Je vérifie."
+      - "Analyse en cours."
+      - "Recherche en cours."
+    orb_state: thinking
+
+  # Registre « cinéma » — à réserver aux moments qui le méritent (fin de
+  # tâche longue, action admin, retour à la maison). Sorti à tout bout de
+  # champ, l'effet s'use en une semaine.
+  #
+  # Toutes neutres SAUF « À votre service. » : d'où le doublon minimal.
+
+  - event: ack_cinematic
+    tone: cinematic
+    security_level: public
+    text:
+      - "Bien entendu."
+      - "Comme demandé."
+      - "Avec plaisir."
+      - "C'est accompli."
+      - "La procédure est terminée."
+      - "Tout est sous contrôle."
+    orb_state: idle
+
+  - event: ack_cinematic
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "À votre service."
+    orb_state: idle
+
+  - event: ack_cancelled
+    tone: human
+    security_level: public
+    text:
+      - "Action annulée."
+      - "J'annule."
+      - "Abandon."
+    orb_state: idle
+
+  # ── Éclairage / domotique confort ──────────────────────────────────────
+  # {room} est expansé à la génération : un WAV par pièce réelle.
+
+  - event: light_on
+    tone: human
+    security_level: public
+    text:
+      - "J'allume {room}."
+      - "C'est allumé."
+    orb_state: idle
+
+  - event: light_off
+    tone: human
+    security_level: public
+    text:
+      - "J'éteins {room}."
+      - "C'est éteint."
+    orb_state: idle
+
+  - event: all_off
+    tone: human
+    security_level: public
+    text:
+      - "Tout est éteint."
+      - "Extinction générale."
+    orb_state: idle
+
+  # ── Média ──────────────────────────────────────────────────────────────
+
+  - event: media_launched
+    tone: human
+    security_level: public
+    text:
+      - "{service} lancé."
+      - "{service}, c'est parti."
+    orb_state: idle
+
+  - event: media_transferred
+    tone: human
+    security_level: public
+    text:
+      - "Transféré sur {target}."
+      - "C'est sur {target}."
+    orb_state: idle
+
+  - event: media_paused
+    tone: human
+    security_level: public
+    text:
+      - "En pause."
+      - "Pause."
+      - "Lecture mise en pause."
+    orb_state: idle
+
+  - event: media_resumed
+    tone: human
+    security_level: public
+    text:
+      - "Lecture reprise."
+    orb_state: idle
+
+  - event: media_stopped
+    tone: human
+    security_level: public
+    text:
+      - "J'arrête la lecture."
+      - "Lecture arrêtée."
+    orb_state: idle
+
+  - event: media_finished
+    tone: human
+    security_level: public
+    text:
+      - "Le film est terminé."
+    orb_state: idle
+
+  # ── Chauffage & accès ──────────────────────────────────────────────────
+  # Le chauffage est du confort (niveau domotique). Les portes NON : elles
+  # passent par door_confirm plus bas, avec confirmation explicite.
+
+  - event: heating_on
+    tone: human
+    security_level: public
+    text:
+      - "Le chauffage est activé."
+    orb_state: idle
+
+  - event: heating_off
+    tone: human
+    security_level: public
+    text:
+      - "Le chauffage est désactivé."
+    orb_state: idle
+
+  - event: temperature_set
+    tone: human
+    security_level: public
+    text:
+      - "La température est réglée."
+    orb_state: idle
+
+  - event: door_locked
+    tone: security_alert
+    security_level: elevated
+    text:
+      - "La porte est verrouillée."
+    orb_state: idle
+
+  - event: door_unlocked
+    tone: security_alert
+    security_level: elevated
+    text:
+      - "La porte est ouverte."
+    orb_state: error
+
+  # ── Erreurs / indisponibilité ──────────────────────────────────────────
+
+  - event: device_unreachable
+    tone: technical
+    security_level: public
+    text:
+      - "Impossible de joindre {device}."
+      - "Appareil injoignable : {device}."
+    orb_state: error
+
+  - event: error_generic
+    tone: technical
+    security_level: public
+    text:
+      - "Une erreur est survenue."
+      - "Je n'ai pas réussi à terminer cette action."
+      - "Je rencontre un problème technique."
+    orb_state: error
+
+  - event: service_unavailable
+    tone: technical
+    security_level: public
+    text:
+      - "Le service demandé est indisponible."
+      - "La connexion au service a échoué."
+    orb_state: error
+
+  - event: house_unreachable
+    tone: technical
+    security_level: public
+    text:
+      - "La maison est injoignable pour le moment."
+      - "Aucune liaison avec le domicile."
+    orb_state: error
+
+  - event: not_understood
+    tone: human
+    security_level: public
+    text:
+      - "Je n'ai pas compris."
+      - "Pouvez-vous reformuler ?"      # address: vous
+      - "Je vous prie de reformuler, {titre}."
+    orb_state: idle
+
+  # ── Permissions ────────────────────────────────────────────────────────
+  # Formulations volontairement impersonnelles : elles évitent le pronom ET
+  # elles ne culpabilisent pas l'enfant qui vient de demander le terminal.
+
+  - event: permission_denied
+    tone: technical
+    security_level: public
+    text:
+      - "Action non autorisée."
+      - "Ce droit n'est pas accordé sur ce profil."
+    orb_state: error
+
+  - event: confirm_required
+    tone: security_alert
+    security_level: elevated
+    text:
+      - "Confirmation requise."
+      - "Cette action demande une confirmation, {titre}."
+    orb_state: error
+    pause_ms: 400
+
+  # ── Accès et sécurité (niveau au-dessus de la domotique confort) ───────
+
+  - event: door_confirm
+    tone: security_alert
+    security_level: elevated
+    user_role: admin
+    text:
+      - "J'ouvre {door}. Confirmation requise."
+    orb_state: error
+    pause_ms: 500
+
+  # ── Salutations — les seules qui dupliquent vraiment ───────────────────
+  # {user} est expansé à la génération : un WAV par personne, pas un
+  # assemblage de fragments (la couture s'entendrait).
+
+  # ADULTES : le titre, jamais le prénom — JARVIS ne dit pas « Tony », il dit
+  # « sir ». ENFANTS : le prénom, parce que « Bonjour, mademoiselle » à Syrine
+  # de huit ans mettrait une distance qu'on ne veut pas. Voir reveil.yaml.
+
+  - event: greeting
+    tone: human
+    security_level: auth
+    user_role: admin
+    text:
+      - "Bonjour, {titre}."
+      - "Bonjour, {titre}. Tous les systèmes sont opérationnels."
+      - "Ravi de vous revoir, {titre}."
+      - "Content de vous retrouver, {titre}."
+    orb_state: idle
+
+  - event: greeting
+    tone: human
+    security_level: auth
+    user_role: user
+    text:
+      - "Bonjour, {titre}."
+      - "Bonjour, {titre}. Tous les systèmes sont opérationnels."
+      - "Ravi de vous revoir, {titre}."
+      - "Content de vous retrouver, {titre}."
+    orb_state: idle
+
+  - event: greeting
+    tone: human
+    security_level: auth
+    address: tu
+    user_role: child
+    text:
+      - "Bonjour {user}."
+      - "Bonjour {user}. Tous les systèmes sont opérationnels."
+      - "{user}. Ravi de te revoir."
+      - "{user}. Content de te retrouver."
+    orb_state: idle
+
+  # Salutation sans identification (personne non reconnue, invité) : jamais
+  # de prénom, toujours `vous`.
+
+  - event: greeting_anonymous
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Bonjour."
+      - "Bonsoir."
+      - "Je vous écoute."
+      - "Comment puis-je vous aider ?"
+    orb_state: listening
+
+  - event: goodnight
+    tone: human
+    security_level: auth
+    user_role: admin
+    text:
+      - "Bonne nuit, {titre}."
+      - "Bonne nuit."
+    orb_state: idle
+
+  - event: goodnight
+    tone: human
+    security_level: auth
+    user_role: user
+    text:
+      - "Bonne nuit, {titre}."
+      - "Bonne nuit."
+    orb_state: idle
+
+  - event: goodnight
+    tone: human
+    security_level: auth
+    address: tu
+    user_role: child
+    text:
+      - "Bonne nuit, {user}."
+      - "Bonne nuit."
+    orb_state: idle
+
+  # ── Négociation du tutoiement ──────────────────────────────────────────
+  # Posée UNE fois, après un premier service rendu — jamais pendant
+  # l'enrôlement. Si la réponse est non, ne plus jamais reposer la question.
+  # La confirmation positive est déjà au tutoiement : le changement se
+  # démontre au lieu d'être annoncé.
+
+  - event: address_ask
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "Souhaitez-vous que je vous tutoie ?"
+    orb_state: idle
+    pause_ms: 300
+
+  - event: address_accepted
+    tone: human
+    security_level: auth
+    address: tu
+    text:
+      - "Avec plaisir. Je m'y tiens."
+    orb_state: idle
+
+  - event: address_declined
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "Très bien, je continue ainsi."
+    orb_state: idle
+
+  # ── Effets sonores — pilotage à la voix ────────────────────────────────
+  # « JARVIS, modifie tes effets sonores » / « passe en mode proche » /
+  # « moins d'écho ». Intent déterministe : aucun LLM, aucune latence.
+  # Les presets et les bornes sont dans core/data/voice/filter_presets.yaml.
+  #
+  # Ces confirmations sont jouées AVEC le nouveau réglage déjà appliqué :
+  # la phrase est la démonstration du changement, pas son annonce.
+
+  # « JARVIS, liste tes modes » — l'énumération est une phrase entière, pas
+  # un assemblage. Ajouter un preset veut dire regénérer ce clip : un seul,
+  # c'est le bon compromis face à une liste recollée qui s'entendrait.
+
+  - event: filter_list
+    tone: human
+    security_level: public
+    text:
+      - "Cinq réglages : proche, pièce, cristallin, profond, spectral. Et normal, sans aucun effet."
+    orb_state: listening
+    pause_ms: 300
+
+  - event: filter_ask
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Lequel ?"
+      - "Quel réglage souhaitez-vous ?"
+    orb_state: listening
+
+  # « Coupe les effets », « voix normale » → preset `sec`. La confirmation
+  # est volontairement jouée SANS effet : elle est sa propre démonstration.
+
+  - event: filter_off
+    tone: human
+    security_level: public
+    text:
+      - "Effets coupés. Voix naturelle."
+      - "Sans effet."
+    orb_state: idle
+
+  - event: filter_set
+    tone: cinematic
+    security_level: public
+    text:
+      - "Voilà."
+      - "Réglage appliqué."
+    orb_state: idle
+
+  - event: filter_adjusted
+    tone: human
+    security_level: public
+    text:
+      - "Ajusté."
+      - "Comme ceci ?"
+    orb_state: idle
+
+  # Butée atteinte. Sans ce garde-fou, dix « plus d'écho » de suite rendent
+  # JARVIS inaudible — et il faut alors la voix pour revenir en arrière,
+  # ce qui ne fonctionne plus.
+
+  - event: filter_limit
+    tone: technical
+    security_level: public
+    text:
+      - "C'est le maximum."
+      - "Je ne peux pas aller plus loin dans ce sens."
+    orb_state: idle
+
+  - event: filter_reset
+    tone: technical
+    security_level: public
+    text:
+      - "Réglages d'origine rétablis."
+    orb_state: idle
+
+  # ── Mode sans LLM ──────────────────────────────────────────────────────
+
+  - event: no_llm
+    tone: technical
+    security_level: public
+    text:
+      - "Aucun moteur d'IA disponible. Les fonctions locales restent actives."
+      - "Raisonnement indisponible. Commandes directes toujours opérationnelles."
+    orb_state: error

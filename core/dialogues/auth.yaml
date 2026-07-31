@@ -1,0 +1,592 @@
+# Protocole d'authentification immersif — Dialogue Manager (§13.10 / §10.1)
+# Ton par défaut Auth cinéma : cinematic. Variantes : human, security_alert.
+# « Quantique » = registre narratif SF, pas de crypto quantique.
+
+version: 1
+domain: auth
+default_voice: jarvis
+
+lines:
+
+  # --- BOOT AUTHENTICATION SEQUENCE ---
+  - event: auth_started
+    tone: cinematic
+    security_level: auth
+    text: "Initialisation du protocole d'identification avancé."
+    face_animation: boot
+    orb_state: thinking
+    hud_overlay: boot_auth_sequence
+    holo_sfx: boot_hum
+
+  - event: biometric_modules_sync
+    tone: cinematic
+    security_level: auth
+    text: "Activation des matrices cognitives."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: biometric_modules_sync
+    tone: cinematic
+    security_level: auth
+    text: "Synchronisation des modules biométriques."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: perception_ready
+    tone: cinematic
+    security_level: auth
+    text: "Connexion au réseau neuronal local établie."
+    face_animation: idle
+    orb_state: idle
+
+  - event: perception_ready
+    tone: cinematic
+    security_level: auth
+    text: "Les systèmes de perception sont opérationnels."
+    face_animation: idle
+    orb_state: idle
+
+  - event: sensors_calibrated
+    tone: cinematic
+    security_level: auth
+    text: "Caméras optiques actives."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: sensors_calibrated
+    tone: cinematic
+    security_level: auth
+    text: "Capteurs de profondeur calibrés."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: environment_scan
+    tone: cinematic
+    security_level: auth
+    text: "Analyse environnementale en cours."
+    face_animation: scan
+    orb_state: thinking
+
+  # --- Présence ---
+  - event: presence_detected
+    tone: cinematic
+    security_level: auth
+    text: "Présence humaine détectée."
+    face_animation: acknowledge
+    orb_state: listening
+
+  - event: presence_detected
+    tone: cinematic
+    security_level: auth
+    text: "Initialisation du processus d'identification biométrique."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: face_scan_prompt
+    tone: cinematic
+    security_level: auth
+    text: "Veuillez rester immobile quelques secondes."
+    face_animation: speak
+    orb_state: listening
+    hud_overlay: face_scan_active
+
+  - event: face_scan_prompt
+    tone: cinematic
+    security_level: auth
+    text: "Je procède à une analyse multidimensionnelle."
+    face_animation: scan
+    orb_state: thinking
+    hud_overlay: face_scan_active
+
+  # --- Face ---
+  - event: face_scan_active
+    tone: cinematic
+    security_level: auth
+    text: "Extraction des vecteurs biométriques."
+    face_animation: scan
+    orb_state: thinking
+    hud_overlay: face_scan_active
+
+  - event: face_embedding
+    tone: cinematic
+    security_level: auth
+    text: "Génération de l'empreinte faciale numérique."
+    face_animation: scan
+    orb_state: thinking
+    hud_overlay: face_scan_active
+
+  - event: face_match_search
+    tone: cinematic
+    security_level: auth
+    text: "Comparaison avec la base d'identités sécurisées."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: face_match_search
+    tone: cinematic
+    security_level: auth
+    text: "Recherche de correspondance en cours."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: face_authenticated
+    tone: cinematic
+    security_level: auth
+    text: "Analyse terminée."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: face_authenticated
+    tone: cinematic
+    security_level: auth
+    text: "Correspondance biométrique détectée."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: face_authenticated
+    tone: cinematic
+    security_level: auth
+    text: "Indice de confiance : supérieur au seuil d'autorisation."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: face_authenticated
+    tone: cinematic
+    security_level: auth
+    text: "Identité confirmée."
+    face_animation: smile
+    orb_state: idle
+    hud_overlay: access_granted
+
+  - event: face_authenticated
+    tone: cinematic
+    security_level: elevated
+    user_role: admin
+    text: "Bienvenue, utilisateur administrateur."
+    face_animation: smile
+    orb_state: idle
+
+  - event: face_authenticated
+    tone: cinematic
+    security_level: elevated
+    user_role: admin
+    text: "Votre signature biométrique est reconnue par le système."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: face_denied
+    tone: cinematic
+    security_level: alert
+    text: "Utilisateur non reconnu."
+    face_animation: alert
+    orb_state: error
+    hud_overlay: access_denied
+
+  - event: face_denied
+    tone: cinematic
+    security_level: alert
+    text: "Authentification secondaire nécessaire."
+    face_animation: speak
+    orb_state: error
+
+  # --- Voix ---
+  - event: voice_channel_open
+    tone: cinematic
+    security_level: auth
+    text: "Activation du canal vocal sécurisé."
+    face_animation: speak
+    orb_state: listening
+    hud_overlay: voice_channel
+
+  # ⚠ CETTE LIGNE DOIT DEMANDER QUELQUE CHOSE.
+  #
+  # L'étape attend `voice.captured` pendant douze secondes, puis part sur
+  # « Je n'ai pas pu confirmer votre identité vocale ». Tant que la phrase se
+  # contentait d'annoncer un protocole — « Initialisation du protocole de
+  # reconnaissance vocale » — on reprochait à l'utilisateur un silence qu'on
+  # ne lui avait jamais demandé de rompre. La branche visage, elle, a toujours
+  # eu son instruction : « Veuillez rester immobile quelques secondes. »
+  #
+  # Le mot à prononcer est DIT, pas sous-entendu. Il n'existait qu'en texte à
+  # l'écran, ce qui ne sert à rien à trois mètres du kiosque.
+  - event: voice_prompt
+    tone: cinematic
+    security_level: auth
+    address: vous
+    # ⚠ Le mot est « HEY JARVIS », pas « Jarvis ». C'est le modèle
+    # `hey_jarvis_v0.1.onnx` d'openWakeWord qui écoute (`data/voice/wake.yaml`),
+    # et il ne déclenche pas sur le prénom seul. Une invitation qui demande
+    # « Jarvis » fait échouer une détection qui n'avait aucune raison d'échouer.
+    text:
+      - "Canal ouvert. Veuillez prononcer votre mot d'éveil : hey Jarvis."
+      - "Veuillez prononcer votre mot d'éveil pour l'analyse vocale : hey Jarvis."
+    face_animation: speak
+    orb_state: listening
+
+  # Relance d'attente : le canal est ouvert, rien ne vient. Une seule, puis
+  # silence — on ne harcèle pas quelqu'un qui cherche ses mots.
+  - event: voice_prompt_wait
+    tone: cinematic
+    security_level: auth
+    address: vous
+    text:
+      - "Aucun signal vocal détecté. Rapprochez-vous du microphone."
+    face_animation: speak
+    orb_state: listening
+
+  - event: voice_analyzing
+    tone: cinematic
+    security_level: auth
+    text: "Analyse spectrale de votre empreinte sonore."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: voice_analyzing
+    tone: cinematic
+    security_level: auth
+    text: "Comparaison avec votre profil vocal enregistré."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: voice_validated
+    tone: cinematic
+    security_level: auth
+    text: "Signature vocale validée."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: voice_validated
+    tone: cinematic
+    security_level: auth
+    text: "Authentification multimodale confirmée."
+    face_animation: smile
+    orb_state: idle
+
+  # `voice_denied` couvre le SILENCE : personne n'a parlé, rien à analyser.
+  - event: voice_denied
+    tone: cinematic
+    security_level: alert
+    text: "Je n'ai pas pu confirmer votre identité vocale."
+    face_animation: alert
+    orb_state: error
+
+  # ⚠ « Personne n'a parlé » et « ce n'est pas vous » sont deux échecs
+  # différents, et les confondre égare l'utilisateur : le premier se corrige en
+  # parlant, le second pas du tout. La branche visage fait déjà la distinction
+  # (`face_scan_prompt` sur l'absence, `face_denied` sur la non-correspondance).
+  #
+  # Ces deux lignes n'ont de sens qu'une fois la vérification du locuteur
+  # implémentée — aujourd'hui, une transcription non vide suffit à valider
+  # l'étape, donc aucun code ne peut encore les déclencher.
+  - event: voice_no_match
+    tone: cinematic
+    security_level: alert
+    text: "Voix détectée, mais non reconnue."
+    face_animation: alert
+    orb_state: error
+
+  # Calquée sur la ligne visage « Indice de confiance : supérieur au seuil
+  # d'autorisation. » — même grammaire, valeur inverse.
+  - event: voice_score_low
+    tone: cinematic
+    security_level: alert
+    text: "Indice de correspondance vocale : sous le seuil d'autorisation."
+    face_animation: alert
+    orb_state: error
+
+  # --- Holomat / geste ---
+  - event: gesture_module_open
+    tone: cinematic
+    security_level: elevated
+    text: "Activation du module de reconnaissance gestuelle."
+    face_animation: scan
+    orb_state: gesture
+    hud_overlay: gesture_prompt
+
+  - event: gesture_module_open
+    tone: cinematic
+    security_level: elevated
+    text: "Calibration des capteurs visuels."
+    face_animation: scan
+    orb_state: gesture
+
+  - event: gesture_analyzing
+    tone: cinematic
+    security_level: elevated
+    text: "Analyse de la cinématique de mouvement."
+    face_animation: scan
+    orb_state: gesture
+
+  - event: gesture_analyzing
+    tone: cinematic
+    security_level: elevated
+    text: "Chargement de votre signature gestuelle personnelle."
+    face_animation: scan
+    orb_state: gesture
+
+  - event: gesture_prompt
+    tone: cinematic
+    security_level: elevated
+    text: "Veuillez effectuer votre geste de validation."
+    face_animation: speak
+    orb_state: listening
+    hud_overlay: gesture_prompt
+
+  - event: gesture_validated
+    tone: cinematic
+    security_level: elevated
+    text: "Mouvement reconnu."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: gesture_validated
+    tone: cinematic
+    security_level: elevated
+    text: "Correspondance gestuelle confirmée."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: gesture_validated
+    tone: cinematic
+    security_level: elevated
+    text: "Troisième facteur d'authentification validé."
+    face_animation: smile
+    orb_state: idle
+
+  - event: gesture_denied
+    tone: cinematic
+    security_level: alert
+    text: "Geste non reconnu."
+    face_animation: alert
+    orb_state: error
+
+  # --- Fusion MFA ---
+  - event: auth_fusion
+    tone: cinematic
+    security_level: elevated
+    text: "Fusion des données biométriques."
+    face_animation: scan
+    orb_state: thinking
+    hud_overlay: auth_fusion
+
+  - event: auth_fusion
+    tone: cinematic
+    security_level: elevated
+    text: "Analyse combinatoire des facteurs d'identification."
+    face_animation: scan
+    orb_state: thinking
+
+  - event: auth_fusion
+    tone: cinematic
+    security_level: elevated
+    text: "Visage : validé."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: auth_fusion
+    tone: cinematic
+    security_level: elevated
+    text: "Voix : validée."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: auth_fusion
+    tone: cinematic
+    security_level: elevated
+    text: "Signature gestuelle : validée."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: auth_fusion
+    tone: cinematic
+    security_level: elevated
+    text: "Score global d'authentification : optimal."
+    face_animation: smile
+    orb_state: idle
+
+  - event: access_granted
+    tone: cinematic
+    security_level: elevated
+    text: "Accès autorisé."
+    face_animation: smile
+    orb_state: idle
+    hud_overlay: access_granted
+    holo_sfx: access_chime
+
+  # --- Profil ---
+  - event: profile_loading
+    tone: cinematic
+    security_level: auth
+    text: "Chargement du profil utilisateur."
+    face_animation: idle
+    orb_state: thinking
+
+  - event: profile_loading
+    tone: cinematic
+    security_level: auth
+    text: "Restauration des préférences cognitives."
+    face_animation: idle
+    orb_state: thinking
+
+  - event: profile_loading
+    tone: cinematic
+    security_level: auth
+    text: "Application de la configuration holographique personnelle."
+    face_animation: idle
+    orb_state: thinking
+
+  - event: profile_loading
+    tone: cinematic
+    security_level: auth
+    text: "Synchronisation des raccourcis opérationnels."
+    face_animation: idle
+    orb_state: thinking
+
+  - event: profile_loading
+    tone: cinematic
+    security_level: auth
+    text: "Chargement des autorisations système."
+    face_animation: idle
+    orb_state: thinking
+
+  - event: profile_loading
+    tone: cinematic
+    security_level: auth
+    text: "Initialisation des interfaces personnalisées."
+    face_animation: idle
+    orb_state: thinking
+
+  - event: environment_ready
+    tone: cinematic
+    security_level: auth
+    text: "Votre environnement JARVIS est prêt."
+    face_animation: smile
+    orb_state: idle
+
+  # --- Admin ---
+  - event: admin_privileges
+    tone: cinematic
+    security_level: admin
+    user_role: admin
+    text: "Privilèges administrateur détectés."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: admin_privileges
+    tone: cinematic
+    security_level: admin
+    user_role: admin
+    text: "Élévation des permissions autorisée."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: command_center_open
+    tone: cinematic
+    security_level: admin
+    user_role: admin
+    text: "Ouverture du centre de contrôle."
+    face_animation: speak
+    orb_state: tool_call
+    hud_overlay: command_center
+
+  - event: command_center_open
+    tone: cinematic
+    security_level: admin
+    user_role: admin
+    text: "Modules disponibles : gestion des outils, supervision des agents autonomes, monitoring système, configuration du noyau."
+    face_animation: speak
+    orb_state: tool_call
+
+  - event: command_center_ready
+    tone: cinematic
+    security_level: admin
+    user_role: admin
+    text: "Le centre de commandement est opérationnel."
+    face_animation: smile
+    orb_state: idle
+
+  # --- Final ---
+  - event: systems_ready
+    tone: cinematic
+    security_level: auth
+    text: "L'ensemble des systèmes fonctionne dans les paramètres nominaux."
+    face_animation: idle
+    orb_state: idle
+
+  - event: systems_ready
+    tone: cinematic
+    security_level: auth
+    text: "Le noyau cognitif est synchronisé."
+    face_animation: idle
+    orb_state: idle
+
+  - event: systems_ready
+    tone: cinematic
+    security_level: auth
+    text: "Les interfaces holographiques sont actives."
+    face_animation: idle
+    orb_state: idle
+
+  - event: systems_ready
+    tone: cinematic
+    security_level: auth
+    text: "Les agents sont disponibles."
+    face_animation: idle
+    orb_state: idle
+
+  - event: systems_ready
+    tone: cinematic
+    security_level: auth
+    text: "Les protocoles de sécurité sont engagés."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: awaiting_instructions
+    tone: cinematic
+    security_level: auth
+    text: "Je suis prêt à recevoir vos instructions."
+    face_animation: speak
+    orb_state: listening
+
+  # --- Variante humaine (même events, ton human) ---
+  - event: environment_ready
+    tone: human
+    security_level: auth
+    text: "Bonjour."
+    face_animation: smile
+    orb_state: idle
+
+  - event: environment_ready
+    tone: human
+    security_level: auth
+    text: "Je vous reconnais."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: environment_ready
+    tone: human
+    security_level: auth
+    text: "Votre environnement personnel vient d'être restauré."
+    face_animation: speak
+    orb_state: idle
+
+  - event: environment_ready
+    tone: human
+    security_level: auth
+    text: "Vos paramètres favoris sont chargés."
+    face_animation: speak
+    orb_state: idle
+
+  - event: environment_ready
+    tone: human
+    security_level: auth
+    text: "Les systèmes domestiques et numériques sont disponibles."
+    face_animation: speak
+    orb_state: idle
+
+  - event: awaiting_instructions
+    tone: human
+    security_level: auth
+    text: "Comme toujours, je reste à votre disposition."
+    face_animation: smile
+    orb_state: listening

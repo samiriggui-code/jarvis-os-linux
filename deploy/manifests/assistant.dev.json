@@ -1,0 +1,31 @@
+{
+  "assistant": { "name": "Hermes" },
+  "profile": "assistant",
+  "target": {
+    "opt": "/opt/jarvis",
+    "storage": "/storage/jarvis",
+    "config": "/etc/jarvis"
+  },
+  "modules": {
+    "hud": true,
+    "core": true,
+    "ollama": false,
+    "homeassistant": false,
+    "whisper": false,
+    "piper": false
+  },
+  "services": {
+    "jarvis-core": {
+      "workdir": "/opt/jarvis/core",
+      "exec": "/opt/jarvis/core/.venv/bin/python -m jarvis_core",
+      "port": 8765
+    },
+    "jarvis-hud": {
+      "workdir": "/opt/jarvis/hud",
+      "exec": "/opt/jarvis/hud/.venv/bin/python main.py",
+      "env": {
+        "JARVIS_CORE_WS": "ws://127.0.0.1:8765"
+      }
+    }
+  }
+}

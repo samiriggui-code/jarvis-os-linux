@@ -1,0 +1,118 @@
+# Réveil — ce que JARVIS répond quand on prononce le wake word.
+#
+# ─── LE PRÉNOM OU LE TITRE ? ──────────────────────────────────────────────
+#
+# JARVIS ne dit jamais « Tony ». Il dit « sir ». C'est la marque du majordome,
+# et ça vaut ici :
+#
+#   admin (Samir)         → « monsieur »       JAMAIS le prénom
+#   user  (Zahra, Malika) → « madame »         JAMAIS le prénom
+#   child (Inès, Syrine)  → LE PRÉNOM          le titre serait glaçant
+#
+# Pour les enfants c'est l'inverse : « Oui, mademoiselle ? » à Syrine de huit
+# ans sonne comme un maître d'hôtel qui met de la distance. Le prénom est plus
+# juste — et elles sont déjà au tutoiement.
+#
+# ─── POURQUOI C'EST POSSIBLE SANS CASSER LES 100 ms ───────────────────────
+# Ces phrases sont EN CACHE. Jouer un WAV depuis le disque est instantané.
+# Ce serait impossible en TTS live — d'où l'interdiction absolue d'appeler
+# ElevenLabs ou Piper sur cet événement, MÊME EN SECOURS.
+#
+# ─── LA FATIGUE EST LE VRAI RISQUE ────────────────────────────────────────
+# C'est la phrase la plus entendue de la maison. Deux garde-fous :
+#   1. BEAUCOUP DE VARIANTES, tirées au hasard.
+#   2. RÉVEIL ENCHAÎNÉ = MUET (30 s). Personne ne dit « oui monsieur ? »
+#      trois fois d'affilée dans une vraie conversation.
+# Le second compte plus que le premier : c'est lui qui évite l'effet
+# perroquet pendant un aller-retour.
+version: 1
+domain: reveil
+default_voice: jarvis
+
+lines:
+
+  # ══ ADULTES — le titre, jamais le prénom ══════════════════════════════
+
+  - event: wake_ack
+    tone: human
+    security_level: auth
+    user_role: admin
+    text:
+      - "Oui, {titre} ?"
+      - "Oui ?"
+      - "Oui, {titre}."
+      - "Oui, {titre}, je vous écoute."
+      - "Je vous écoute, {titre}."
+      - "À votre écoute."
+    orb_state: listening
+
+  - event: wake_ack
+    tone: human
+    security_level: auth
+    user_role: user
+    text:
+      - "Oui, {titre} ?"
+      - "Oui ?"
+      - "Oui, {titre}."
+      - "Oui, {titre}, je vous écoute."
+      - "Je vous écoute, {titre}."
+      - "À votre écoute."
+    orb_state: listening
+
+  # ══ ENFANTS — le prénom, et le tutoiement ═════════════════════════════
+
+  - event: wake_ack
+    tone: human
+    security_level: auth
+    address: tu
+    user_role: child
+    text:
+      - "Oui {user} ?"
+      - "{user} ?"
+      - "Oui, je t'écoute."
+      - "Dis-moi."
+    orb_state: listening
+
+  # ══ Personne non identifiée ═══════════════════════════════════════════
+  # Jamais de prénom, jamais de titre : JARVIS ne devine pas. Vouvoiement,
+  # comme partout avant identification.
+
+  - event: wake_ack_anonymous
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Oui ?"
+      - "Je vous écoute."
+    orb_state: listening
+
+  # ══ Premier réveil de la journée — registre cinéma ════════════════════
+  # Sorti à chaque fois, « à votre service » devient une caricature. Une fois
+  # le matin, c'est une signature.
+
+  - event: wake_ack_first_of_day
+    tone: cinematic
+    security_level: auth
+    user_role: admin
+    text:
+      - "Bonjour, {titre}. Je vous écoute."
+      - "À votre service, {titre}."
+    orb_state: listening
+
+  - event: wake_ack_first_of_day
+    tone: cinematic
+    security_level: auth
+    user_role: user
+    text:
+      - "Bonjour, {titre}. Je vous écoute."
+      - "À votre service, {titre}."
+    orb_state: listening
+
+  - event: wake_ack_first_of_day
+    tone: cinematic
+    security_level: auth
+    address: tu
+    user_role: child
+    text:
+      - "Bonjour {user}. Je t'écoute."
+    orb_state: listening

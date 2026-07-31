@@ -1,0 +1,432 @@
+# Enrôlement & reconnaissance — création de profil, voix, visage, PIN.
+#
+# TOUT CE FICHIER EST AU VOUVOIEMENT, sans exception et sans doublon `tu` :
+# pendant ces séquences JARVIS ne sait pas encore à qui il parle, ou il est en
+# train de l'apprendre. Le vouvoiement est le repli par défaut (cf. README).
+# C'est ce qui évite de dupliquer la moitié de la bibliothèque.
+#
+# ─── DEUX RÈGLES NON NÉGOCIABLES ──────────────────────────────────────────
+#
+# 1. L'enrôlement NE PEUT PAS produire un administrateur. Pas « il refuse
+#    de » : il en est structurellement incapable. La promotion admin n'existe
+#    que dans le Dashboard, avec Samir authentifié. Conséquence : même si la
+#    commande vocale est imitée, ou si le LLM est victime d'une injection, le
+#    pire cas reste « un utilisateur simple de plus ».
+#
+# 2. L'enrôlement est INITIÉ par un adulte identifié. Jamais par une voix non
+#    reconnue, jamais par un enfant. Sinon n'importe quel visiteur s'accorde
+#    un profil tout seul.
+#
+# Rôles créables ici : `adulte` | `enfant` | `invite`.
+# `invite` (neveux, nièces, amis de passage) : accès média et éclairage
+# uniquement, et biométrie purgée à l'expiration — on ne conserve pas
+# indéfiniment le visage et la voix d'enfants qui ne sont pas du foyer.
+version: 1
+domain: enrolement
+default_voice: jarvis
+
+lines:
+
+  # ── Ouverture de procédure ─────────────────────────────────────────────
+
+  # Déclenché par la voix : « Jarvis, enrôle un nouvel utilisateur ». Le HUD
+  # bascule sur les pages d'enrôlement. Le demandeur doit être un adulte
+  # identifié — sinon `enrollment_refused` ci-dessous.
+
+  - event: enrollment_start
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Bienvenue dans la procédure d'enrôlement."
+      - "Création d'un nouveau profil utilisateur."
+    orb_state: thinking
+    pause_ms: 400
+
+  # Refus d'initiation : voix non reconnue, ou enfant qui tente d'enrôler
+  # quelqu'un. Formulation neutre et sans reproche — un gamin qui essaie
+  # n'est pas un attaquant.
+
+  - event: enrollment_refused
+    tone: technical
+    security_level: public
+    text:
+      - "L'enrôlement doit être lancé par un adulte du foyer."
+    orb_state: error
+
+  - event: enrollment_ask_name
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Veuillez indiquer votre nom."
+    orb_state: listening
+
+  - event: enrollment_name_saved
+    tone: human
+    security_level: public
+    text:
+      - "Nom enregistré."
+    orb_state: idle
+
+  # ── Choix du type de profil ────────────────────────────────────────────
+  # « Administrateur » n'est pas proposé, et n'est pas non plus refusé : il
+  # n'existe pas dans ce flux. Rien à contourner.
+
+  - event: enrollment_ask_profile_type
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Profil adulte, enfant, ou invité ?"
+      - "Quel type d'accès souhaitez-vous créer ? Adulte, enfant ou invité."
+    orb_state: listening
+
+  - event: enrollment_profile_adult
+    tone: technical
+    security_level: public
+    text:
+      - "Profil adulte sélectionné."
+    orb_state: idle
+
+  - event: enrollment_profile_child
+    tone: technical
+    security_level: public
+    text:
+      - "Profil enfant sélectionné."
+      - "Profil enfant. Accès média et éclairage."
+    orb_state: idle
+
+  - event: enrollment_profile_guest
+    tone: technical
+    security_level: public
+    text:
+      - "Profil invité sélectionné. Accès temporaire."
+    orb_state: idle
+
+  # Annonce d'expiration : dite à voix haute, pas seulement affichée. La
+  # personne enrôlée doit savoir que son accès n'est pas permanent.
+
+  - event: enrollment_guest_expiry
+    tone: human
+    security_level: public
+    text:
+      - "Cet accès expirera automatiquement. Les données biométriques seront supprimées."
+    orb_state: idle
+    pause_ms: 400
+
+  - event: guest_expired
+    tone: technical
+    security_level: public
+    text:
+      - "Accès invité expiré. Données supprimées."
+    orb_state: idle
+
+  - event: enrollment_configuring
+    tone: technical
+    security_level: public
+    address: vous
+    text:
+      - "Je vais maintenant configurer votre accès."
+      - "Activation des paramètres personnels."
+      - "Association des autorisations."
+    orb_state: thinking
+
+  - event: enrollment_almost_done
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Votre profil est presque terminé."
+    orb_state: thinking
+
+  - event: enrollment_done
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Configuration terminée."
+      - "Votre profil est enregistré."
+      - "Votre identité numérique est prête."
+    orb_state: idle
+    pause_ms: 400
+
+  - event: enrollment_security_check
+    tone: technical
+    security_level: public
+    text:
+      - "Vérification de sécurité terminée."
+    orb_state: idle
+
+  # ── Empreinte vocale ───────────────────────────────────────────────────
+
+  - event: voice_enroll_start
+    tone: technical
+    security_level: public
+    address: vous
+    text:
+      - "Création de votre empreinte vocale."
+      - "Je vais enregistrer votre voix."
+    orb_state: listening
+
+  # « La phrase demandée » — laquelle ? Elle n'était dite nulle part, ni à la
+  # voix ni à l'écran. On donne le mot, et on précise qu'il faut le répéter :
+  # l'empreinte vocale a besoin de plusieurs passes.
+  - event: voice_enroll_repeat
+    tone: human
+    security_level: public
+    address: vous
+    # Même mot que le réveil mains libres — « hey Jarvis », cf. `wake.yaml`.
+    # Enrôler sur une formule et détecter sur une autre, c'est se garantir des
+    # échecs incompréhensibles pour l'utilisateur.
+    text:
+      - "Veuillez prononcer : hey Jarvis. Puis répétez-le deux fois."
+      - "Prononcez hey Jarvis, distinctement, à trois reprises."
+    orb_state: listening
+
+  # ── Prises numérotées ──────────────────────────────────────────────────
+  #
+  # Une empreinte vocale se construit sur PLUSIEURS prises, moyennées — même
+  # principe que les 8 captures faciales de `enroll_commit`. Sans repère,
+  # l'utilisateur ne sait pas où il en est et parle par-dessus la suivante.
+  # Chaque prise est donc annoncée avant, et acquittée après.
+
+  - event: voice_enroll_take_1
+    tone: technical
+    security_level: public
+    text:
+      - "Première prise."
+    orb_state: listening
+
+  - event: voice_enroll_take_2
+    tone: technical
+    security_level: public
+    text:
+      - "Deuxième prise."
+    orb_state: listening
+
+  - event: voice_enroll_take_3
+    tone: technical
+    security_level: public
+    text:
+      - "Troisième prise."
+    orb_state: listening
+
+  - event: voice_enroll_take_ok
+    tone: technical
+    security_level: public
+    text:
+      - "Prise retenue."
+    face_animation: acknowledge
+    orb_state: idle
+
+  # ── Qualité de l'échantillon ───────────────────────────────────────────
+  #
+  # Ces lignes disent CE QUI NE VA PAS et QUOI FAIRE. Un « échec de
+  # l'enrôlement » sec laisse l'utilisateur recommencer à l'identique, et
+  # échouer à l'identique. Le diagnostic est la moitié du message.
+
+  - event: voice_enroll_too_noisy
+    tone: technical
+    security_level: public
+    address: vous
+    text:
+      - "Niveau de bruit ambiant trop élevé. Reprenons."
+    face_animation: alert
+    orb_state: listening
+
+  - event: voice_enroll_too_low
+    tone: technical
+    security_level: public
+    address: vous
+    text:
+      - "Signal trop faible. Rapprochez-vous du microphone."
+    face_animation: alert
+    orb_state: listening
+
+  - event: voice_enroll_too_short
+    tone: technical
+    security_level: public
+    address: vous
+    text:
+      - "Prise trop brève. Prononcez la formule en entier."
+    face_animation: alert
+    orb_state: listening
+
+  # Les prises ne se ressemblent pas assez entre elles : moyenner produirait
+  # une empreinte floue qui ne reconnaîtrait plus personne. Mieux vaut tout
+  # reprendre que d'enregistrer un profil inexploitable.
+  - event: voice_enroll_inconsistent
+    tone: security_alert
+    security_level: public
+    address: vous
+    text:
+      - "Écart trop important entre les prises. Reprenons depuis le début."
+    face_animation: alert
+    orb_state: listening
+
+  - event: voice_enroll_complete
+    tone: cinematic
+    security_level: public
+    text:
+      - "Empreinte vocale constituée. Trois prises retenues."
+    face_animation: acknowledge
+    orb_state: idle
+    pause_ms: 400
+
+  - event: voice_sample_saved
+    tone: technical
+    security_level: public
+    text:
+      - "Échantillon vocal enregistré."
+    orb_state: idle
+
+  - event: voice_analysis_done
+    tone: technical
+    security_level: public
+    address: vous
+    text:
+      - "Analyse vocale terminée."
+      - "Votre signature vocale est créée."
+    orb_state: idle
+
+  # ── Reconnaissance vocale (usage courant) ──────────────────────────────
+
+  - event: voice_recognized
+    tone: technical
+    security_level: auth
+    text:
+      - "Voix reconnue."
+      - "Identification vocale réussie."
+      - "Profil vocal chargé."
+    orb_state: idle
+
+  - event: voice_not_recognized
+    tone: security_alert
+    security_level: public
+    address: vous
+    text:
+      - "Je n'ai pas reconnu votre voix."
+    orb_state: error
+
+  # ── Scan facial — séquence animée ──────────────────────────────────────
+  # Ces lignes rythment l'animation du HUD : garder l'ordre, il est
+  # chorégraphié avec le scan à l'écran.
+
+  - event: face_scan_init
+    tone: cinematic
+    security_level: public
+    text:
+      - "Initialisation du scan facial."
+    orb_state: thinking
+    pause_ms: 300
+
+  - event: face_scan_landmarks
+    tone: cinematic
+    security_level: public
+    text:
+      - "Recherche des points de référence."
+    orb_state: thinking
+    pause_ms: 300
+
+  - event: face_scan_features
+    tone: cinematic
+    security_level: public
+    text:
+      - "Analyse des caractéristiques du visage."
+    orb_state: thinking
+    pause_ms: 300
+
+  - event: face_scan_model
+    tone: cinematic
+    security_level: public
+    text:
+      - "Création du modèle facial."
+    orb_state: thinking
+    pause_ms: 300
+
+  - event: face_scan_done
+    tone: cinematic
+    security_level: public
+    text:
+      - "Vérification terminée."
+    orb_state: idle
+    pause_ms: 400
+
+  # ── Reconnaissance faciale (usage courant) ─────────────────────────────
+
+  - event: face_detected
+    tone: technical
+    security_level: public
+    text:
+      - "Visage détecté."
+      - "Analyse faciale en cours."
+      - "Reconnaissance faciale en cours."
+    orb_state: thinking
+
+  - event: face_look_at_camera
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Veuillez regarder la caméra."
+    orb_state: listening
+
+  - event: face_recognized
+    tone: cinematic
+    security_level: auth
+    text:
+      - "Identité confirmée."
+      - "Utilisateur reconnu."
+    orb_state: idle
+
+  - event: face_not_recognized
+    tone: security_alert
+    security_level: public
+    text:
+      - "Utilisateur non reconnu."
+      - "Échec de reconnaissance."
+    orb_state: error
+
+  - event: face_calibration_done
+    tone: technical
+    security_level: public
+    text:
+      - "Calibration terminée."
+      - "Profil facial enregistré."
+    orb_state: idle
+
+  # ── PIN / code ─────────────────────────────────────────────────────────
+
+  - event: pin_ask
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Veuillez saisir votre code."
+    orb_state: listening
+
+  - event: pin_accepted
+    tone: technical
+    security_level: auth
+    text:
+      - "Code accepté."
+      - "Authentification réussie."
+    orb_state: idle
+
+  - event: pin_rejected
+    tone: security_alert
+    security_level: public
+    text:
+      - "Code incorrect."
+      - "Authentification refusée."
+    orb_state: error
+
+  - event: pin_locked
+    tone: security_alert
+    security_level: alert
+    text:
+      - "Nombre maximum de tentatives atteint."
+      - "Accès temporairement verrouillé."
+    orb_state: error
+    pause_ms: 500

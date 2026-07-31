@@ -1,0 +1,200 @@
+# Boot système — séquence de démarrage parlée.
+#
+# ─── CHAQUE LIGNE EST UN CONSTAT, PAS UNE NARRATION ───────────────────────
+#
+# Ces phrases sortent avec `announce="after"` (`jarvis_core/sequences.py`) :
+# elles sont prononcées UNE FOIS LA SONDE PASSÉE, jamais avant. « Synthèse
+# vocale active » veut dire que voicebox a répondu, pas qu'on va lui demander.
+#
+# Les textes précédents étaient décalés d'un cran sur ce qu'ils vérifiaient —
+# « Analyse du réseau d'agents » sortait sur la vérification de la BASE
+# UTILISATEURS. Tant que rien n'était réellement sondé ça ne s'entendait pas ;
+# maintenant que la ligne suit la sonde, il faut qu'elle parle de la bonne.
+#
+# ─── ALIGNÉ SUR LE HUD ────────────────────────────────────────────────────
+#
+#   boot_hermes   → HERMES CORE        (noyau cognitif, sonde /health)
+#   boot_voice    → VOICE SYSTEM       (voicebox)
+#   boot_face     → FACE RECOGNITION   (moteur YuNet + SFace, côté Core)
+#   boot_holomat  → HOLOMAT VISION     (flux caméra, ouvert par le HUD)
+#   boot_users    → USER DATABASE      (base — SEULE étape fatale)
+#   boot_agents   → AGENT NETWORK      (agent-reach)
+#
+# ⚠ NE PAS les désynchroniser de `BOOT_CHECKS_INIT` dans `AuthScene.tsx` :
+# la voix annonce ce que l'écran coche, et l'écart s'entend immédiatement.
+#
+# ⚠ JAMAIS « Hermes » à l'oral — c'est le nom du moteur interne. À la voix :
+# « noyau cognitif », ou rien. La ligne HUD garde son étiquette technique.
+#
+# ─── CHAQUE ÉTAPE A SON ÉCHEC ─────────────────────────────────────────────
+#
+# Un `boot_*` sans `boot_*_failed` produit exactement le bug qu'on répare :
+# la séquence n'a rien à dire quand ça rate, donc elle continue et conclut que
+# tout va bien. Ces lignes sont EN CACHE, comme toutes les annonces de panne :
+# une panne annoncée par un service distant ne sort pas le jour où il tombe.
+#
+# ─── UNE SEULE VOIX ───────────────────────────────────────────────────────
+#
+# Le HUD ne prononce PLUS ces lignes (`VITE_TTS_STUB=false`) : c'est le Core
+# qui parle, depuis le cache. Les deux le faisaient en même temps — voix
+# Windows par-dessus `jarvis2`, dans la même phrase.
+version: 1
+domain: boot
+default_voice: jarvis
+
+lines:
+
+  # ══ VÉRIFICATIONS ═══════════════════════════════════════════════════════
+
+  - event: boot_hermes
+    tone: cinematic
+    security_level: public
+    text:
+      - "Noyau cognitif en ligne."
+      - "Matrices cognitives synchronisées."
+    face_animation: boot
+    orb_state: thinking
+
+  - event: boot_voice
+    tone: cinematic
+    security_level: public
+    text:
+      - "Synthèse vocale opérationnelle."
+      - "Canal vocal actif."
+    face_animation: boot
+    orb_state: thinking
+
+  - event: boot_face
+    tone: cinematic
+    security_level: public
+    text:
+      - "Matrices de reconnaissance faciale chargées."
+      - "Modules biométriques opérationnels."
+    face_animation: boot
+    orb_state: thinking
+
+  - event: boot_holomat
+    tone: cinematic
+    security_level: public
+    text:
+      - "Capteurs optiques actifs."
+      - "Flux optique établi."
+    face_animation: boot
+    orb_state: thinking
+
+  - event: boot_users
+    tone: cinematic
+    security_level: public
+    text:
+      - "Base d'identités sécurisées en ligne."
+      - "Registre des identités chargé."
+    face_animation: boot
+    orb_state: thinking
+
+  - event: boot_agents
+    tone: cinematic
+    security_level: public
+    text:
+      - "Réseau d'agents autonomes disponible."
+      - "Agents autonomes en ligne."
+    face_animation: boot
+    orb_state: thinking
+
+  # ══ CONCLUSION ══════════════════════════════════════════════════════════
+  #
+  # Deux fins possibles, et une seule est vraie à la fois. L'ancienne version
+  # n'avait que la première : « Tous les systèmes sont opérationnels » sortait
+  # même avec voicebox éteint et la caméra débranchée.
+
+  - event: boot_complete
+    tone: cinematic
+    security_level: public
+    text:
+      - "Tous les systèmes sont opérationnels."
+      - "L'ensemble des sous-systèmes fonctionne dans les paramètres nominaux."
+    face_animation: acknowledge
+    orb_state: idle
+    # Pause longue : on laisse voir les lignes vertes avant que l'overlay
+    # s'efface et que la caméra prenne le relais.
+    pause_ms: 700
+
+  - event: boot_degraded
+    tone: cinematic
+    security_level: public
+    text:
+      - "Séquence de démarrage terminée. Certains sous-systèmes demeurent hors ligne."
+      - "Démarrage achevé hors paramètres nominaux."
+    face_animation: acknowledge
+    orb_state: idle
+    pause_ms: 700
+
+  # ══ ATTENTE ═════════════════════════════════════════════════════════════
+  #
+  # 8 s → première relance. 30 s → seconde. Au-delà : SILENCE. Deux maximum
+  # par étape, même règle que Mission Control (`mission.yaml`). Le chargement
+  # de YuNet + SFace prend ~20 s : c'est l'étape pour laquelle ces lignes
+  # existent, celle où l'on croit que ça a planté.
+  #
+  # La relance NE REMPLACE PAS la ligne d'étape : quand la sonde passe,
+  # l'annonce prévue sort quand même.
+
+  - event: boot_wait
+    tone: cinematic
+    security_level: public
+    text:
+      - "Séquence en cours."
+      - "Initialisation toujours en cours."
+    orb_state: thinking
+
+  # ══ ÉCHECS ══════════════════════════════════════════════════════════════
+  #
+  # Aucune de ces lignes ne dit ce qu'il faut faire : on ne fait pas réciter
+  # une procédure de dépannage à un majordome devant la famille. Le détail
+  # technique est dans les logs et dans le panneau système du HUD.
+
+  - event: boot_hermes_failed
+    tone: security_alert
+    security_level: public
+    text: "Noyau cognitif injoignable. Fonctionnement en périmètre restreint."
+    face_animation: alert
+    orb_state: thinking
+
+  # Dégradation la plus douce du lot : le cache contient ~700 clips, donc
+  # JARVIS continue de parler sans voicebox. C'est ce que dit la phrase, et
+  # c'est pour ça que l'étape n'est pas fatale.
+  - event: boot_voice_failed
+    tone: security_alert
+    security_level: public
+    text: "Synthèse vocale hors ligne. Repli sur la banque vocale locale."
+    face_animation: alert
+    orb_state: thinking
+
+  - event: boot_face_failed
+    tone: security_alert
+    security_level: public
+    text: "Matrices de reconnaissance faciale indisponibles."
+    face_animation: alert
+    orb_state: thinking
+
+  - event: boot_holomat_failed
+    tone: security_alert
+    security_level: public
+    text: "Aucun flux optique. Capteurs de vision hors ligne."
+    face_animation: alert
+    orb_state: thinking
+
+  # SEULE étape fatale : la séquence s'arrête ici, la caméra n'est pas lancée.
+  # Sans base, il n'y a personne à reconnaître — le dire, puis se taire.
+  - event: boot_users_failed
+    tone: security_alert
+    security_level: public
+    text: "Base d'identités inaccessible. Protocole d'identification suspendu."
+    face_animation: alert
+    orb_state: alert
+
+  - event: boot_agents_failed
+    tone: security_alert
+    security_level: public
+    text: "Réseau d'agents autonomes hors ligne."
+    face_animation: alert
+    orb_state: thinking

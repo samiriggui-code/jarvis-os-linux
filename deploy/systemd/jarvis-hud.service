@@ -1,0 +1,18 @@
+[Unit]
+Description=JARVIS HUD (Chromium kiosk → React)
+After=jarvis-core.service graphical-session.target
+Requires=jarvis-core.service
+PartOf=jarvis.target
+
+[Service]
+Type=simple
+Environment=JARVIS_CONFIG_DIR=/etc/jarvis
+Environment=JARVIS_HUD_URL=http://127.0.0.1:8080/
+# Session graphique requise (user avec DISPLAY / Wayland)
+Environment=DISPLAY=:0
+ExecStart=/opt/jarvis/bin/jarvis-hud
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=jarvis.target

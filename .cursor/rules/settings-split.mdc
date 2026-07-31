@@ -1,0 +1,31 @@
+---
+description: Frontière Settings UX (Figma 1 / HUD) vs Panneau Système (Figma 2 / Dashboard)
+globs: vendor/figma1/**,vendor/figma2/**,hud/**,dashboard/**
+alwaysApply: false
+---
+
+# Deux surfaces de settings — ne pas les mélanger
+
+Références : `hud/` (expérience) + `dashboard/` (système). `vendor/figma1` / `figma2` = backup.
+
+- **HUD** — expérience utilisateur (orbe, profil, voix, gestes Holomat, comportements HUD).
+- **Dashboard** — administration (Core, services, Policy, agents, monitoring, Recovery).
+
+## La règle
+
+| | HUD — expérience | Dashboard — système |
+|---|---|---|
+| Sujet | Moi + mon JARVIS | Machine + orchestrateur |
+| Risque (cf. `project.mdc`) | info — pas de confirmation Policy Engine | admin — passe par Policy Engine |
+| Contenu | Profil, assistant, mémoire session, voix (micro/sortie, wake word, TTS), vision & gestes (caméra ON, calibrage Holomat, gesture_profile), comportements HUD, coupure rapide micro/caméra | Core/Hermes, Providers IA, services `jarvis-*`, Holomat admin (FaceEngine health), Policy, permissions, réseau, maintenance/recovery |
+| Persistance | `core/data/users/<id>/hud_preferences` + `gesture_profile` ; calib machine `core/data/holomat/calibration.json` | Config host / Docker / Policy (pas les prefs UX) |
+
+## Pièges
+
+1. Ne pas séparer le choix du périphérique (micro/caméra) de sa calibration — reste côté HUD expérience.
+2. Coupure rapide micro/caméra = HUD ; modèle de permissions multi-users = Dashboard.
+3. Le Dashboard ne doit pas être le seul accès aux actions critiques (Recovery / TTY restent disponibles si le kiosque tombe).
+
+## Core — ne pas inventer
+
+`core/jarvis_core` ne gère encore que `ping` et `user_event/chat`. Pas de `list_tools` / `get_config` tant que le protocole n’est pas écrit — placeholders Dashboard OK, pas de faux câblage.

@@ -1,0 +1,169 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* NEXUS AI OS — Global dark override */
+html,
+body,
+#root {
+  background: #010812 !important;
+  color: rgba(220, 235, 255, 0.9);
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+/* Scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 245, 255, 0.2) transparent;
+}
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 245, 255, 0.2);
+  border-radius: 2px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 245, 255, 0.4);
+}
+
+/* Range input accent */
+input[type='range'] {
+  accent-color: #a855f7;
+  height: 4px;
+}
+
+/* Remove input autofill yellow background */
+input:-webkit-autofill,
+input:-webkit-autofill:focus {
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+
+/* ——— Orb (nouvelle orbe HUD) ——— */
+.bg-surface-2 {
+  background: rgba(0, 20, 45, 0.85);
+}
+
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+.animate-breathe {
+  animation: orb-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes orb-iridescent {
+  0%, 100% { filter: hue-rotate(0deg) brightness(1); }
+  50% { filter: hue-rotate(25deg) brightness(1.08); }
+}
+.animate-orb-iridescent {
+  animation: orb-iridescent 4s ease-in-out infinite;
+}
+
+@keyframes glass-shine {
+  0% { transform: translate(-40%, -40%) rotate(0deg); }
+  100% { transform: translate(10%, 10%) rotate(0deg); }
+}
+.animate-glass-shine {
+  animation: glass-shine 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+.shadow-glow-purple {
+  box-shadow: 0 0 40px rgba(168, 85, 247, 0.55), 0 0 80px rgba(168, 85, 247, 0.25);
+}
+.shadow-glow-green {
+  box-shadow: 0 0 40px rgba(34, 197, 94, 0.55), 0 0 80px rgba(34, 197, 94, 0.25);
+}
+.shadow-glow-cyan {
+  box-shadow: 0 0 40px rgba(6, 182, 212, 0.5), 0 0 80px rgba(14, 165, 233, 0.25);
+}
+
+.bg-gradient-conic {
+  background: conic-gradient(from 0deg, rgba(6, 182, 212, 0.35), transparent, rgba(6, 182, 212, 0.35));
+}
+
+/* —— Kiosque voix (§6.5) : chrome non cliquable —— */
+body.jarvis-voice-only button:not([data-jarvis-always-interactive]):not([data-jarvis-always-interactive] *),
+body.jarvis-voice-only a:not([data-jarvis-always-interactive] *),
+body.jarvis-voice-only input:not([data-jarvis-always-interactive] *),
+body.jarvis-voice-only textarea:not([data-jarvis-always-interactive] *),
+body.jarvis-voice-only select:not([data-jarvis-always-interactive] *),
+body.jarvis-voice-only [role="button"]:not([data-jarvis-always-interactive] *),
+body.jarvis-voice-only .cursor-pointer:not([data-jarvis-always-interactive]):not([data-jarvis-always-interactive] *) {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* —— Responsive HUD (desktop / tablette / téléphone) —— */
+.hud-side-left {
+  /* default desktop sizes via Tailwind w-48 lg:w-56… */
+}
+
+@media (max-width: 1023px) {
+  .hud-side-left {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .hud-chrome-row {
+    flex-direction: column !important;
+    gap: 0.35rem !important;
+  }
+  .hud-side-right {
+    width: 100% !important;
+    max-width: none !important;
+    height: min(34dvh, 280px) !important;
+    flex-shrink: 0 !important;
+    order: 3;
+  }
+  .hud-center-col {
+    order: 1;
+    min-height: 0;
+    flex: 1 1 auto !important;
+  }
+  .hud-voice-wrap {
+    max-width: 100% !important;
+  }
+  .hud-quick-actions {
+    display: none !important;
+  }
+  .hud-topbar-metrics {
+    display: none !important;
+  }
+  .hud-topbar-date {
+    display: none !important;
+  }
+  .hud-settings-body {
+    flex-direction: column !important;
+  }
+  .hud-settings-nav {
+    width: 100% !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(0, 245, 255, 0.08);
+    max-height: 7.5rem;
+  }
+}
+
+.hud-console-msg {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+

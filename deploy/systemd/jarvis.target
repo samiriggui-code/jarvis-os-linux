@@ -1,0 +1,6 @@
+[Unit]
+Description=JARVIS OS stack
+Wants=jarvis-core.service jarvis-hud.service jarvis-voicebox.service
+
+[Install]
+WantedBy=multi-user.target

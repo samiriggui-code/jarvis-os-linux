@@ -1,0 +1,163 @@
+# Session, permissions, administration, confidentialité.
+#
+# Ces lignes suivent l'identification : c'est ici que `address` commence à
+# compter. Partout où la formulation peut rester impersonnelle, elle le reste
+# — un seul WAV sert alors les cinq profils.
+version: 1
+domain: session
+default_voice: jarvis
+
+lines:
+
+  # ── Cycle de session ───────────────────────────────────────────────────
+
+  - event: session_opened
+    tone: human
+    security_level: auth
+    text:
+      - "Session ouverte."
+      - "Session sécurisée activée."
+      - "Bienvenue, {titre}."
+    orb_state: idle
+
+  - event: session_closed
+    tone: human
+    security_level: public
+    text:
+      - "Session fermée."
+      - "Déconnexion effectuée."
+    orb_state: idle
+
+  - event: session_locked_auto
+    tone: technical
+    security_level: public
+    text:
+      - "Verrouillage automatique activé."
+    orb_state: idle
+
+  - event: session_locked_manual
+    tone: technical
+    security_level: public
+    text:
+      - "Verrouillage manuel activé."
+    orb_state: idle
+
+  # ── Chargement de profil ───────────────────────────────────────────────
+  # {user} expansé à la génération : 5 WAV, un par personne. Phrase entière,
+  # pas d'assemblage — la couture s'entendrait sur le prénom.
+
+  # Ligne technique : le prénom est ici une INFORMATION (qui vient d'être
+  # reconnu), pas une adresse. C'est le seul endroit où JARVIS nomme un
+  # adulte par son prénom — et il ne lui parle pas, il annonce un état.
+  - event: profile_loaded
+    tone: technical
+    security_level: auth
+    text:
+      - "Profil de {user} chargé."
+    orb_state: idle
+
+  # ── Permissions ────────────────────────────────────────────────────────
+  # Formulations volontairement impersonnelles : pas de pronom, donc un seul
+  # fichier pour tout le foyer — et ça ne culpabilise pas l'enfant qui vient
+  # de demander quelque chose qui lui est refusé.
+
+  - event: permission_granted
+    tone: technical
+    security_level: auth
+    text:
+      - "Autorisation accordée."
+    orb_state: idle
+
+  - event: permission_denied
+    tone: technical
+    security_level: public
+    text:
+      - "Autorisation refusée."
+      - "Cette action nécessite un niveau supérieur d'accès."
+      - "Ce droit n'est pas accordé sur ce profil."
+    orb_state: error
+
+  - event: permission_updated
+    tone: technical
+    security_level: admin
+    text:
+      - "Permission mise à jour."
+      - "Nouvelle autorisation enregistrée."
+    orb_state: idle
+
+  # ── Administration (Samir uniquement) ──────────────────────────────────
+
+  - event: admin_mode
+    tone: cinematic
+    security_level: admin
+    user_role: admin
+    text:
+      - "Mode administrateur activé, {titre}."
+      - "Accès administrateur confirmé."
+    orb_state: idle
+    pause_ms: 300
+
+  - event: admin_config_open
+    tone: technical
+    security_level: admin
+    user_role: admin
+    text:
+      - "Configuration du système ouverte."
+    orb_state: idle
+
+  - event: admin_saved
+    tone: technical
+    security_level: admin
+    user_role: admin
+    text:
+      - "Modification enregistrée."
+      - "Paramètres sauvegardés."
+    orb_state: idle
+
+  # ── Confidentialité — caméra & micro ───────────────────────────────────
+  # Ces annonces ne sont pas cosmétiques : elles sont la contrepartie audible
+  # d'une caméra et d'un micro potentiellement toujours actifs. Ne jamais les
+  # rendre silencieuses, même en mode discret.
+
+  - event: camera_on
+    tone: technical
+    security_level: public
+    text:
+      - "Caméra activée."
+    orb_state: idle
+
+  - event: camera_off
+    tone: technical
+    security_level: public
+    text:
+      - "Caméra désactivée."
+    orb_state: idle
+
+  - event: mic_on
+    tone: technical
+    security_level: public
+    text:
+      - "Microphone activé."
+    orb_state: idle
+
+  - event: mic_off
+    tone: technical
+    security_level: public
+    text:
+      - "Microphone désactivé."
+    orb_state: idle
+
+  - event: privacy_mode
+    tone: security_alert
+    security_level: public
+    text:
+      - "Mode confidentialité activé."
+    orb_state: idle
+    pause_ms: 300
+
+  - event: data_deleted
+    tone: security_alert
+    security_level: elevated
+    text:
+      - "Données supprimées."
+    orb_state: error

@@ -1,0 +1,150 @@
+# Appareils, réseau, modes IA, arrêt.
+#
+# Domaine « machine » : JARVIS parle de son propre état ou de celui du parc.
+# Aucune de ces phrases n'a besoin de pronom → un seul WAV pour tout le foyer.
+version: 1
+domain: systeme
+default_voice: jarvis
+
+lines:
+
+  # ── Appareils ──────────────────────────────────────────────────────────
+
+  - event: device_connecting
+    tone: technical
+    security_level: public
+    text:
+      - "Connexion à l'appareil en cours."
+    orb_state: thinking
+
+  - event: device_detected
+    tone: technical
+    security_level: public
+    text:
+      - "Appareil détecté."
+    orb_state: idle
+
+  - event: device_connected
+    tone: technical
+    security_level: public
+    text:
+      - "Appareil connecté."
+    orb_state: idle
+
+  - event: device_unavailable
+    tone: technical
+    security_level: public
+    text:
+      - "Appareil indisponible."
+      - "Appareil injoignable : {device}."
+    orb_state: error
+
+  - event: device_restarted
+    tone: technical
+    security_level: public
+    text:
+      - "Redémarrage effectué."
+    orb_state: idle
+
+  - event: device_updated
+    tone: technical
+    security_level: public
+    text:
+      - "Mise à jour terminée."
+    orb_state: idle
+
+  # ── Réseau ─────────────────────────────────────────────────────────────
+
+  - event: network_up
+    tone: technical
+    security_level: public
+    text:
+      - "Connexion réseau active."
+    orb_state: idle
+
+  - event: network_lost
+    tone: security_alert
+    security_level: public
+    text:
+      - "Connexion perdue."
+      - "Serveur inaccessible."
+    orb_state: error
+
+  - event: network_retry
+    tone: technical
+    security_level: public
+    text:
+      - "Tentative de reconnexion."
+    orb_state: thinking
+
+  - event: network_restored
+    tone: human
+    security_level: public
+    text:
+      - "Connexion rétablie."
+    orb_state: idle
+
+  # ── Modes IA — la cascade du Provider Manager, rendue audible ──────────
+
+  - event: ai_local
+    tone: technical
+    security_level: public
+    text:
+      - "Mode local activé."
+    orb_state: idle
+
+  - event: ai_cloud
+    tone: technical
+    security_level: public
+    text:
+      - "Mode cloud activé."
+    orb_state: idle
+
+  - event: ai_fallback
+    tone: technical
+    security_level: public
+    text:
+      - "Passage au modèle secondaire."
+      - "Le modèle principal est indisponible."
+    orb_state: error
+
+  - event: ai_degraded
+    tone: security_alert
+    security_level: public
+    text:
+      - "Mode dégradé activé."
+      - "Raisonnement indisponible. Commandes directes toujours opérationnelles."
+    orb_state: error
+
+  # ── Arrêt — symétrique de boot.yaml ────────────────────────────────────
+
+  - event: shutdown_requested
+    tone: cinematic
+    security_level: admin
+    user_role: admin
+    text:
+      - "Arrêt du système demandé."
+    orb_state: error
+    pause_ms: 400
+
+  - event: shutdown_services
+    tone: technical
+    security_level: public
+    text:
+      - "Fermeture des services en cours."
+    orb_state: thinking
+
+  - event: shutdown_modules
+    tone: technical
+    security_level: public
+    text:
+      - "Tous les modules sont arrêtés."
+    orb_state: thinking
+
+  - event: shutdown_done
+    tone: cinematic
+    security_level: public
+    text:
+      - "Système hors ligne. Au revoir, {titre}."
+    orb_state: idle
+    pause_ms: 600

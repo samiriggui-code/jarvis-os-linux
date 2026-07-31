@@ -1,0 +1,390 @@
+<title>JARVIS — Banc d'essai Voice Filter</title>
+<style>
+  :root {
+    --bg: #05080d;
+    --panel: #0b111b;
+    --line: #17324a;
+    --cyan: #4fd8ff;
+    --cyan-dim: #2a7f9e;
+    --text: #cfe6f2;
+    --muted: #6d8798;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  h1 { font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: var(--cyan); margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 12px; }
+  .wrap { max-width: 1140px; margin: 0 auto; display: grid; gap: 18px; grid-template-columns: 1fr 360px; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
+  .panel h2 { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--cyan-dim); margin: 0 0 14px; }
+  .grp { border-top: 1px solid var(--line); margin: 18px 0 14px; padding-top: 14px; }
+  .grp:first-of-type { border: 0; margin-top: 0; padding-top: 0; }
+  .grp h3 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+  label { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 13px; font-size: 12px; }
+  label .val { color: var(--cyan); font-variant-numeric: tabular-nums; }
+  input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--cyan); }
+  .check { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; font-size: 12px; cursor: pointer; }
+  .check input { accent-color: var(--cyan); width: 15px; height: 15px; }
+  button {
+    font: inherit; font-size: 12px; cursor: pointer;
+    background: #10202f; color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px; padding: 8px 13px;
+  }
+  button:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  button.primary { background: var(--cyan-dim); border-color: var(--cyan); color: #04121a; font-weight: 700; }
+  button.ref { border-color: #4a3a2a; color: #d9b48a; }
+  button.ref:hover { border-color: #d9b48a; color: #f0cfa4; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  select { font: inherit; font-size: 12px; background: #10202f; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; }
+  #log { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; min-height: 120px; font-size: 12px; }
+  #log div { padding: 2px 0; color: var(--muted); }
+  #log div.on { color: var(--cyan); }
+  pre { background: #05080d; border: 1px solid var(--line); border-radius: 4px; padding: 12px; overflow-x: auto; font-size: 11px; color: var(--muted); margin: 0; }
+  .hint { color: var(--muted); font-size: 11px; margin: 12px 0 0; }
+  .hint b { color: var(--text); font-weight: 600; }
+  .err { color: #ff8f6b; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 12px; }
+  td { padding: 5px 0; border-bottom: 1px solid #0e1a26; color: var(--muted); vertical-align: top; }
+  td:first-child { color: var(--cyan-dim); white-space: nowrap; padding-right: 12px; }
+</style>
+
+<div class="wrap">
+  <div>
+    <h1>Voice Filter — banc d'essai</h1>
+    <p class="sub">Règle à l'oreille, puis colle les réglages dans le HUD. Aucun appel ElevenLabs : on rejoue le cache.</p>
+
+    <div class="panel">
+      <h2>Lecture</h2>
+      <div class="row">
+        <select id="domain"></select>
+        <button class="primary" id="play">▶ Jouer la séquence</button>
+        <button id="stop">■ Stop</button>
+      </div>
+
+      <div class="row">
+        <button class="ref" data-preset="sec">Sec — référence</button>
+        <button data-preset="proche">Proche</button>
+        <button data-preset="piece">Pièce</button>
+        <button data-preset="cristallin">Cristallin</button>
+        <button data-preset="profond">Profond</button>
+        <button data-preset="spectral">Spectral</button>
+      </div>
+
+      <table>
+        <tr><td>Proche</td><td>L'hologramme est à côté de toi. Réverb courte, peu de pré-délai. Intime, très intelligible — le plus utilisable au quotidien.</td></tr>
+        <tr><td>Pièce</td><td>Il occupe l'espace autour de toi. Queue plus longue, pré-délai marqué. Bon compromis présence / spectacle.</td></tr>
+        <tr><td>Cristallin</td><td>Brillant, aigu, « flux de données ». Queue claire, air poussé, doublage rapide. Le plus science-fiction sans être fatigant.</td></tr>
+        <tr><td>Profond</td><td>Vaste, grave, machine immense. Queue longue et sombre. Superbe sur une phrase de boot, pesant sur une réponse courte.</td></tr>
+        <tr><td>Spectral</td><td>Doublage et désaccord poussés au maximum utile. Franchement non-humain. À réserver aux moments rares.</td></tr>
+      </table>
+
+      <p class="hint"><b>Reviens sur Sec toutes les trois écoutes.</b> L'oreille s'habitue en quelques secondes et finit par trouver normal un réglage franchement excessif.</p>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Chaîne</h2>
+
+    <div class="grp">
+      <h3>Timbre</h3>
+      <label>Passe-haut <span class="val" id="v-hp">90 Hz</span>
+        <input type="range" id="hp" min="0" max="300" value="90"></label>
+      <label>Présence (3 kHz) <span class="val" id="v-eq">+4.0 dB</span>
+        <input type="range" id="eq" min="-6" max="9" step="0.5" value="4"></label>
+      <label>Air (8 kHz) <span class="val" id="v-air">+2.0 dB</span>
+        <input type="range" id="air" min="-6" max="9" step="0.5" value="2"></label>
+      <label>Compression <span class="val" id="v-comp">-22 dB</span>
+        <input type="range" id="comp" min="-40" max="0" value="-22"></label>
+    </div>
+
+    <div class="grp">
+      <h3>Espace</h3>
+      <label>Réverb — mix <span class="val" id="v-wet">20 %</span>
+        <input type="range" id="wet" min="0" max="60" value="20"></label>
+      <label>Réverb — longueur <span class="val" id="v-decay">1.10 s</span>
+        <input type="range" id="decay" min="0.2" max="3" step="0.1" value="1.1"></label>
+      <label>Pré-délai <span class="val" id="v-pre">18 ms</span>
+        <input type="range" id="pre" min="0" max="80" value="18"></label>
+      <label>Amortissement <span class="val" id="v-damp">8000 Hz</span>
+        <input type="range" id="damp" min="1200" max="16000" step="200" value="8000"></label>
+    </div>
+
+    <div class="grp">
+      <h3>Doublage</h3>
+      <label>Mix <span class="val" id="v-dbl">30 %</span>
+        <input type="range" id="dbl" min="0" max="70" value="30"></label>
+      <label>Retard <span class="val" id="v-delay">22 ms</span>
+        <input type="range" id="delay" min="5" max="60" value="22"></label>
+      <label>Désaccord <span class="val" id="v-detune">4.0</span>
+        <input type="range" id="detune" min="0" max="12" step="0.5" value="4"></label>
+      <label class="check"><input type="checkbox" id="voice2" checked> Seconde voix (désaccord inverse)</label>
+      <label>Largeur stéréo <span class="val" id="v-width">55 %</span>
+        <input type="range" id="width" min="0" max="100" value="55"></label>
+    </div>
+
+    <div class="row" style="margin:16px 0 10px">
+      <button id="copy">Copier les réglages</button>
+    </div>
+    <pre id="out"></pre>
+  </div>
+</div>
+
+<script>
+const MANIFEST = '../../core/data/voice/cache/manifest.json';
+const CACHE = '../../core/data/voice/cache/';
+
+const P = ['hp','eq','air','comp','wet','decay','pre','damp','dbl','delay','detune','width'];
+const FMT = {
+  hp: v => v + ' Hz',
+  eq: v => (v > 0 ? '+' : '') + (+v).toFixed(1) + ' dB',
+  air: v => (v > 0 ? '+' : '') + (+v).toFixed(1) + ' dB',
+  comp: v => v + ' dB',
+  wet: v => v + ' %',
+  decay: v => (+v).toFixed(2) + ' s',
+  pre: v => v + ' ms',
+  damp: v => v + ' Hz',
+  dbl: v => v + ' %',
+  delay: v => v + ' ms',
+  detune: v => (+v).toFixed(1),
+  width: v => v + ' %',
+};
+
+// Le seul preset non esthétique : c'est l'étalon. Ne jamais le supprimer.
+const PRESETS = {
+  sec:        { hp:0,   eq:0,   air:0,   comp:0,   wet:0,  decay:0.9, pre:0,  damp:16000, dbl:0,  delay:20, detune:0,   width:0,  voice2:false },
+  proche:     { hp:90,  eq:4,   air:2,   comp:-20, wet:14, decay:0.6, pre:8,  damp:9000,  dbl:28, delay:18, detune:3.5, width:40, voice2:true },
+  piece:      { hp:85,  eq:4,   air:1.5, comp:-22, wet:24, decay:1.4, pre:25, damp:6000,  dbl:26, delay:26, detune:3.5, width:65, voice2:true },
+  cristallin: { hp:110, eq:5.5, air:4.5, comp:-24, wet:18, decay:0.9, pre:14, damp:14000, dbl:34, delay:16, detune:5,   width:55, voice2:true },
+  profond:    { hp:70,  eq:2.5, air:-1,  comp:-26, wet:28, decay:2.0, pre:35, damp:3500,  dbl:24, delay:34, detune:3,   width:75, voice2:true },
+  spectral:   { hp:100, eq:5,   air:3,   comp:-24, wet:20, decay:1.1, pre:12, damp:8000,  dbl:48, delay:22, detune:8,   width:80, voice2:true },
+};
+
+const el = id => document.getElementById(id);
+const logBox = el('log'), out = el('out');
+let ctx, entries = [], playing = false, token = 0;
+
+function readParams() {
+  const o = { voice2: el('voice2').checked };
+  P.forEach(k => o[k] = parseFloat(el(k).value));
+  return o;
+}
+
+function refresh() {
+  const p = readParams();
+  P.forEach(k => el('v-' + k).textContent = FMT[k](p[k]));
+  out.textContent = toYaml(p);
+}
+
+function toYaml(p) {
+  return `voice_filter:
+  highpass_hz: ${p.hp}
+  presence_db: ${p.eq}
+  air_db: ${p.air}
+  compressor_threshold_db: ${p.comp}
+  reverb:
+    mix: ${(p.wet / 100).toFixed(2)}
+    decay_s: ${p.decay.toFixed(2)}
+    predelay_ms: ${p.pre}
+    damping_hz: ${p.damp}
+  doubling:
+    mix: ${(p.dbl / 100).toFixed(2)}
+    delay_ms: ${p.delay}
+    detune_cents: ${(p.detune * 4).toFixed(0)}
+    second_voice: ${p.voice2}
+  stereo_width: ${(p.width / 100).toFixed(2)}`;
+}
+
+// Réverb générée à la volée : bruit à décroissance exponentielle. Évite
+// d'embarquer un fichier d'impulsion, et rend la longueur réglable au curseur.
+function makeIR(seconds) {
+  const rate = ctx.sampleRate, len = Math.max(1, Math.floor(rate * seconds));
+  const buf = ctx.createBuffer(2, len, rate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+    }
+  }
+  return buf;
+}
+
+// Une ligne de doublage : retard + LFO lent sur le temps de retard. Le LFO
+// décale légèrement la hauteur SANS changer la durée — c'est ce qui donne le
+// « pas tout à fait humain », bien plus que la réverb.
+function doublingLine(source, mix, p, { rate, phase, pan }) {
+  const dl = ctx.createDelay(0.25);
+  dl.delayTime.value = p.delay / 1000;
+
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = rate;
+  const amt = ctx.createGain();
+  amt.gain.value = phase * (p.detune / 12) * 0.005;
+  lfo.connect(amt); amt.connect(dl.delayTime); lfo.start();
+
+  const g = ctx.createGain();
+  g.gain.value = (p.dbl / 100) * (p.voice2 ? 0.62 : 1);
+
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = pan * (p.width / 100);
+
+  source.connect(dl); dl.connect(g); g.connect(panner); panner.connect(mix);
+}
+
+function buildChain(p) {
+  const src = ctx.createBufferSource();
+
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = p.hp || 1;
+
+  const eq = ctx.createBiquadFilter();
+  eq.type = 'peaking'; eq.frequency.value = 3000; eq.Q.value = 0.9; eq.gain.value = p.eq;
+
+  const air = ctx.createBiquadFilter();
+  air.type = 'highshelf'; air.frequency.value = 8000; air.gain.value = p.air;
+
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = p.comp; comp.ratio.value = 3;
+  comp.attack.value = 0.005; comp.release.value = 0.2;
+
+  src.connect(hp); hp.connect(eq); eq.connect(air); air.connect(comp);
+
+  const mix = ctx.createGain();
+
+  const dry = ctx.createGain();
+  dry.gain.value = 1 - (p.wet / 100) * 0.5;
+  const dryPan = ctx.createStereoPanner();
+  dryPan.pan.value = -(p.width / 100) * 0.2;
+  comp.connect(dry); dry.connect(dryPan); dryPan.connect(mix);
+
+  // Réverb : pré-délai → convolution → amortissement.
+  // Le pré-délai est ce qui sépare la voix de son espace : sans lui, la queue
+  // se colle aux consonnes et mange l'intelligibilité. C'est LE paramètre qui
+  // distingue « hologramme » de « cathédrale ».
+  if (p.wet > 0) {
+    const pre = ctx.createDelay(0.2);
+    pre.delayTime.value = p.pre / 1000;
+
+    const conv = ctx.createConvolver();
+    conv.buffer = makeIR(p.decay);
+
+    // Amortissement : passe-bas sur la queue seule. Queue sombre = espace
+    // lointain et vaste ; queue claire = proche et cristallin.
+    const damp = ctx.createBiquadFilter();
+    damp.type = 'lowpass'; damp.frequency.value = p.damp;
+
+    const wet = ctx.createGain();
+    wet.gain.value = p.wet / 100;
+
+    comp.connect(pre); pre.connect(conv); conv.connect(damp);
+    damp.connect(wet); wet.connect(mix);
+  }
+
+  if (p.dbl > 0) {
+    doublingLine(comp, mix, p, { rate: 0.28, phase: 1, pan: 0.55 });
+    // Seconde voix : LFO à une autre vitesse et en opposition. La
+    // décorrélation entre les deux est ce qui élargit et épaissit — deux
+    // copies identiques ne feraient qu'augmenter le volume.
+    if (p.voice2) {
+      doublingLine(comp, mix, { ...p, delay: p.delay * 1.55 }, { rate: 0.19, phase: -1, pan: -0.55 });
+    }
+  }
+
+  mix.connect(ctx.destination);
+  return src;
+}
+
+async function fetchBuffer(file) {
+  const res = await fetch(CACHE + file);
+  if (!res.ok) throw new Error(file + ' : ' + res.status);
+  return ctx.decodeAudioData(await res.arrayBuffer());
+}
+
+function playOne(buffer, p) {
+  return new Promise(resolve => {
+    const src = buildChain(p);
+    src.buffer = buffer;
+    src.onended = resolve;
+    src.start();
+  });
+}
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+async function playSequence() {
+  if (playing) return;
+  // Chrome et iOS exigent un geste utilisateur avant toute sortie audio : le
+  // contexte n'est créé et repris qu'ici, dans le handler du clic.
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') await ctx.resume();
+
+  playing = true;
+  const mine = ++token;
+  const domain = el('domain').value;
+  const list = entries.filter(e => e.domain === domain);
+  logBox.innerHTML = '';
+
+  for (const entry of list) {
+    if (mine !== token) break;
+    const line = document.createElement('div');
+    line.className = 'on';
+    line.textContent = '▸ ' + entry.text;
+    logBox.appendChild(line);
+    try {
+      // Réglages relus à CHAQUE clip : bouge un curseur pendant la séquence
+      // et tu entends l'effet dès la phrase suivante.
+      await playOne(await fetchBuffer(entry.file), readParams());
+    } catch (err) {
+      line.className = 'err';
+      line.textContent = '✕ ' + err.message;
+    }
+    line.className = '';
+    if (entry.pause_ms) await wait(entry.pause_ms);
+  }
+  playing = false;
+}
+
+P.forEach(k => el(k).addEventListener('input', refresh));
+el('voice2').addEventListener('change', refresh);
+
+document.querySelectorAll('[data-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const preset = PRESETS[btn.dataset.preset];
+    P.forEach(k => el(k).value = preset[k]);
+    el('voice2').checked = preset.voice2;
+    refresh();
+  });
+});
+
+el('play').addEventListener('click', playSequence);
+el('stop').addEventListener('click', () => { token++; playing = false; });
+el('copy').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(out.textContent);
+  el('copy').textContent = 'Copié ✓';
+  setTimeout(() => el('copy').textContent = 'Copier les réglages', 1200);
+});
+
+(async function init() {
+  refresh();
+  try {
+    const res = await fetch(MANIFEST);
+    if (!res.ok) throw new Error('manifest.json : ' + res.status);
+    entries = (await res.json()).entries;
+  } catch (err) {
+    logBox.innerHTML = '<div class="err">' + err.message +
+      '<br><br>Lancer un serveur depuis la racine du dépôt :<br>' +
+      '&nbsp;&nbsp;python -m http.server 8080<br><br>' +
+      'puis ouvrir :<br>&nbsp;&nbsp;http://localhost:8080/hud/tools/voice-filter-lab.html</div>';
+    return;
+  }
+  const available = [...new Set(entries.filter(e => e.file).map(e => e.domain))];
+  el('domain').innerHTML = available
+    .map(d => `<option value="${d}">${d} (${entries.filter(e => e.domain === d).length})</option>`)
+    .join('');
+  logBox.innerHTML = '<div>Prêt. ' + entries.length + ' clips au manifeste.</div>';
+})();
+</script>

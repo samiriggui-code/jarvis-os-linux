@@ -1,0 +1,26 @@
+---
+description: Travail dans vendor/jarvis-main (upstream Jarvis Automation)
+globs: vendor/jarvis-main/**
+alwaysApply: false
+---
+
+# vendor/jarvis-main
+
+Meta-repo **Jarvis Automation** (voix self-hosted). Pas le monorepo JARVIS OS complet.
+
+## Avant de coder
+
+1. Lire `vendor/jarvis-main/CLAUDE.md` + `RULES.md`.
+2. Appliquer les rules service dans `vendor/jarvis-main/.cursor/rules/*.mdc`.
+3. Les services réels se clonent (`scripts/clone-repos.sh`) — ce dossier est surtout orchestration/docs.
+
+## Patterns upstream
+
+- FastAPI + Docker ; ports 7700–7722 (config, auth, command-center, whisper, tts…).
+- TDD obligatoire côté upstream.
+- Env minimal : secrets + `JARVIS_CONFIG_URL` ; config non sensible via settings DB.
+
+## Intégration JARVIS OS
+
+Réutiliser voix / command-center / installer comme **briques Core**, pas comme shell.  
+HUD reste `hud/` (Qt). Ne pas fusionner Relancr (`vendor/hors-scope/relancr`) ici.

@@ -1,0 +1,20 @@
+[Unit]
+Description=JARVIS Voice (voicebox — TTS/STT local)
+After=network.target docker.service
+# Wants et pas Requires : voicebox qui tombe ne doit pas emporter JARVIS BASE.
+# Le Core détecte la panne via /health et le HUD parle en secours.
+PartOf=jarvis.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/jarvis/voicebox
+Environment=JARVIS_CONFIG_DIR=/etc/jarvis
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose stop
+Restart=on-failure
+RestartSec=5
+# Chargement des modèles TTS : laisser le temps avant de déclarer l'échec.
+TimeoutStartSec=180
+
+[Install]
+WantedBy=jarvis.target

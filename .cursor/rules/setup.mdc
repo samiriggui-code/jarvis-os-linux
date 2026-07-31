@@ -1,0 +1,14 @@
+---
+description: Setup Center React (installateur)
+globs: setup/**
+alwaysApply: false
+---
+
+# setup/
+
+Setup Center (React + Vite) — génère des manifestes, ne pilote pas le kiosque prod.
+
+- `npm install && npm run dev`
+- Profils alignés cahier §2 / §5
+- Pas de secrets en clair dans le front
+- Manifestes cibles : `deploy/manifests/`

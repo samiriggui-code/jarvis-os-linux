@@ -1,0 +1,217 @@
+# Périphériques — caméra, microphone, sortie audio.
+#
+# ─── POURQUOI CE DOMAINE EXISTE ───────────────────────────────────────────
+#
+# Un câble débranché n'est pas une panne logicielle : c'est un geste humain,
+# et ça se répare par un autre geste humain. JARVIS doit donc DIRE quoi faire,
+# puis se taire et surveiller, puis reprendre tout seul quand c'est rebranché.
+#
+# Sans ces phrases, une webcam débranchée donnait un écran d'authentification
+# figé sur « Veuillez rester immobile » devant une caméra qui n'existe pas.
+#
+# ─── LA CONSIGNE EST DANS LA PHRASE ───────────────────────────────────────
+#
+# « Aucune caméra détectée » ne sert à rien tout seul. Ces lignes disent le
+# constat ET le geste : quel port, quel branchement. C'est la seule famille de
+# messages du système où l'on donne une instruction matérielle — parce que
+# c'est la seule que l'utilisateur peut exécuter sans ouvrir un terminal.
+#
+# ─── ON NE MARTÈLE PAS ────────────────────────────────────────────────────
+#
+# Le constat est dit UNE FOIS. Ensuite, silence, jusqu'à un changement d'état
+# réel. Un « branchez votre caméra » toutes les dix secondes pendant qu'on
+# cherche le bon câble, et l'enceinte finit débranchée elle aussi.
+#
+# ─── REDÉTECTION ──────────────────────────────────────────────────────────
+#
+# `peripheral_detecting` sort au moment du rebranchement, AVANT la confirmation :
+# c'est la phrase qui dit « j'ai vu ton geste ». Elle est décisive pour que
+# l'utilisateur sache qu'il peut lâcher le câble et attendre.
+version: 1
+domain: peripheriques
+default_voice: jarvis
+
+lines:
+
+  # ══ CAMÉRA ══════════════════════════════════════════════════════════════
+
+  - event: peripheral_camera_missing
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Aucun capteur optique détecté. Raccordez une caméra sur un port USB."
+      - "Flux optique absent. Vérifiez le raccordement USB de la caméra."
+    face_animation: alert
+    orb_state: error
+    pause_ms: 300
+
+  # Refus de permission ≠ absence de matériel. La caméra est là, c'est le
+  # navigateur qui bloque : dire « branchez votre caméra » enverrait
+  # l'utilisateur chercher un câble déjà branché.
+  - event: peripheral_camera_denied
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Accès au capteur optique refusé. Autorisez-le dans les réglages du système."
+    face_animation: alert
+    orb_state: error
+
+  - event: peripheral_camera_ready
+    tone: cinematic
+    security_level: public
+    text:
+      # Pas de « reprise » ici : c'est `peripheral_resume` qui la prononce, une
+      # fois, quand TOUT répond. Sinon une webcam à micro intégré la fait
+      # sortir trois fois de suite — deux capteurs plus la clôture.
+      - "Capteur optique reconnu."
+      - "Flux optique rétabli."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: peripheral_camera_lost
+    tone: security_alert
+    security_level: public
+    text:
+      - "Perte du flux optique."
+    face_animation: alert
+    orb_state: error
+
+  # ══ MICROPHONE ══════════════════════════════════════════════════════════
+  #
+  # Le micro intégré d'une webcam fait l'affaire : si un micro répond, quelle
+  # qu'en soit la source, il n'y a rien à annoncer. Ces lignes ne sortent que
+  # lorsqu'AUCUNE entrée audio n'est disponible.
+
+  - event: peripheral_mic_missing
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Aucun capteur acoustique détecté. Raccordez un microphone, ou une caméra équipée d'un micro."
+      - "Canal d'entrée audio absent. Vérifiez le raccordement du microphone."
+    face_animation: alert
+    orb_state: error
+    pause_ms: 300
+
+  - event: peripheral_mic_denied
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Accès au capteur acoustique refusé. Autorisez-le dans les réglages du système."
+    face_animation: alert
+    orb_state: error
+
+  - event: peripheral_mic_ready
+    tone: cinematic
+    security_level: public
+    text:
+      - "Capteur acoustique reconnu."
+      - "Canal d'entrée audio rétabli."
+    face_animation: acknowledge
+    orb_state: idle
+
+  - event: peripheral_mic_lost
+    tone: security_alert
+    security_level: public
+    text:
+      - "Perte du canal d'entrée audio."
+    face_animation: alert
+    orb_state: error
+
+  # ══ SORTIE AUDIO ════════════════════════════════════════════════════════
+  #
+  # Cas particulier : si la sortie audio manque, personne n'entend la phrase
+  # qui l'annonce. Elle est quand même prononcée — une autre sortie peut être
+  # active — mais le HUD DOIT l'afficher en clair. C'est le seul message du
+  # système qui ne peut pas compter sur la voix pour passer.
+
+  - event: peripheral_audio_out_missing
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Aucun canal de restitution audio. Vérifiez le raccordement HDMI ou les enceintes."
+      - "Sortie audio hors ligne. Vérifiez le branchement des enceintes."
+    face_animation: alert
+    orb_state: error
+    pause_ms: 300
+
+  - event: peripheral_audio_out_hdmi_lost
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Canal HDMI hors ligne. Bascule sur les enceintes si elles sont disponibles."
+    face_animation: alert
+    orb_state: thinking
+
+  - event: peripheral_audio_out_ready
+    tone: cinematic
+    security_level: public
+    text:
+      - "Canal de restitution audio rétabli."
+    face_animation: acknowledge
+    orb_state: idle
+
+  # ══ REDÉTECTION ═════════════════════════════════════════════════════════
+  #
+  # Sort au CHANGEMENT D'ÉTAT, jamais sur minuterie : c'est la réponse au
+  # geste de l'utilisateur, et elle doit tomber dans la seconde qui suit le
+  # branchement, sinon il rebranche une deuxième fois.
+
+  - event: peripheral_detecting
+    tone: cinematic
+    security_level: public
+    text:
+      - "Nouveau périphérique détecté. Analyse en cours."
+      - "Signal détecté. Identification du périphérique en cours."
+    orb_state: thinking
+
+  - event: peripheral_detect_failed
+    tone: cinematic
+    security_level: public
+    address: vous
+    text:
+      - "Périphérique non reconnu. Essayez un autre port."
+    face_animation: alert
+    orb_state: error
+
+  # ══ REPRISE ═════════════════════════════════════════════════════════════
+  #
+  # Après un incident matériel, on ne redémarre pas la séquence depuis le
+  # début : on reprend là où on s'était arrêté. La phrase le dit, sinon
+  # l'utilisateur croit avoir tout perdu et recommence lui-même.
+
+  - event: peripheral_resume
+    tone: cinematic
+    security_level: public
+    text:
+      - "Reprise de la séquence au point d'interruption."
+      - "Séquence reprise."
+    orb_state: thinking
+
+  - event: peripheral_all_ready
+    tone: cinematic
+    security_level: public
+    text:
+      - "L'ensemble des capteurs répond."
+    face_animation: acknowledge
+    orb_state: idle
+
+  # ══ IDENTIFICATION IMPOSSIBLE ═══════════════════════════════════════════
+  #
+  # Ni caméra ni micro : la biométrie est hors de portée. Le dire franchement
+  # et orienter vers le code — c'est le repli prévu, pas une avarie.
+
+  - event: peripheral_auth_degraded
+    tone: security_alert
+    security_level: public
+    address: vous
+    text:
+      - "Capteurs optiques et acoustiques hors ligne. Protocole biométrique indisponible. Utilisez votre code d'accès."
+    face_animation: alert
+    orb_state: listening
+    pause_ms: 400

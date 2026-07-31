@@ -1,0 +1,455 @@
+# Mission Control — séquences projet.
+#
+# ═══ REGISTRE : MAJORDOME, PAS TECHNICIEN ═════════════════════════════════
+#
+# JARVIS était le majordome du père de Tony. Tout découle de là :
+#
+#   • Il annonce un ÉTAT, jamais son effort.
+#     « Mémoire projet en place. »   ≠  « Je crée la mémoire. »
+#
+#   • Élocution soignée : phrases complètes, pas d'élision familière, pas de
+#     style télégraphique. Le débit est porté par la ponctuation.
+#
+#   • {titre} PONCTUE, il ne décore pas. Une fois à l'ouverture, une fois à
+#     la clôture, une fois sur un incident. À chaque ligne, c'est du service
+#     obséquieux ; bien placé, c'est de la tenue.
+#
+#   • Il ne prononce JAMAIS un nom de composant. Ni « Hermes », ni « Cursor ».
+#     Un majordome ne dit pas « je transmets à la cuisine ».
+#
+#   • HUMOUR : jamais pendant le travail, jamais sur un incident. Uniquement
+#     en clôture, et par la litote — pas par la blague.
+#
+# ═══ LE NOM DU PROJET NE SE DIT QU'UNE FOIS ═══════════════════════════════
+#
+# « HoloControl » est un mot inventé : incachable. Il est prononcé UNE SEULE
+# FOIS, à l'ouverture, en TTS live (~40 caractères). Tout le reste de la
+# séquence sort du cache, gratuitement, à vie — et Mission Control affiche
+# le nom à l'écran de toute façon.
+#
+# ═══ RÉUTILISABLE ═════════════════════════════════════════════════════════
+#
+# Une séquence ne nomme la technologie qu'une fois (`mission_stack_detected`).
+# Tout le reste est identique pour React, Python, PHP ou une techno inconnue.
+# Ajouter une stack plus tard = une ligne de config, deux clips.
+version: 1
+domain: mission
+default_voice: jarvis
+
+lines:
+
+  # ══ OUVERTURE ═════════════════════════════════════════════════════════
+  # ⚠ Ces deux lignes contiennent le NOM DU PROJET : elles ne sont PAS
+  # générées ici. Le Core les synthétise en direct, une fois par mission.
+  # Elles figurent en commentaire pour que le script reste lisible d'un bloc :
+  #
+  #   projet vierge  : « Très bien, {titre}. Projet {nom} initialisé. »
+  #   dépôt existant : « Très bien, {titre}. Je vais chercher {nom}. »
+
+  - event: mission_open
+    tone: cinematic
+    security_level: auth
+    text:
+      - "Mission Control."
+    orb_state: thinking
+    pause_ms: 300
+
+  - event: mission_ask_name
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "Quel nom lui donnez-vous ?"
+      - "Sous quel nom l'enregistrer ?"
+    orb_state: listening
+
+  # ══ PRÉPARATION ═══════════════════════════════════════════════════════
+  # Toutes les questions et vérifications AVANT la première action lente.
+  # On ne découvre pas à 80 % d'un clonage que le nom existe déjà ou que le
+  # disque est plein : il faudrait tout défaire, et l'attente aura été vaine.
+
+  - event: mission_ask_kind
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "Projet vierge, ou dépôt existant ?"
+    orb_state: listening
+
+  - event: mission_ask_stack
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "Sur quelle technologie ?"
+    orb_state: listening
+
+  - event: mission_ask_source
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "À quelle adresse se trouve le dépôt ?"
+    orb_state: listening
+
+  - event: mission_name_taken
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "Ce projet existe déjà. Souhaitez-vous le reprendre ?"
+    orb_state: listening
+
+  - event: mission_prepare
+    tone: technical
+    security_level: auth
+    text:
+      - "Contrôles préalables."
+    orb_state: thinking
+    pause_ms: 200
+
+  - event: mission_prepared
+    tone: technical
+    security_level: auth
+    text:
+      - "L'environnement est prêt à recevoir le projet."
+    orb_state: idle
+    pause_ms: 300
+
+  # ══ LES SIX ÉTAPES ════════════════════════════════════════════════════
+  # Alignées sur CURSOR_MISSION_STEPS (hud/src/app/context/AppContext.tsx).
+  # Une seule ligne par étape à l'oral : l'écran porte le détail technique,
+  # la voix reste sobre pendant que le flux défile.
+
+  # 1 · memory — « Création mémoire projet (DB) »
+  - event: mission_memory_start
+    tone: technical
+    security_level: auth
+    text:
+      - "J'ouvre le journal du projet."
+    orb_state: thinking
+
+  - event: mission_memory_done
+    tone: technical
+    security_level: auth
+    text:
+      - "Mémoire projet en place."
+    orb_state: idle
+
+  # 2 · hermes — « analyse & routage ». Le composant n'est PAS nommé.
+  - event: mission_route_start
+    tone: technical
+    security_level: auth
+    text:
+      - "J'analyse la demande."
+    orb_state: thinking
+
+  - event: mission_route_done
+    tone: technical
+    security_level: auth
+    text:
+      - "Orientation déterminée."
+    orb_state: idle
+
+  # 3 · agent-dev
+  - event: mission_agent_start
+    tone: technical
+    security_level: auth
+    text:
+      - "Délégation à l'agent de développement."
+    orb_state: thinking
+
+  - event: mission_agent_done
+    tone: technical
+    security_level: auth
+    text:
+      - "L'agent est en poste."
+    orb_state: idle
+
+  # 4 · cursor — l'IDE n'est PAS nommé non plus.
+  - event: mission_context_start
+    tone: technical
+    security_level: auth
+    text:
+      - "Je prépare le contexte de travail."
+    orb_state: thinking
+
+  - event: mission_context_done
+    tone: technical
+    security_level: auth
+    text:
+      - "Contexte assemblé."
+    orb_state: idle
+
+  # 5 · git
+  - event: mission_repo_done
+    tone: technical
+    security_level: auth
+    text:
+      - "Le dépôt est initialisé."
+    orb_state: idle
+
+  # ── Acquisition (dépôt existant) ───────────────────────────────────────
+
+  - event: mission_fetch_start
+    tone: technical
+    security_level: auth
+    text:
+      - "Acquisition depuis {source}."
+    orb_state: thinking
+
+  - event: mission_fetch_done
+    tone: technical
+    security_level: auth
+    text:
+      - "Sources récupérées."
+    orb_state: idle
+
+  - event: mission_analyze
+    tone: technical
+    security_level: auth
+    text:
+      - "Analyse de la structure."
+    orb_state: thinking
+
+  # LA SEULE ligne qui nomme la technologie.
+  - event: mission_stack_detected
+    tone: technical
+    security_level: auth
+    text:
+      - "Projet {stack} détecté."
+    orb_state: idle
+
+  - event: mission_deps_start
+    tone: technical
+    security_level: auth
+    text:
+      - "Résolution des dépendances."
+    orb_state: thinking
+
+  # Compte rendu SANS demande d'autorisation : à l'intérieur du projet,
+  # JARVIS agit seul (cf. cahier §15.6). Ne pas demander ≠ ne pas dire.
+  - event: mission_deps_done
+    tone: technical
+    security_level: auth
+    text:
+      - "Dépendances installées."
+    orb_state: idle
+
+  # ══ RELANCES D'ATTENTE ════════════════════════════════════════════════
+  # 8 s → première. 30 s → seconde, plus brève. Au-delà : SILENCE.
+  #
+  # DEUX MAXIMUM par étape. Un clonage de cinq minutes ponctué de « un
+  # instant » toutes les dix secondes, et la fonction est coupée le premier
+  # soir. Le majordome ne commente pas son attente : il attend.
+  #
+  # La relance NE REMPLACE PAS la ligne d'étape — à la fin, le script
+  # reprend exactement où il en était.
+
+  - event: mission_wait_download
+    tone: human
+    security_level: auth
+    text:
+      - "Un instant, {titre}. Téléchargement en cours."
+    orb_state: thinking
+
+  - event: mission_wait_deps
+    tone: human
+    security_level: auth
+    text:
+      - "Un instant. Installation des dépendances."
+    orb_state: thinking
+
+  - event: mission_wait_long
+    tone: human
+    security_level: auth
+    text:
+      - "Cela demande un peu plus de temps."
+    orb_state: thinking
+
+  - event: mission_wait_still
+    tone: human
+    security_level: auth
+    text:
+      - "Toujours en cours."
+    orb_state: thinking
+
+  # ══ RECHERCHE & DÉBLOCAGE ═════════════════════════════════════════════
+  # ⚠ « J'effectue une recherche » ANNONCE UNE ACTION RÉELLE. Si rien n'est
+  # tenté derrière — miroir alternatif, autre version, autre protocole — la
+  # phrase devient un mensonge, et c'est pire que le silence.
+  # À ne câbler que sur les étapes où une vraie tentative existe.
+
+  - event: mission_search_start
+    tone: technical
+    security_level: auth
+    text:
+      - "J'effectue une recherche."
+      - "Je cherche une source alternative."
+      - "J'identifie ce qui bloque."
+    orb_state: thinking
+
+  - event: mission_search_found
+    tone: technical
+    security_level: auth
+    text:
+      - "Voie alternative trouvée. Je reprends."
+      - "Résolu. Je poursuis."
+    orb_state: idle
+
+  - event: mission_search_failed
+    tone: security_alert
+    security_level: auth
+    text:
+      - "Je ne parviens pas à résoudre, {titre}."
+      - "Le blocage persiste. Une intervention est nécessaire."
+    orb_state: error
+
+  # ══ EXCURSION — panneau ouvert puis refermé ═══════════════════════════
+  # Mission Control est la colonne vertébrale ; un panneau est un détour,
+  # jamais une destination. Toujours ANNONCÉ (un terminal qui surgit sans
+  # un mot est inquiétant) et toujours REFERMÉ par la séquence — sinon on
+  # accumule des fenêtres orphelines au fil des missions.
+
+  - event: mission_panel_terminal
+    tone: technical
+    security_level: auth
+    text:
+      - "J'ouvre un terminal, {titre}."
+    orb_state: thinking
+
+  - event: mission_panel_web
+    tone: technical
+    security_level: auth
+    text:
+      - "Je consulte la documentation."
+      - "Je vérifie les sources disponibles."
+    orb_state: thinking
+
+  - event: mission_panel_close
+    tone: technical
+    security_level: auth
+    text:
+      - "Je referme. Retour à la mission."
+      - "C'est réglé. Je reprends."
+    orb_state: idle
+
+  # ══ AUTORISATION — hors périmètre du projet uniquement ════════════════
+  # Dans le dossier du projet, JARVIS agit sans demander (§15.6). Ces lignes
+  # ne servent QUE lorsqu'il doit en sortir : installation système, envoi
+  # vers un dépôt distant, mise en production.
+
+  - event: mission_permission_system
+    tone: security_alert
+    security_level: elevated
+    address: vous
+    text:
+      - "Cette installation touche au système. Autorisez-vous ?"
+    orb_state: listening
+    pause_ms: 400
+
+  - event: mission_permission_push
+    tone: security_alert
+    security_level: elevated
+    address: vous
+    text:
+      - "Je m'apprête à pousser sur le dépôt distant. Confirmez-vous ?"
+    orb_state: listening
+    pause_ms: 400
+
+  # ══ CLÔTURE ═══════════════════════════════════════════════════════════
+  # 6 · ready. C'est ICI, et seulement ici, que la note d'humour est permise.
+  # Litote et formalisme, pas plaisanterie : « Comme toujours. » porte tout.
+
+  - event: mission_ready
+    tone: cinematic
+    security_level: auth
+    text:
+      - "Tout est en place, {titre}. Je reste à disposition. Comme toujours."
+    orb_state: idle
+    pause_ms: 500
+
+  # ══ INCIDENTS — aucun humour, jamais ══════════════════════════════════
+  # Le majordome ne fait pas d'esprit quand il annonce un problème.
+
+  - event: mission_repo_denied
+    tone: security_alert
+    security_level: auth
+    text:
+      - "Je ne parviens pas à accéder au dépôt, {titre}. Des identifiants sont requis."
+    orb_state: error
+
+  - event: mission_fetch_failed
+    tone: security_alert
+    security_level: auth
+    text:
+      - "L'acquisition a échoué. Le dépôt est inaccessible."
+    orb_state: error
+
+  - event: mission_deps_failed
+    tone: security_alert
+    security_level: auth
+    text:
+      - "Échec de résolution des dépendances. Un conflit de versions a été détecté."
+    orb_state: error
+
+  - event: mission_space_failed
+    tone: security_alert
+    security_level: auth
+    text:
+      - "L'espace disque est insuffisant. L'acquisition est annulée."
+    orb_state: error
+
+  - event: mission_aborted
+    tone: technical
+    security_level: auth
+    text:
+      - "Procédure interrompue. Rien n'a été modifié."
+    orb_state: idle
+    pause_ms: 300
+
+  # ══ DÉPLOIEMENT ═══════════════════════════════════════════════════════
+
+  - event: mission_deploy_confirm
+    tone: security_alert
+    security_level: elevated
+    user_role: admin
+    address: vous
+    text:
+      - "Le déploiement est prêt. Autorisez-vous la mise en production, {titre} ?"
+    orb_state: listening
+    pause_ms: 500
+
+  - event: mission_deploy_done
+    tone: cinematic
+    security_level: elevated
+    text:
+      - "Déploiement terminé. La production est à jour."
+    orb_state: idle
+    pause_ms: 400
+
+  - event: mission_deploy_failed
+    tone: security_alert
+    security_level: elevated
+    text:
+      - "Le déploiement a échoué. La production est inchangée."
+    orb_state: error
+
+  # ══ CAPTURE DE DÉCISION (§15.5) ═══════════════════════════════════════
+  # En fin de session, sur un changement structurant — jamais après chaque
+  # commit. C'est la seule table que rien ne remplit automatiquement.
+
+  - event: mission_ask_decision
+    tone: human
+    security_level: auth
+    address: vous
+    text:
+      - "Un choix structurant a été fait. Quelle en était la raison ?"
+    orb_state: listening
+
+  - event: mission_decision_saved
+    tone: technical
+    security_level: auth
+    text:
+      - "Décision consignée au journal du projet."
+    orb_state: idle

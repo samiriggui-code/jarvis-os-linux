@@ -1,0 +1,210 @@
+# Temps d'écran — ce que JARVIS dit à Inès (10 ans) et Syrine (8 ans).
+#
+# ─── PREMIÈRE VERSION REJETÉE ─────────────────────────────────────────────
+# « Pas aujourd'hui. Prochaine fois : mercredi. » — en voulant éviter le
+# reproche, on tombe dans le télégraphique, qui sonne autoritaire. Un guichet,
+# pas un assistant. Trois principes pour ne pas y retomber :
+#
+# 1. LE PRÉNOM RÉCHAUFFE. « Dix minutes, Syrine » n'a rien à voir avec
+#    « Dix minutes. » C'est le levier le moins cher et le plus efficace.
+#
+# 2. JARVIS N'EST PAS LE GARDIEN. Il applique une règle qu'il n'a pas
+#    écrite, et il peut le laisser entendre. Complice, jamais complaisant.
+#
+# 3. L'HUMOUR EST INVERSEMENT PROPORTIONNEL À LA FRÉQUENCE.
+#    Une blague entendue trois cents fois est une torture. Donc :
+#      • événements quotidiens (avertissements, coupure) → chaleur, zéro vanne
+#      • événements rares (mode vacances, renvoi aux parents) → humour permis
+#    Et l'humour porte sur JARVIS lui-même, jamais sur l'enfant : une gamine
+#    de 8 ans lit l'ironie comme une méchanceté.
+#
+# JAMAIS d'humour sur un refus. Plaisanter en annonçant à Syrine qu'elle
+# n'aura pas sa tablette, c'est se moquer. Sur un refus : douceur et une
+# date de retour, rien d'autre.
+#
+# Tutoiement partout : vouvoyer une enfant de 8 ans serait absurde. Seule
+# zone de la bibliothèque où le tutoiement est le défaut.
+version: 1
+domain: ecrans
+default_voice: jarvis
+
+lines:
+
+  # ── Avertissements — quotidiens, donc chaleureux et sobres ─────────────
+
+  - event: screen_warn_30
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Il te reste une demi-heure, {user}."
+      - "Encore trente minutes, tranquille."
+      - "Une demi-heure devant toi."
+    orb_state: idle
+
+  - event: screen_warn_10
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Dix minutes, {user}. Tu as le temps de finir."
+      - "Plus que dix minutes. Termine ton épisode tranquillement."
+      - "Dix minutes. Je te préviens encore avant la fin."
+    orb_state: idle
+
+  - event: screen_warn_last
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Une minute, {user}."
+      - "Allez, une dernière minute."
+    orb_state: idle
+
+  # ── Coupure — le moment le plus délicat de la journée ──────────────────
+  # « La tablette va dormir » marche très bien à 8 ans et reste digne à 10.
+  # On personnifie l'objet plutôt que d'énoncer une interdiction.
+
+  - event: screen_cut
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Voilà, c'est l'heure. À demain {heure}, {user}."
+      - "La tablette va dormir. Elle se réveille demain à {heure}."
+      - "C'est fini pour aujourd'hui. Demain {heure}, promis."
+    orb_state: idle
+    pause_ms: 300
+
+  # ── Refus — douceur et date de retour. Aucune plaisanterie ici. ────────
+
+  - event: screen_denied_time
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "La tablette dort déjà. Elle revient demain à {heure}."
+      - "Trop tard pour ce soir, mais demain à {heure} elle est à toi."
+      - "C'est en pause jusqu'à demain {heure}, {user}."
+    orb_state: idle
+
+  - event: screen_denied_day
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Pas aujourd'hui, {user}. Le prochain, c'est {jour}."
+      - "Aujourd'hui c'est sans tablette. Rendez-vous {jour}."
+      - "Ce sera pour {jour}."
+    orb_state: idle
+
+  # ── La porte ouverte — la ligne qui évite le plus de disputes ──────────
+
+  - event: screen_offer_tv
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Par contre, la télé est libre si tu veux."
+      - "La télé, elle, est d'accord."
+      - "Tu peux toujours regarder la télé à la place."
+    orb_state: listening
+
+  # ── Quota ──────────────────────────────────────────────────────────────
+
+  - event: screen_quota_left
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Il te reste {duree}, {user}."
+      - "Encore {duree} devant toi."
+    orb_state: idle
+
+  - event: screen_quota_done
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Six heures, c'est fait. On se retrouve demain."
+      - "Tu as tout utilisé pour aujourd'hui. Demain, nouvelle journée."
+    orb_state: idle
+
+  # ── Mode vacances — deux fois par an : l'humour est permis ─────────────
+
+  - event: holiday_mode_on
+    tone: human
+    security_level: elevated
+    user_role: admin
+    text:
+      - "Mode vacances. Je relâche un peu la surveillance."
+      - "Vacances activées. Ne le répétez pas trop fort."
+      - "Mode vacances. Profitez-en."
+    orb_state: idle
+
+  - event: holiday_mode_off
+    tone: human
+    security_level: elevated
+    user_role: admin
+    text:
+      - "Retour aux horaires d'école. Courage."
+      - "Fin des vacances. Je redeviens sérieux."
+    orb_state: idle
+
+  # ── Négociation — quand elles insistent ────────────────────────────────
+  # Tour 1 : les refus ci-dessus (en cache).
+  # Tours 2-3 : reformulation par le LLM local, qui ne peut QUE redire le
+  #             même refus autrement (voir data/policy/negociation_enfants.yaml).
+  # Tour 4+ : la clôture ci-dessous.
+
+  # Reconnaître l'émotion sans céder. Souvent suffisant : l'enfant veut
+  # d'abord être entendu, pas forcément la tablette.
+  - event: negotiation_ack
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Je sais, c'est frustrant."
+      - "Je comprends, {user}. Mais c'est comme ça ce soir."
+      - "Je sais que tu aimerais. Demain."
+    orb_state: idle
+
+  # UNE SEULE variante, volontairement. Toutes les autres lignes de la
+  # bibliothèque en ont trois ou quatre pour éviter la lassitude — celle-ci
+  # doit être rigoureusement identique à chaque fois. C'est ce qui signale
+  # « ce mur ne bouge pas ». La varier laisserait croire qu'il reste
+  # quelque chose à tenter.
+  - event: negotiation_closed
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "On en a déjà parlé. C'est non pour ce soir."
+    orb_state: idle
+    pause_ms: 400
+
+  # ── Renvoi aux parents — rare, et l'humour porte sur JARVIS ────────────
+  # Il se moque de ses propres limites, jamais de l'enfant qui demande. Ça
+  # désamorce la négociation sans humilier personne.
+
+  - event: screen_ask_parent
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Ça, c'est au-dessus de mes compétences. Demande à papa ou maman."
+      - "Je n'ai pas le droit de décider ça. Eux, oui."
+      - "Là, il faut demander à tes parents. Moi je ne fais qu'appliquer."
+    orb_state: idle

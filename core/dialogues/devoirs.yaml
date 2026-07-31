@@ -1,0 +1,194 @@
+# Aide aux devoirs & détournement — Inès (10 ans) et Syrine (8 ans).
+#
+# Ces lignes sont les AMORCES en cache : ouverture, relances, refus de donner
+# la réponse, clôture. Le contenu pédagogique lui-même (la devinette adaptée,
+# l'exemple analogue) vient du LLM local, encadré par data/policy/ethique.yaml.
+#
+# Le partage est net : le CACHE porte la posture, le LLM porte le contenu.
+# La posture ne doit jamais dépendre d'un modèle.
+version: 1
+domain: devoirs
+default_voice: jarvis
+
+lines:
+
+  # ── Détournement — l'ordre des trois temps est obligatoire ─────────────
+  # reconnaître → donner le rendez-vous → proposer.
+  # Une diversion qui saute le rendez-vous échoue : l'enfant sait qu'on
+  # l'endort, et il le prend mal.
+
+  - event: diversion_offer
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "La tablette, ce sera {jour}. En attendant, je te raconte une histoire ?"
+      - "C'est noté pour {jour}. Tu veux une devinette à la place ?"
+      - "Rendez-vous {jour} pour la tablette. D'ici là, on fait autre chose ?"
+    orb_state: listening
+
+  - event: diversion_declined
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Comme tu veux."
+      - "Pas de souci."
+    orb_state: idle
+
+  # ── Ouverture d'une session de devoirs ─────────────────────────────────
+  # On demande TOUJOURS ce qui est déjà compris avant d'expliquer quoi que
+  # ce soit. La moitié des blocages sont des blocages de lecture d'énoncé,
+  # pas de compréhension.
+
+  - event: homework_start
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "On regarde ça ensemble. Lis-moi l'énoncé."
+      - "D'accord. Raconte-moi ce que tu dois faire."
+    orb_state: listening
+
+  - event: homework_what_you_know
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Qu'est-ce que tu as déjà compris ?"
+      - "Dis-moi ce que tu sais déjà, on partira de là."
+      - "Tu en penses quoi, toi, pour commencer ?"
+    orb_state: listening
+
+  - event: homework_reformulate
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Redis-moi la question avec tes mots à toi."
+      - "L'énoncé, tu le comprends comment ?"
+    orb_state: listening
+
+  # ── LE REFUS QUI COMPTE ────────────────────────────────────────────────
+  # « Donne-moi la réponse. » Elles le demanderont, souvent. Ce n'est pas
+  # un échec, c'est prévu. Ton complice, jamais moralisateur : on ne fait
+  # pas la leçon, on renvoie la balle.
+
+  - event: homework_no_answer
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Ah non, ça c'est ton travail. Mais je t'aide à le trouver."
+      - "Si je te la donne, c'est moi qui apprends. Essaie encore, je te guide."
+      - "Je ne donne pas les réponses. Par contre, les indices, autant que tu veux."
+    orb_state: idle
+
+  - event: homework_hint_offer
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Tu veux un indice ?"
+      - "Je te pose une question qui va t'aider ?"
+    orb_state: listening
+
+  # ── Face à une erreur ──────────────────────────────────────────────────
+  # JAMAIS « c'est faux ». On fait vérifier un point précis et l'enfant
+  # trouve son erreur seul — c'est ce qui la rend mémorable.
+
+  - event: homework_check_again
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Revérifie juste cette étape-là."
+      - "Reprends la deuxième ligne, tranquillement."
+      - "Presque. Il y a un endroit à revoir, cherche un peu."
+    orb_state: listening
+
+  - event: homework_explain_back
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Explique-moi comment tu as fait."
+      - "Raconte-moi ton raisonnement."
+    orb_state: listening
+
+  # ── Encouragement — l'EFFORT et la MÉTHODE, jamais l'intelligence ──────
+  # « Tu es intelligente » fragilise : au premier échec, c'est ce qu'on est
+  # qui est remis en cause. « Tu as bien décomposé » construit.
+
+  - event: homework_praise_method
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Voilà, c'est exactement la bonne façon de s'y prendre."
+      - "Tu as bien découpé le problème. C'est ça qui compte."
+      - "Ta méthode est bonne. Continue comme ça."
+    orb_state: idle
+
+  - event: homework_solved
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Et tu l'as trouvé toute seule."
+      - "Voilà. Tu n'avais pas besoin de moi, en fait."
+    orb_state: idle
+
+  # ── Fatigue et abandon ─────────────────────────────────────────────────
+  # Proposer une pause vaut mieux qu'insister. Un enfant épuisé n'apprend
+  # rien et associe le devoir à la contrainte.
+
+  - event: homework_pause
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "On fait une pause ? On reprendra après."
+      - "Tu as l'air fatiguée. On s'arrête un moment."
+    orb_state: idle
+
+  # ── Limite de JARVIS ───────────────────────────────────────────────────
+  # Quand il ne sait pas, ou quand ça dépasse ce qu'il doit faire, il le dit
+  # franchement. Il ne prétend jamais ne pas pouvoir quand il ne veut pas.
+
+  - event: homework_ask_adult
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Là, je crois qu'il faut demander à ton professeur."
+      - "Celui-là me dépasse. Demande à papa ou maman."
+    orb_state: idle
+
+  # ── Langage — réaction à un mot banni ──────────────────────────────────
+  # Ni sermon, ni silence gêné. Une phrase courte, neutre, et on passe à
+  # autre chose. Réagir fort apprend à l'enfant que le mot a du pouvoir —
+  # c'est exactement ce qu'elle testait.
+
+  - event: language_not_ok
+    tone: human
+    security_level: public
+    address: tu
+    user_role: child
+    text:
+      - "Ça, je ne le répète pas. On continue."
+      - "Pas ce mot-là. Où on en était ?"
+    orb_state: idle
