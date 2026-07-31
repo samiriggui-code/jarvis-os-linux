@@ -1,13 +1,37 @@
 """
 Auth Service — enroll / login / elevate / lock.
 
-Biométrie réelle (face/voice/Holomat) = stubs pour l'instant :
-le HUD continue ses simulateurs ; le Core enregistre l'état et émet
-user_authenticated. Hermes ne décide pas des droits.
+═══ LE CORE N'ACCEPTE PAS UNE IDENTITÉ, IL LA CONSTATE ═══════════════════
+
+`login()` recevait un `user_id` du HUD et ouvrait la session dessus, sans rien
+vérifier. Le raisonnement tenait — la reconnaissance faciale venait de tourner
+côté Core quelques secondes plus tôt — mais le point d'entrée, lui, faisait
+confiance à un identifiant envoyé par le client. Un simple message WebSocket
+
+    {"type":"auth","action":"login","user_id":"<id de l'admin>"}
+
+ouvrait une session administrateur sans caméra, sans micro et sans PIN.
+
+D'où l'ATTESTATION : quand le Core reconnaît réellement quelqu'un, il le note
+ici. `login()` exige ensuite cette note. Le HUD ne transmet plus une identité,
+il demande l'ouverture d'une session pour une identité que le Core a lui-même
+établie — et qu'il est seul à pouvoir établir.
+
+Trois propriétés qui comptent :
+
+  • **usage unique** — consommée à l'ouverture. Une reconnaissance = une
+    session, pas un laissez-passer réutilisable.
+  • **périssable** — au-delà de `PROOF_TTL_S`, elle ne vaut plus rien : une
+    attestation qui traîne, c'est une porte laissée entrouverte.
+  • **hors de portée du client** — rien dans le protocole WS ne permet de la
+    créer. Elle naît dans `handle_holomat`, sur un vrai verdict biométrique.
+
+Le PIN, lui, n'en a pas besoin : il est vérifié pour de bon (`verify_user_pin`).
 """
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
 from typing import Any
@@ -22,6 +46,21 @@ RECOVERY_MAX_FAILS = 5      # avant verrouillage, comme un PIN de téléphone
 RECOVERY_LOCK_S = 300       # 5 min de blocage
 RECOVERY_TTL_S = 900        # 15 min : on entre pour réparer, pas pour rester
 
+#: Durée de validité d'une attestation biométrique.
+#:
+#: Entre la reconnaissance et l'appel à `login()`, le HUD déroule toute la fin
+#: de sa séquence — fusion des facteurs, salutation, chargement du profil.
+#: Comptez une vingtaine de secondes. 120 s laisse la marge nécessaire sans
+#: transformer une reconnaissance en autorisation permanente.
+PROOF_TTL_S = 120.0
+
+#: Échappatoire de développement : autorise `login()` sans attestation.
+#:
+#: Existe pour ne pas bloquer un poste sans caméra, et **désactivée par
+#: défaut**. Le chemin normal dans ce cas reste le PIN, qui est réellement
+#: vérifié et que le HUD propose déjà sur un démarrage bloqué.
+ENV_ALLOW_UNVERIFIED = "JARVIS_AUTH_ALLOW_UNVERIFIED"
+
 
 class AuthService:
     def __init__(self, users: UserManager | None = None) -> None:
@@ -31,6 +70,38 @@ class AuthService:
         self._recovery_locked_until = 0.0
         # Une session HUD active par connexion logique (simplifié)
         self.active: AuthSession | None = None
+        #: Attestations biométriques en attente : user_id → (péremption,
+        #: confiance, méthode). Alimenté par le Core sur un vrai verdict,
+        #: jamais par un message du HUD.
+        self._proofs: dict[str, tuple[float, float, str]] = {}
+
+    # ── attestation biométrique ──────────────────────────────────────────
+
+    def attest_biometric(self, user_id: str, method: str, confidence: float) -> None:
+        """Le Core a reconnu quelqu'un. Seul appelant légitime : `handle_holomat`.
+
+        Ne PAS exposer cette méthode via une route WS : elle deviendrait le
+        contournement exact qu'elle est censée fermer.
+        """
+        self._proofs[user_id] = (time.time() + PROOF_TTL_S, confidence, method)
+        logger.info("attestation biométrique · %s · %s (%.2f)", user_id, method, confidence)
+
+    def _consume_proof(self, user_id: str) -> tuple[float, str] | None:
+        """Retire et renvoie l'attestation si elle est encore valable."""
+        proof = self._proofs.pop(user_id, None)
+        if proof is None:
+            return None
+        peremption, confidence, method = proof
+        if time.time() > peremption:
+            logger.info("attestation périmée · %s", user_id)
+            return None
+        return confidence, method
+
+    def purge_proofs(self) -> None:
+        maintenant = time.time()
+        self._proofs = {
+            uid: p for uid, p in self._proofs.items() if p[0] > maintenant
+        }
 
     def status(self) -> dict[str, Any]:
         base = self.users.status()
@@ -72,24 +143,57 @@ class AuthService:
         pin: str | None = None,
     ) -> dict[str, Any]:
         user: User | None = None
+        # Le PIN est le seul facteur que `login()` vérifie lui-même — et il le
+        # vérifie pour de bon. Il n'a donc pas besoin d'attestation.
         if pin and username:
             user = self.users.verify_user_pin(username, pin)
             method = "pin"
             confidence = 1.0 if user else 0.0
-        elif user_id:
-            user = self.users.get_by_id(user_id)
-        elif username:
-            user = self.users.get_by_username(username)
+            if not user:
+                return {"ok": False, "error": "utilisateur inconnu ou PIN invalide"}
         else:
-            # Stub MFA : si un seul user, login sur lui (dev laptop)
-            users = self.users.list_users()
-            if len(users) == 1:
-                user = users[0]
-            elif users:
-                return {"ok": False, "error": "préciser username (multi-users)"}
+            candidat = None
+            if user_id:
+                candidat = self.users.get_by_id(user_id)
+            elif username:
+                candidat = self.users.get_by_username(username)
+            else:
+                # Ancien « stub MFA » : un seul utilisateur en base → session
+                # ouverte sur lui, sans rien demander. Sur le NUC du foyer ça
+                # n'a aucun sens, et c'était une porte ouverte de plus.
+                users = self.users.list_users()
+                if len(users) == 1:
+                    candidat = users[0]
+                elif users:
+                    return {"ok": False, "error": "préciser username (multi-users)"}
 
-        if not user:
-            return {"ok": False, "error": "utilisateur inconnu ou PIN invalide"}
+            if not candidat:
+                return {"ok": False, "error": "utilisateur inconnu"}
+
+            preuve = self._consume_proof(candidat.id)
+            if preuve is not None:
+                # Le Core a bien reconnu cette personne : on retient SA mesure
+                # de confiance, pas celle annoncée par le client.
+                confidence, method = preuve
+            elif os.environ.get(ENV_ALLOW_UNVERIFIED) == "1":
+                logger.warning(
+                    "login sans attestation accepté (%s=1) · %s — développement UNIQUEMENT",
+                    ENV_ALLOW_UNVERIFIED, candidat.username,
+                )
+            else:
+                # Le refus est volontairement avare : ne pas indiquer si
+                # l'utilisateur existe, ni si l'attestation a expiré ou n'a
+                # jamais existé. Le journal, lui, dit tout.
+                logger.warning(
+                    "login refusé — aucune attestation biométrique pour « %s »",
+                    candidat.username,
+                )
+                return {
+                    "ok": False,
+                    "error": "authentification requise",
+                    "hint": "biométrie non vérifiée par le Core — utiliser le code d'accès",
+                }
+            user = candidat
 
         session = AuthSession(
             session_id=str(uuid.uuid4()),

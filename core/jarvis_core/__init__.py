@@ -1287,6 +1287,15 @@ class Orchestrator:
                 # confirmée » devant n'importe qui.
                 if ev.get("ok") and ev.get("match"):
                     self.sequences.signal("face.matched")
+                    # SEUL endroit du programme où naît une attestation
+                    # biométrique. C'est ici que le Core CONSTATE une
+                    # identité ; `login()` exigera cette note et refusera un
+                    # `user_id` que le HUD se contenterait d'affirmer.
+                    matched_id = str(ev.get("user_id") or "")
+                    if self.auth is not None and matched_id:
+                        self.auth.attest_biometric(
+                            matched_id, "face", float(ev.get("confidence") or 0.0)
+                        )
 
             await ws.send(json.dumps(ev))
             return
