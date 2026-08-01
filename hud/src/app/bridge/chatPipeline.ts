@@ -17,13 +17,13 @@ export type ChatSideEffects = OpenHudAppFx & {
   setScanningActive: (v: boolean) => void;
   setInputMode?: (m: 'voice' | 'recovery') => void;
   navigateDashboard?: (page: string) => void;
-  openMissionControl?: (opts: {
+  openMissionControlDev?: (opts: {
     scenario?: 'cursor' | 'generic';
     projectName?: string;
     title?: string;
     subtitle?: string;
   }) => void;
-  closeMissionControl?: () => void;
+  closeMissionControlDev?: () => void;
   /** Locale session (prefs user) — optionnel */
   locale?: UserLocale;
   onLocaleSticky?: (lang: 'fr' | 'en') => void;
@@ -43,6 +43,31 @@ function loadLocale(): UserLocale {
 function bilingual(lang: 'fr' | 'en', fr: string, en: string) {
   return lang === 'en' ? en : fr;
 }
+
+/**
+ * Retire les accents avant toute comparaison.
+ *
+ * `\b` de JavaScript est ASCII : « é » compte comme une NON-lettre, donc les
+ * frontières de mot tombent au milieu des verbes français. C'est ce qui faisait
+ * que « crée un projet » ouvrait Mission Control DEV mais pas « créer un
+ * projet » — l'infinitif, c'est-à-dire la façon dont on le dit le plus souvent.
+ * Déaccentuer une fois vaut mieux que semer des `[eé]` dans chaque motif.
+ */
+function deburr(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Verbes de fabrication — « ouvre » et « lance » n'en font PAS partie. */
+const VERBE_FABRIQUER =
+  /\b(cree|crees|creer|creez|creation|create|creates|genere|generer|developpe|developper|initialise|initialiser|monte|monter|build|make)\b/;
+
+/** Ce qui se fabrique. Volontairement borné : pas « scénario », pas « playlist ». */
+const CHOSE_FABRICABLE =
+  /\b(projets?|projects?|application|appli|app|api|micro-?service|systeme|logiciel|bot|script|outil|module|site)\b/;
+
+/** « nouveau projet », « démarre un projet » — sans verbe de fabrication. */
+const NOUVEAU_PROJET =
+  /\b(nouveau|nouvelle|new|demarre|demarrer|lance|lancer|start)\b[^.!?]{0,20}\b(projets?|projects?)\b/;
 
 export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
   const lower = cmd.toLowerCase().trim();
@@ -64,24 +89,31 @@ export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
     return bilingual(lang, 'Mode voix — chrome masqué.', 'Voice mode — chrome hidden.');
   }
 
-  if (/\b(ferme|fermer|close|dismiss)\b/.test(lower) && /\b(mission\s*control|mission)\b/.test(lower)) {
-    fx.closeMissionControl?.();
-    return bilingual(lang, 'Mission Control fermé.', 'Mission Control closed.');
+  // « mission » nu ne déclenche plus rien : le mot ne dit pas de quel cockpit
+  // il s'agit. Il faut « mission control » (dev) — et le jour où Mission
+  // Control HOME existe, ce motif devra exiger « dev » explicitement.
+  if (/\b(ferme|fermer|close|dismiss)\b/.test(lower) && /\bmission\s*control\b/.test(lower)) {
+    fx.closeMissionControlDev?.();
+    return bilingual(lang, 'Mission Control DEV fermé.', 'Mission Control DEV closed.');
   }
 
-  // Mission Control — exemple Cursor (§15)
+  // Mission Control DEV — orchestration d'un projet logiciel (§15.1.1)
+  const plain = deburr(lower);
   if (
-    /\b(mission\s*control)\b/.test(lower)
-    || /\b(ouvre|ouvrir|lance|lancer|open|launch)\b/.test(lower) && /\bcursor\b/.test(lower)
-    || /\b(cr[eé]e|creer|create)\b/.test(lower) && /\b(projet|project)\b/.test(lower)
-    || /\bcursor\b/.test(lower) && /\b(projet|project|dev)\b/.test(lower)
+    /\b(mission\s*control)\b/.test(plain)
+    || /\b(ouvre|ouvrir|lance|lancer|open|launch)\b/.test(plain) && /\bcursor\b/.test(plain)
+    || VERBE_FABRIQUER.test(plain) && CHOSE_FABRICABLE.test(plain)
+    || NOUVEAU_PROJET.test(plain)
+    || /\bcursor\b/.test(plain) && /\b(projet|project|dev)\b/.test(plain)
   ) {
-    const nameMatch = lower.match(/(?:projet|project)\s+([a-z0-9][\w\-]{1,32})/i)
-      || lower.match(/(?:appel[eé]|nomm[eé]|named?)\s+([a-z0-9][\w\-]{1,32})/i);
+    // Extraction du nom sur le texte D'ORIGINE : « projet Élan » doit garder
+    // son accent à l'écran, seule la détection travaille en ASCII.
+    const nameMatch = cmd.match(/(?:projet|project)\s+([\p{L}\p{N}][\p{L}\p{N}_-]{1,32})/iu)
+      || cmd.match(/(?:appel[eé]|nomm[eé]|named?)\s+([\p{L}\p{N}][\p{L}\p{N}_-]{1,32})/iu);
     const projectName = nameMatch?.[1]
       ? nameMatch[1].replace(/^\w/, c => c.toUpperCase())
       : 'HoloControl';
-    fx.openMissionControl?.({
+    fx.openMissionControlDev?.({
       scenario: 'cursor',
       projectName,
       title: 'Ouverture environnement Cursor',
@@ -89,8 +121,8 @@ export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
     });
     return bilingual(
       lang,
-      `Mission Control — projet « ${projectName} » (Core).`,
-      `Mission Control — project “${projectName}” (Core).`,
+      `Mission Control DEV — projet « ${projectName} » (Core).`,
+      `Mission Control DEV — project “${projectName}” (Core).`,
     );
   }
 
