@@ -1,20 +1,20 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check } from 'lucide-react';
-import type { MissionStep } from '../../../context/AppContext';
-import { MC_CYAN, mcMono } from '../lib/mcTokens';
+import type { MissionDevStep } from '../../../context/AppContext';
+import { MC_CYAN, mcMono } from '../lib/mcDevTokens';
 
 /**
  * Récap livrables — page courante uniquement, PAS de scrollbar.
  * Débordement → écran jaune (parent) → nouvelle page verte.
  */
-export function MissionRecapPanel({
+export function MissionDevRecapPanel({
   items,
   page,
   totalPages,
   label = 'LIVRABLES — ÉNUMÉRATION',
 }: {
-  items: MissionStep[];
+  items: MissionDevStep[];
   page: number;
   totalPages: number;
   label?: string;

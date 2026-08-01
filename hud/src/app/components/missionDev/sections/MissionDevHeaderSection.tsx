@@ -1,8 +1,8 @@
 import React from 'react';
-import { MC_ACCENT, MC_CYAN, mcMono, mcOrb, mcRaj } from '../lib/mcTokens';
+import { MC_ACCENT, MC_CYAN, mcMono, mcOrb, mcRaj } from '../lib/mcDevTokens';
 
 /** Section — en-tête mission (titre / scénario / projet). */
-export function MissionHeaderSection({
+export function MissionDevHeaderSection({
   title,
   subtitle,
   projectName,
@@ -19,7 +19,7 @@ export function MissionHeaderSection({
       style={{ borderBottom: `1px solid ${MC_ACCENT}22`, background: 'rgba(244,63,94,0.04)' }}
     >
       <p style={{ ...mcMono, color: 'rgba(255,255,255,0.4)', fontSize: 9, margin: 0 }} className="truncate">
-        {title || 'Mission'}
+        {title || 'Mission DEV'}
         {scenario === 'cursor' ? ' · SCÉNARIO CURSOR' : ''}
       </p>
       <p

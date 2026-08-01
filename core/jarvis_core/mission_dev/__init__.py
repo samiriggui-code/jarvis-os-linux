@@ -1,8 +1,16 @@
 """
-Mission Control — orchestrateur Core (§15).
+Mission Control DEV — orchestrateur Core (§15).
 
-Inbound  : { type: 'mission', action: 'start'|'abort', scenario, project_name }
-Outbound : mission_started | mission_progress | mission_finished | mission_error
+Cockpit d'orchestration du **développement logiciel**, et rien d'autre. Le
+cockpit de la maison (domotique, sécurité, caméras) est Mission Control HOME :
+un module distinct, qui ne partage avec celui-ci que le Core. Aucun des deux ne
+doit dépendre de l'autre — règle d'architecture, pas préférence de style. D'où
+l'absence volontaire de tout nom générique « mission » ici : le mot seul ne dit
+pas de quel cockpit on parle, et c'est exactement la confusion à empêcher.
+
+Inbound  : { type: 'mission_dev', action: 'start'|'abort', scenario, project_name }
+Outbound : mission_dev_started | mission_dev_progress | mission_dev_finished
+           | mission_dev_error
 
 Phase A : DB projects + workspace disque + git init.
 Cursor natif / Agent Laptop = Phase B (HUD ouvre surface Cursor en attendant).
@@ -22,7 +30,7 @@ from typing import Any, Awaitable, Callable
 from ..db import default_data_dir, session_scope
 from ..db.models import ProjectRow
 
-logger = logging.getLogger("jarvis.core.mission")
+logger = logging.getLogger("jarvis.core.mission_dev")
 
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 Speak = Callable[[str], Awaitable[None]]
@@ -36,7 +44,7 @@ CURSOR_STEPS: list[dict[str, str]] = [
     {"id": "ready", "label": "Prêt pour développement"},
 ]
 
-# Voix majordome (mission.yaml) — une ligne par jalon
+# Voix majordome (mission_dev.yaml) — une ligne par jalon
 VOICE: dict[str, str] = {
     "memory:running": "J'ouvre le journal du projet.",
     "memory:done": "Mémoire projet en place.",
@@ -62,7 +70,7 @@ def _safe_name(name: str) -> str:
     return (cleaned.strip("-_") or "projet")[:64]
 
 
-class MissionRunner:
+class MissionDevRunner:
     def __init__(self) -> None:
         self._task: asyncio.Task[None] | None = None
         self._abort = asyncio.Event()
@@ -86,7 +94,7 @@ class MissionRunner:
         hermes_ok: bool | None = None,
     ) -> None:
         if self.running:
-            await send({"type": "mission_error", "error": "mission_already_running"})
+            await send({"type": "mission_dev_error", "error": "mission_dev_already_running"})
             return
         self._abort = asyncio.Event()
         self._task = asyncio.create_task(
@@ -105,7 +113,7 @@ class MissionRunner:
         send: Send,
         speak: Speak,
         *,
-        mission_id: str,
+        mission_dev_id: str,
         step_id: str,
         status: str,
         project_name: str,
@@ -113,8 +121,8 @@ class MissionRunner:
         project_id: str | None = None,
     ) -> None:
         await send({
-            "type": "mission_progress",
-            "mission_id": mission_id,
+            "type": "mission_dev_progress",
+            "mission_dev_id": mission_dev_id,
             "step_id": step_id,
             "status": status,
             "project_name": project_name,
@@ -136,14 +144,14 @@ class MissionRunner:
         owner_user_id: str | None,
         hermes_ok: bool | None,
     ) -> None:
-        mission_id = str(uuid.uuid4())
-        self.active_id = mission_id
+        mission_dev_id = str(uuid.uuid4())
+        self.active_id = mission_dev_id
         name = (project_name or "HoloControl").strip() or "HoloControl"
         safe = _safe_name(name)
 
         await send({
-            "type": "mission_started",
-            "mission_id": mission_id,
+            "type": "mission_dev_started",
+            "mission_dev_id": mission_dev_id,
             "project_name": name,
             "scenario": scenario,
             "steps": CURSOR_STEPS,
@@ -157,7 +165,7 @@ class MissionRunner:
             # 1 · memory — DB
             if self._abort.is_set():
                 raise InterruptedError("aborted")
-            await self._emit(send, speak, mission_id=mission_id, step_id="memory", status="running",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="memory", status="running",
                              project_name=name, log=f">> alloc mémoire · {name}")
             project_id = str(uuid.uuid4())
             root = Path(default_data_dir()) / "projects" / safe
@@ -171,11 +179,11 @@ class MissionRunner:
                     scenario=scenario,
                     owner_user_id=owner_user_id,
                     workspace_path=str(root),
-                    meta_json=json.dumps({"mission_id": mission_id}),
+                    meta_json=json.dumps({"mission_dev_id": mission_dev_id}),
                     created_at=_now(),
                     updated_at=_now(),
                 ))
-            await self._emit(send, speak, mission_id=mission_id, step_id="memory", status="done",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="memory", status="done",
                              project_name=name, project_id=project_id,
                              log=f">> schema projects.insert({name})")
             await asyncio.sleep(0.35)
@@ -183,7 +191,7 @@ class MissionRunner:
             # 2 · hermes — routage
             if self._abort.is_set():
                 raise InterruptedError("aborted")
-            await self._emit(send, speak, mission_id=mission_id, step_id="hermes", status="running",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="hermes", status="running",
                              project_name=name, project_id=project_id, log=">> analyse intent")
             route = "agent.dev"
             if hermes_ok is True:
@@ -193,32 +201,32 @@ class MissionRunner:
             else:
                 log_h = ">> route locale → agent.dev"
             await asyncio.sleep(0.4)
-            await self._emit(send, speak, mission_id=mission_id, step_id="hermes", status="done",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="hermes", status="done",
                              project_name=name, project_id=project_id, log=log_h)
 
             # 3 · agent-dev — scaffold workspace
             if self._abort.is_set():
                 raise InterruptedError("aborted")
-            await self._emit(send, speak, mission_id=mission_id, step_id="agent-dev", status="running",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="agent-dev", status="running",
                              project_name=name, project_id=project_id, log=f">> scaffold · {safe}/")
             assert workspace is not None
             (workspace / "src").mkdir(exist_ok=True)
             (workspace / "README.md").write_text(
-                f"# {name}\n\nProjet créé par JARVIS Mission Control.\n",
+                f"# {name}\n\nProjet créé par JARVIS Mission Control DEV.\n",
                 encoding="utf-8",
             )
             (workspace / "src" / "main.ts").write_text(
                 f"// {name} — point d'entrée\nexport {{}};\n",
                 encoding="utf-8",
             )
-            await self._emit(send, speak, mission_id=mission_id, step_id="agent-dev", status="done",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="agent-dev", status="done",
                              project_name=name, project_id=project_id,
                              log=f">> workspace · {workspace}")
 
             # 4 · cursor context
             if self._abort.is_set():
                 raise InterruptedError("aborted")
-            await self._emit(send, speak, mission_id=mission_id, step_id="cursor", status="running",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="cursor", status="running",
                              project_name=name, project_id=project_id, log=">> context pack")
             (workspace / ".cursor").mkdir(exist_ok=True)
             (workspace / "AGENTS.md").write_text(
@@ -226,16 +234,16 @@ class MissionRunner:
                 encoding="utf-8",
             )
             (workspace / ".cursor" / "project.json").write_text(
-                json.dumps({"name": name, "project_id": project_id, "mission_id": mission_id}, indent=2),
+                json.dumps({"name": name, "project_id": project_id, "mission_dev_id": mission_dev_id}, indent=2),
                 encoding="utf-8",
             )
-            await self._emit(send, speak, mission_id=mission_id, step_id="cursor", status="done",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="cursor", status="done",
                              project_name=name, project_id=project_id, log=">> AGENTS.md + .cursor/")
 
             # 5 · git
             if self._abort.is_set():
                 raise InterruptedError("aborted")
-            await self._emit(send, speak, mission_id=mission_id, step_id="git", status="running",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="git", status="running",
                              project_name=name, project_id=project_id, log=">> git init")
             git_ok = False
             try:
@@ -252,7 +260,7 @@ class MissionRunner:
             except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
                 logger.warning("git init indisponible : %s", exc)
             await self._emit(
-                send, speak, mission_id=mission_id, step_id="git", status="done",
+                send, speak, mission_dev_id=mission_dev_id, step_id="git", status="done",
                 project_name=name, project_id=project_id,
                 log=">> git init OK" if git_ok else ">> git indisponible — workspace sans dépôt",
             )
@@ -260,20 +268,20 @@ class MissionRunner:
             # 6 · ready
             if self._abort.is_set():
                 raise InterruptedError("aborted")
-            await self._emit(send, speak, mission_id=mission_id, step_id="ready", status="running",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="ready", status="running",
                              project_name=name, project_id=project_id, log=">> handshake")
             with session_scope() as s:
                 row = s.get(ProjectRow, project_id)
                 if row:
                     row.status = "ready"
                     row.updated_at = _now()
-            await self._emit(send, speak, mission_id=mission_id, step_id="ready", status="done",
+            await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="ready", status="done",
                              project_name=name, project_id=project_id,
                              log=f">> {name} · prêt développement")
 
             await send({
-                "type": "mission_finished",
-                "mission_id": mission_id,
+                "type": "mission_dev_finished",
+                "mission_dev_id": mission_dev_id,
                 "project_id": project_id,
                 "project_name": name,
                 "workspace_path": str(workspace) if workspace else None,
@@ -282,18 +290,18 @@ class MissionRunner:
             })
         except InterruptedError:
             await send({
-                "type": "mission_finished",
-                "mission_id": mission_id,
+                "type": "mission_dev_finished",
+                "mission_dev_id": mission_dev_id,
                 "project_id": project_id,
                 "project_name": name,
                 "ok": False,
                 "error": "aborted",
             })
         except Exception as exc:  # noqa: BLE001
-            logger.exception("mission failed")
+            logger.exception("mission_dev failed")
             await send({
-                "type": "mission_error",
-                "mission_id": mission_id,
+                "type": "mission_dev_error",
+                "mission_dev_id": mission_dev_id,
                 "project_id": project_id,
                 "error": str(exc),
             })

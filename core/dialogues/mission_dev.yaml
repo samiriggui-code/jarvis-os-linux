@@ -1,4 +1,9 @@
-# Mission Control — séquences projet.
+# Mission Control DEV — séquences projet (développement logiciel).
+#
+# Rien ici ne concerne la maison : la domotique, la sécurité et les caméras
+# relèvent de Mission Control HOME, qui aura son propre fichier de dialogues.
+# Le préfixe `mission_dev_` sur chaque événement est ce qui garantit que les
+# deux jeux de répliques ne se mélangent jamais dans le cache vocal.
 #
 # ═══ REGISTRE : MAJORDOME, PAS TECHNICIEN ═════════════════════════════════
 #
@@ -24,16 +29,16 @@
 #
 # « HoloControl » est un mot inventé : incachable. Il est prononcé UNE SEULE
 # FOIS, à l'ouverture, en TTS live (~40 caractères). Tout le reste de la
-# séquence sort du cache, gratuitement, à vie — et Mission Control affiche
+# séquence sort du cache, gratuitement, à vie — et Mission Control DEV affiche
 # le nom à l'écran de toute façon.
 #
 # ═══ RÉUTILISABLE ═════════════════════════════════════════════════════════
 #
-# Une séquence ne nomme la technologie qu'une fois (`mission_stack_detected`).
+# Une séquence ne nomme la technologie qu'une fois (`mission_dev_stack_detected`).
 # Tout le reste est identique pour React, Python, PHP ou une techno inconnue.
 # Ajouter une stack plus tard = une ligne de config, deux clips.
 version: 1
-domain: mission
+domain: mission_dev
 default_voice: jarvis
 
 lines:
@@ -46,7 +51,7 @@ lines:
   #   projet vierge  : « Très bien, {titre}. Projet {nom} initialisé. »
   #   dépôt existant : « Très bien, {titre}. Je vais chercher {nom}. »
 
-  - event: mission_open
+  - event: mission_dev_open
     tone: cinematic
     security_level: auth
     text:
@@ -54,7 +59,7 @@ lines:
     orb_state: thinking
     pause_ms: 300
 
-  - event: mission_ask_name
+  - event: mission_dev_ask_name
     tone: human
     security_level: auth
     address: vous
@@ -68,7 +73,7 @@ lines:
   # On ne découvre pas à 80 % d'un clonage que le nom existe déjà ou que le
   # disque est plein : il faudrait tout défaire, et l'attente aura été vaine.
 
-  - event: mission_ask_kind
+  - event: mission_dev_ask_kind
     tone: human
     security_level: auth
     address: vous
@@ -76,7 +81,7 @@ lines:
       - "Projet vierge, ou dépôt existant ?"
     orb_state: listening
 
-  - event: mission_ask_stack
+  - event: mission_dev_ask_stack
     tone: human
     security_level: auth
     address: vous
@@ -84,7 +89,7 @@ lines:
       - "Sur quelle technologie ?"
     orb_state: listening
 
-  - event: mission_ask_source
+  - event: mission_dev_ask_source
     tone: human
     security_level: auth
     address: vous
@@ -92,7 +97,7 @@ lines:
       - "À quelle adresse se trouve le dépôt ?"
     orb_state: listening
 
-  - event: mission_name_taken
+  - event: mission_dev_name_taken
     tone: human
     security_level: auth
     address: vous
@@ -100,7 +105,7 @@ lines:
       - "Ce projet existe déjà. Souhaitez-vous le reprendre ?"
     orb_state: listening
 
-  - event: mission_prepare
+  - event: mission_dev_prepare
     tone: technical
     security_level: auth
     text:
@@ -108,7 +113,7 @@ lines:
     orb_state: thinking
     pause_ms: 200
 
-  - event: mission_prepared
+  - event: mission_dev_prepared
     tone: technical
     security_level: auth
     text:
@@ -117,19 +122,19 @@ lines:
     pause_ms: 300
 
   # ══ LES SIX ÉTAPES ════════════════════════════════════════════════════
-  # Alignées sur CURSOR_MISSION_STEPS (hud/src/app/context/AppContext.tsx).
+  # Alignées sur CURSOR_MISSION_DEV_STEPS (hud/src/app/context/AppContext.tsx).
   # Une seule ligne par étape à l'oral : l'écran porte le détail technique,
   # la voix reste sobre pendant que le flux défile.
 
   # 1 · memory — « Création mémoire projet (DB) »
-  - event: mission_memory_start
+  - event: mission_dev_memory_start
     tone: technical
     security_level: auth
     text:
       - "J'ouvre le journal du projet."
     orb_state: thinking
 
-  - event: mission_memory_done
+  - event: mission_dev_memory_done
     tone: technical
     security_level: auth
     text:
@@ -137,14 +142,14 @@ lines:
     orb_state: idle
 
   # 2 · hermes — « analyse & routage ». Le composant n'est PAS nommé.
-  - event: mission_route_start
+  - event: mission_dev_route_start
     tone: technical
     security_level: auth
     text:
       - "J'analyse la demande."
     orb_state: thinking
 
-  - event: mission_route_done
+  - event: mission_dev_route_done
     tone: technical
     security_level: auth
     text:
@@ -152,14 +157,14 @@ lines:
     orb_state: idle
 
   # 3 · agent-dev
-  - event: mission_agent_start
+  - event: mission_dev_agent_start
     tone: technical
     security_level: auth
     text:
       - "Délégation à l'agent de développement."
     orb_state: thinking
 
-  - event: mission_agent_done
+  - event: mission_dev_agent_done
     tone: technical
     security_level: auth
     text:
@@ -167,14 +172,14 @@ lines:
     orb_state: idle
 
   # 4 · cursor — l'IDE n'est PAS nommé non plus.
-  - event: mission_context_start
+  - event: mission_dev_context_start
     tone: technical
     security_level: auth
     text:
       - "Je prépare le contexte de travail."
     orb_state: thinking
 
-  - event: mission_context_done
+  - event: mission_dev_context_done
     tone: technical
     security_level: auth
     text:
@@ -182,7 +187,7 @@ lines:
     orb_state: idle
 
   # 5 · git
-  - event: mission_repo_done
+  - event: mission_dev_repo_done
     tone: technical
     security_level: auth
     text:
@@ -191,21 +196,21 @@ lines:
 
   # ── Acquisition (dépôt existant) ───────────────────────────────────────
 
-  - event: mission_fetch_start
+  - event: mission_dev_fetch_start
     tone: technical
     security_level: auth
     text:
       - "Acquisition depuis {source}."
     orb_state: thinking
 
-  - event: mission_fetch_done
+  - event: mission_dev_fetch_done
     tone: technical
     security_level: auth
     text:
       - "Sources récupérées."
     orb_state: idle
 
-  - event: mission_analyze
+  - event: mission_dev_analyze
     tone: technical
     security_level: auth
     text:
@@ -213,14 +218,14 @@ lines:
     orb_state: thinking
 
   # LA SEULE ligne qui nomme la technologie.
-  - event: mission_stack_detected
+  - event: mission_dev_stack_detected
     tone: technical
     security_level: auth
     text:
       - "Projet {stack} détecté."
     orb_state: idle
 
-  - event: mission_deps_start
+  - event: mission_dev_deps_start
     tone: technical
     security_level: auth
     text:
@@ -229,7 +234,7 @@ lines:
 
   # Compte rendu SANS demande d'autorisation : à l'intérieur du projet,
   # JARVIS agit seul (cf. cahier §15.6). Ne pas demander ≠ ne pas dire.
-  - event: mission_deps_done
+  - event: mission_dev_deps_done
     tone: technical
     security_level: auth
     text:
@@ -246,28 +251,28 @@ lines:
   # La relance NE REMPLACE PAS la ligne d'étape — à la fin, le script
   # reprend exactement où il en était.
 
-  - event: mission_wait_download
+  - event: mission_dev_wait_download
     tone: human
     security_level: auth
     text:
       - "Un instant, {titre}. Téléchargement en cours."
     orb_state: thinking
 
-  - event: mission_wait_deps
+  - event: mission_dev_wait_deps
     tone: human
     security_level: auth
     text:
       - "Un instant. Installation des dépendances."
     orb_state: thinking
 
-  - event: mission_wait_long
+  - event: mission_dev_wait_long
     tone: human
     security_level: auth
     text:
       - "Cela demande un peu plus de temps."
     orb_state: thinking
 
-  - event: mission_wait_still
+  - event: mission_dev_wait_still
     tone: human
     security_level: auth
     text:
@@ -280,7 +285,7 @@ lines:
   # phrase devient un mensonge, et c'est pire que le silence.
   # À ne câbler que sur les étapes où une vraie tentative existe.
 
-  - event: mission_search_start
+  - event: mission_dev_search_start
     tone: technical
     security_level: auth
     text:
@@ -289,7 +294,7 @@ lines:
       - "J'identifie ce qui bloque."
     orb_state: thinking
 
-  - event: mission_search_found
+  - event: mission_dev_search_found
     tone: technical
     security_level: auth
     text:
@@ -297,7 +302,7 @@ lines:
       - "Résolu. Je poursuis."
     orb_state: idle
 
-  - event: mission_search_failed
+  - event: mission_dev_search_failed
     tone: security_alert
     security_level: auth
     text:
@@ -306,19 +311,19 @@ lines:
     orb_state: error
 
   # ══ EXCURSION — panneau ouvert puis refermé ═══════════════════════════
-  # Mission Control est la colonne vertébrale ; un panneau est un détour,
+  # Mission Control DEV est la colonne vertébrale ; un panneau est un détour,
   # jamais une destination. Toujours ANNONCÉ (un terminal qui surgit sans
   # un mot est inquiétant) et toujours REFERMÉ par la séquence — sinon on
   # accumule des fenêtres orphelines au fil des missions.
 
-  - event: mission_panel_terminal
+  - event: mission_dev_panel_terminal
     tone: technical
     security_level: auth
     text:
       - "J'ouvre un terminal, {titre}."
     orb_state: thinking
 
-  - event: mission_panel_web
+  - event: mission_dev_panel_web
     tone: technical
     security_level: auth
     text:
@@ -326,7 +331,7 @@ lines:
       - "Je vérifie les sources disponibles."
     orb_state: thinking
 
-  - event: mission_panel_close
+  - event: mission_dev_panel_close
     tone: technical
     security_level: auth
     text:
@@ -339,7 +344,7 @@ lines:
   # ne servent QUE lorsqu'il doit en sortir : installation système, envoi
   # vers un dépôt distant, mise en production.
 
-  - event: mission_permission_system
+  - event: mission_dev_permission_system
     tone: security_alert
     security_level: elevated
     address: vous
@@ -348,7 +353,7 @@ lines:
     orb_state: listening
     pause_ms: 400
 
-  - event: mission_permission_push
+  - event: mission_dev_permission_push
     tone: security_alert
     security_level: elevated
     address: vous
@@ -361,7 +366,7 @@ lines:
   # 6 · ready. C'est ICI, et seulement ici, que la note d'humour est permise.
   # Litote et formalisme, pas plaisanterie : « Comme toujours. » porte tout.
 
-  - event: mission_ready
+  - event: mission_dev_ready
     tone: cinematic
     security_level: auth
     text:
@@ -372,35 +377,35 @@ lines:
   # ══ INCIDENTS — aucun humour, jamais ══════════════════════════════════
   # Le majordome ne fait pas d'esprit quand il annonce un problème.
 
-  - event: mission_repo_denied
+  - event: mission_dev_repo_denied
     tone: security_alert
     security_level: auth
     text:
       - "Je ne parviens pas à accéder au dépôt, {titre}. Des identifiants sont requis."
     orb_state: error
 
-  - event: mission_fetch_failed
+  - event: mission_dev_fetch_failed
     tone: security_alert
     security_level: auth
     text:
       - "L'acquisition a échoué. Le dépôt est inaccessible."
     orb_state: error
 
-  - event: mission_deps_failed
+  - event: mission_dev_deps_failed
     tone: security_alert
     security_level: auth
     text:
       - "Échec de résolution des dépendances. Un conflit de versions a été détecté."
     orb_state: error
 
-  - event: mission_space_failed
+  - event: mission_dev_space_failed
     tone: security_alert
     security_level: auth
     text:
       - "L'espace disque est insuffisant. L'acquisition est annulée."
     orb_state: error
 
-  - event: mission_aborted
+  - event: mission_dev_aborted
     tone: technical
     security_level: auth
     text:
@@ -410,7 +415,7 @@ lines:
 
   # ══ DÉPLOIEMENT ═══════════════════════════════════════════════════════
 
-  - event: mission_deploy_confirm
+  - event: mission_dev_deploy_confirm
     tone: security_alert
     security_level: elevated
     user_role: admin
@@ -420,7 +425,7 @@ lines:
     orb_state: listening
     pause_ms: 500
 
-  - event: mission_deploy_done
+  - event: mission_dev_deploy_done
     tone: cinematic
     security_level: elevated
     text:
@@ -428,7 +433,7 @@ lines:
     orb_state: idle
     pause_ms: 400
 
-  - event: mission_deploy_failed
+  - event: mission_dev_deploy_failed
     tone: security_alert
     security_level: elevated
     text:
@@ -439,7 +444,7 @@ lines:
   # En fin de session, sur un changement structurant — jamais après chaque
   # commit. C'est la seule table que rien ne remplit automatiquement.
 
-  - event: mission_ask_decision
+  - event: mission_dev_ask_decision
     tone: human
     security_level: auth
     address: vous
@@ -447,7 +452,7 @@ lines:
       - "Un choix structurant a été fait. Quelle en était la raison ?"
     orb_state: listening
 
-  - event: mission_decision_saved
+  - event: mission_dev_decision_saved
     tone: technical
     security_level: auth
     text:

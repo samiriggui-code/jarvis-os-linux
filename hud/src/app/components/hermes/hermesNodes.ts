@@ -4,8 +4,8 @@ import {
 } from 'lucide-react';
 
 export type NodeId =
-  | 'hermes' | 'cerveau' | 'tokens' | 'missions' | 'skills' | 'connexions'
-  | 'reseau' | 'mission-control' | 'crons' | 'ia' | 'outils';
+  | 'hermes' | 'cerveau' | 'tokens' | 'objectifs' | 'skills' | 'connexions'
+  | 'reseau' | 'security-center' | 'crons' | 'ia' | 'outils';
 
 export interface HermesNode {
   id: NodeId;
@@ -30,13 +30,13 @@ export const HERMES_NODES: Record<NodeId, HermesNode> = {
     id: 'hermes', name: 'Hermes Core', icon: BrainCircuit, color: '#00f5ff',
     role: 'Orchestrateur central — sait ce qui existe, où, comment communiquer, quelles permissions sont nécessaires.',
     ref: '§2 / §13.1', status: 'actif', consumption: 0, progression: 0, metric: '11 nœuds connectés',
-    connections: ['cerveau', 'tokens', 'missions', 'skills', 'connexions', 'reseau', 'mission-control', 'crons', 'ia', 'outils'],
+    connections: ['cerveau', 'tokens', 'objectifs', 'skills', 'connexions', 'reseau', 'security-center', 'crons', 'ia', 'outils'],
   },
   cerveau: {
     id: 'cerveau', name: 'Cerveau', icon: BrainCog, color: '#a855f7',
     role: 'Routage LLM, moteur d\'intention, contexte de conversation.',
     ref: '§13.1 brain/', status: 'actif', consumption: 42, progression: 0, metric: 'llm_router actif',
-    connections: ['tokens', 'ia', 'missions'],
+    connections: ['tokens', 'ia', 'objectifs'],
   },
   tokens: {
     id: 'tokens', name: 'Tokens', icon: Coins, color: '#f59e0b',
@@ -44,8 +44,12 @@ export const HERMES_NODES: Record<NodeId, HermesNode> = {
     ref: '§11 AI Provider Manager', status: 'actif', consumption: 68, progression: 0, metric: '128K contexte',
     connections: ['cerveau', 'ia'],
   },
-  missions: {
-    id: 'missions', name: 'Missions', icon: Target, color: '#22c55e',
+  // « Missions » nu : ni le cockpit DEV, ni le cockpit HOME — les objectifs
+  // confiés à Hermes. Le mot seul étant proscrit, le nœud porte désormais ce
+  // qu'il désigne. `hermesTool: node_missions` reste inchangé : c'est un nom
+  // d'outil côté Hermes, il ne se renomme pas depuis ce dépôt.
+  objectifs: {
+    id: 'objectifs', name: 'Objectifs', icon: Target, color: '#22c55e',
     role: 'Objectifs en cours confiés à JARVIS et leur état d\'avancement.',
     ref: '§13.11 pré-commandes', status: 'actif', consumption: 0, progression: 60, metric: '3/5 en cours',
     connections: ['skills', 'crons', 'cerveau'],
@@ -54,7 +58,7 @@ export const HERMES_NODES: Record<NodeId, HermesNode> = {
     id: 'skills', name: 'Skills', icon: Sparkles, color: '#ec4899',
     role: 'Compétences et outils déclarés, appris ou installés dynamiquement.',
     ref: '§13.11 / §13.12', status: 'actif', consumption: 0, progression: 0, metric: '24 compétences',
-    connections: ['missions', 'outils', 'connexions'],
+    connections: ['objectifs', 'outils', 'connexions'],
   },
   connexions: {
     id: 'connexions', name: 'Connexions', icon: Link2, color: '#0ea5e9',
@@ -66,19 +70,24 @@ export const HERMES_NODES: Record<NodeId, HermesNode> = {
     id: 'reseau', name: 'Réseau Neuronal', icon: Network, color: '#14b8a6',
     role: 'Santé de la topologie de communication entre agents et Hermes.',
     ref: '§13.9 Communication', status: 'actif', consumption: 0, progression: 98, metric: '98% intégrité',
-    connections: ['connexions', 'mission-control'],
+    connections: ['connexions', 'security-center'],
   },
-  'mission-control': {
-    id: 'mission-control', name: 'Mission Control', icon: Radar, color: '#ef4444',
+  // Ce nœud s'appelait « Mission Control » alors qu'il décrit le Security
+  // Center (§7.10) : supervision, alertes, interventions. C'est le domaine de
+  // Mission Control HOME, pas celui du cockpit de développement — et c'est ce
+  // faux homonyme qui faisait pointer le déclencheur vocal « alertes » du
+  // catalogue sur la scène Cursor. Renommé d'après ce qu'il fait réellement.
+  'security-center': {
+    id: 'security-center', name: 'Security Center', icon: Radar, color: '#ef4444',
     role: 'Supervision temps réel, alertes, priorisation des interventions.',
     ref: '§7.10 Security Center', status: 'attention', consumption: 0, progression: 0, metric: '2 alertes actives',
-    connections: ['reseau', 'crons', 'missions'],
+    connections: ['reseau', 'crons', 'objectifs'],
   },
   crons: {
     id: 'crons', name: 'Crons', icon: Timer, color: '#64748b',
     role: 'Tâches planifiées et récurrentes — sauvegardes, scans, mises à jour.',
     ref: '§6.12 / §12', status: 'actif', consumption: 0, progression: 0, metric: '6 tâches planifiées',
-    connections: ['missions', 'mission-control'],
+    connections: ['objectifs', 'security-center'],
   },
   ia: {
     id: 'ia', name: 'Fournisseurs IA', icon: Cpu, color: '#06b6d4',

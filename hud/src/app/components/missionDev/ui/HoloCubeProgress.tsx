@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { MC_CYAN, mcMono, mcOrb } from '../lib/mcTokens';
+import { MC_CYAN, mcMono, mcOrb } from '../lib/mcDevTokens';
 
 const CUBE_COUNT = 24;
 

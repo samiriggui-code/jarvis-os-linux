@@ -51,7 +51,7 @@ class UsageEventRow(Base):
 
 
 class ProjectRow(Base):
-    """Mémoire projet Mission Control (§15.4 Phase A)."""
+    """Mémoire projet Mission Control DEV (§15.4 Phase A)."""
     __tablename__ = "projects"
     __table_args__ = (
         Index("ix_projects_name", "name"),

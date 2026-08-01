@@ -131,7 +131,7 @@ lines:
   # ══ ATTENTE ═════════════════════════════════════════════════════════════
   #
   # 8 s → première relance. 30 s → seconde. Au-delà : SILENCE. Deux maximum
-  # par étape, même règle que Mission Control (`mission.yaml`). Le chargement
+  # par étape, même règle que Mission Control DEV (`mission_dev.yaml`). Le chargement
   # de YuNet + SFace prend ~20 s : c'est l'étape pour laquelle ces lignes
   # existent, celle où l'on croit que ça a planté.
   #

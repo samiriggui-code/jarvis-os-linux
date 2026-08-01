@@ -45,8 +45,8 @@ BYTES_PER_SECOND = 24000 * 2
 
 #: Relances d'attente, en secondes depuis le début de l'attente.
 #:
-#: DEUX MAXIMUM, puis silence — même règle que Mission Control
-#: (`dialogues/mission.yaml`, § RELANCES D'ATTENTE). Un chargement de modèle de
+#: DEUX MAXIMUM, puis silence — même règle que Mission Control DEV
+#: (`dialogues/mission_dev.yaml`, § RELANCES D'ATTENTE). Un chargement de modèle de
 #: vingt secondes ponctué de « un instant » toutes les cinq secondes, et la
 #: maison débranche l'enceinte. Le majordome ne commente pas son attente.
 WAIT_RELANCES_S = (8.0, 30.0)

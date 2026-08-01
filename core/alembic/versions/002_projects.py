@@ -1,4 +1,4 @@
-"""projects — Mission Control Phase A
+"""projects — Mission Control DEV Phase A
 
 Revision ID: 002_projects
 Revises: 001_initial

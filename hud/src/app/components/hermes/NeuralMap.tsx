@@ -40,8 +40,8 @@ const EXTRA_EDGES: [NodeId, NodeId][] = (() => {
 
 /**
  * Contenu de la fenêtre « Noyau JARVIS » — schéma de connectivité Hermes
- * (§13.1) : nœud central + nœuds satellites (cerveau, tokens, missions,
- * skills, connexions, réseau, mission control, crons, IA, outils). Cliquer
+ * (§13.1) : nœud central + nœuds satellites (cerveau, tokens, objectifs,
+ * skills, connexions, réseau, security center, crons, IA, outils). Cliquer
  * un nœud ouvre un tiroir de détail avec ses connexions et ses métriques.
  */
 export function NeuralMap() {

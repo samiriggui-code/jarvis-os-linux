@@ -1,18 +1,18 @@
 import React from 'react';
 import { AnimatePresence } from 'motion/react';
-import { MissionLiveFeed } from '../ui/MissionLiveFeed';
-import type { MissionLogLine } from '../lib/mcTokens';
+import { MissionDevLiveFeed } from '../ui/MissionDevLiveFeed';
+import type { MissionDevLogLine } from '../lib/mcDevTokens';
 
 /**
  * Section flux Hermès — pas de scrollbar.
  * Page pleine → nouvelle vue directe (pas d’écran intermédiaire).
  */
-export function MissionStreamSection({
+export function MissionDevStreamSection({
   lines,
   liveLabel,
   page,
 }: {
-  lines: MissionLogLine[];
+  lines: MissionDevLogLine[];
   liveLabel: string;
   page: number;
   /** @deprecated flash jaune retiré — prop ignorée si présente */
@@ -21,7 +21,7 @@ export function MissionStreamSection({
   return (
     <section className="flex-1 min-h-0 flex flex-col overflow-hidden" aria-label="Flux live Hermès">
       <AnimatePresence mode="wait">
-        <MissionLiveFeed
+        <MissionDevLiveFeed
           key={`stream-${page}`}
           lines={lines}
           liveLabel={liveLabel}

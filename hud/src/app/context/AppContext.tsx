@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { Radar } from 'lucide-react';
 import { authLogout, authRevokeAdmin, type AuthUser } from '../bridge/authClient';
 import { CHAT_STORAGE_KEY } from '../bridge/chatPipeline';
+import { DEV_BUILD, isAuthBypassEnabled } from '../bridge/devAuthBypass';
 
 export type AIState = 'idle' | 'listening' | 'processing' | 'responding';
 
@@ -49,21 +50,21 @@ export interface OpenApp {
   minimized?: boolean;
 }
 
-/** Étape Mission Control (§15) */
-export type MissionStepStatus = 'pending' | 'running' | 'done' | 'error';
-export type MissionStep = { id: string; label: string; status: MissionStepStatus };
-export type MissionScenario = 'cursor' | 'generic';
+/** Étape Mission Control DEV (§15) — cockpit logiciel, pas le cockpit maison. */
+export type MissionDevStepStatus = 'pending' | 'running' | 'done' | 'error';
+export type MissionDevStep = { id: string; label: string; status: MissionDevStepStatus };
+export type MissionDevScenario = 'cursor' | 'generic';
 
-export type MissionControlState = {
+export type MissionControlDevState = {
   open: boolean;
-  scenario: MissionScenario | null;
+  scenario: MissionDevScenario | null;
   title: string;
   subtitle: string;
   projectName: string;
-  steps: MissionStep[];
+  steps: MissionDevStep[];
 };
 
-export const CURSOR_MISSION_STEPS: MissionStep[] = [
+export const CURSOR_MISSION_DEV_STEPS: MissionDevStep[] = [
   { id: 'memory', label: 'Création mémoire projet (DB)', status: 'pending' },
   { id: 'hermes', label: 'Hermès — analyse & routage', status: 'pending' },
   { id: 'agent-dev', label: 'Agent Dev (simulation)', status: 'pending' },
@@ -139,16 +140,16 @@ interface AppContextType {
   inputMode: 'voice' | 'recovery';
   setInputMode: (m: 'voice' | 'recovery') => void;
   toggleRecoveryMode: () => void;
-  /** Mission Control (§15) — actions complexes */
-  missionControl: MissionControlState;
-  openMissionControl: (opts: {
-    scenario?: MissionScenario;
+  /** Mission Control DEV (§15) — orchestration de projet logiciel */
+  missionControlDev: MissionControlDevState;
+  openMissionControlDev: (opts: {
+    scenario?: MissionDevScenario;
     projectName?: string;
     title?: string;
     subtitle?: string;
   }) => void;
-  closeMissionControl: () => void;
-  advanceMissionStep: (id: string, status: MissionStepStatus) => void;
+  closeMissionControlDev: () => void;
+  advanceMissionDevStep: (id: string, status: MissionDevStepStatus) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -198,16 +199,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [openApps, setOpenApps] = useState<OpenApp[]>([]);
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [dashboardOpen, setDashboardOpen] = useState(false);
-  const [sessionUnlocked, setSessionUnlocked] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    if (new URLSearchParams(window.location.search).get('skipAuth') === '1') return true;
-    return false;
-  });
-  const [sessionWasUnlocked, setSessionWasUnlocked] = useState(() =>
-    typeof window !== 'undefined' && (
-      new URLSearchParams(window.location.search).get('skipAuth') === '1'
-    ),
-  );
+  const [sessionUnlocked, setSessionUnlocked] = useState(isAuthBypassEnabled);
+  const [sessionWasUnlocked, setSessionWasUnlocked] = useState(isAuthBypassEnabled);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminGateOpen, setAdminGateOpen] = useState(false);
   const [coreAuth, setCoreAuthState] = useState<CoreAuthState>({
@@ -222,7 +215,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return 'voice';
     return new URLSearchParams(window.location.search).get('recovery') === '1' ? 'recovery' : 'voice';
   });
-  const [missionControl, setMissionControl] = useState<MissionControlState>({
+  const [missionControlDev, setMissionControlDev] = useState<MissionControlDevState>({
     open: false,
     scenario: null,
     title: '',
@@ -234,75 +227,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    const m = params.get('mission');
+    const m = params.get('missionDev');
     if (m === 'cursor' || m === '1') {
-      if (params.get('skipAuth') === '1' || m === 'cursor') {
+      // `?missionDev=cursor` déverrouillait la session à lui seul, sans même
+      // `skipAuth` — une démo qui ouvrait le HUD. La scène s'affiche
+      // toujours ; c'est le déverrouillage qui redevient un outil de dev.
+      if (DEV_BUILD && (isAuthBypassEnabled() || m === 'cursor')) {
         setSessionUnlocked(true);
         setSessionWasUnlocked(true);
       }
-      setMissionControl({
+      setMissionControlDev({
         open: true,
         scenario: 'cursor',
         title: 'Ouverture environnement Cursor',
         subtitle: 'Hermès prépare le contexte projet via le Core.',
         projectName: 'HoloControl',
-        steps: CURSOR_MISSION_STEPS.map(s => ({ ...s, status: 'pending' as const })),
+        steps: CURSOR_MISSION_DEV_STEPS.map(s => ({ ...s, status: 'pending' as const })),
       });
       setOpenApps(prev =>
-        prev.some(a => a.id === 'mission-control')
-          ? prev.map(a => (a.id === 'mission-control' ? { ...a, minimized: false } : a))
+        prev.some(a => a.id === 'mission-control-dev')
+          ? prev.map(a => (a.id === 'mission-control-dev' ? { ...a, minimized: false } : a))
           : [...prev, {
-            id: 'mission-control',
-            name: 'Mission Ctrl',
+            id: 'mission-control-dev',
+            name: 'Mission Ctrl DEV',
             color: '#f43f5e',
             icon: Radar,
             minimized: false,
           }],
       );
-      setActiveAppId('mission-control');
+      setActiveAppId('mission-control-dev');
     }
   }, []);
 
-  const openMissionControl = useCallback((opts: {
-    scenario?: MissionScenario;
+  const openMissionControlDev = useCallback((opts: {
+    scenario?: MissionDevScenario;
     projectName?: string;
     title?: string;
     subtitle?: string;
   }) => {
     const scenario = opts.scenario || 'cursor';
     const projectName = (opts.projectName || 'HoloControl').trim() || 'HoloControl';
-    setMissionControl({
+    setMissionControlDev({
       open: true,
       scenario,
       title: opts.title || (scenario === 'cursor'
         ? 'Ouverture environnement Cursor'
-        : 'Mission en cours'),
+        : 'Mission DEV en cours'),
       subtitle: opts.subtitle || (scenario === 'cursor'
         ? 'Hermès orchestre le projet via le Core.'
         : 'Suivi d’une action complexe.'),
       projectName,
-      steps: CURSOR_MISSION_STEPS.map(s => ({ ...s, status: 'pending' as const })),
+      steps: CURSOR_MISSION_DEV_STEPS.map(s => ({ ...s, status: 'pending' as const })),
     });
     setOpenApps(prev =>
-      prev.some(a => a.id === 'mission-control')
-        ? prev.map(a => (a.id === 'mission-control' ? { ...a, minimized: false } : a))
+      prev.some(a => a.id === 'mission-control-dev')
+        ? prev.map(a => (a.id === 'mission-control-dev' ? { ...a, minimized: false } : a))
         : [...prev, {
-          id: 'mission-control',
-          name: 'Mission Ctrl',
+          id: 'mission-control-dev',
+          name: 'Mission Ctrl DEV',
           color: '#f43f5e',
           icon: Radar,
           minimized: false,
         }],
     );
-    setActiveAppId('mission-control');
+    setActiveAppId('mission-control-dev');
   }, []);
 
-  const closeMissionControl = useCallback(() => {
-    setMissionControl(prev => ({ ...prev, open: false }));
+  const closeMissionControlDev = useCallback(() => {
+    setMissionControlDev(prev => ({ ...prev, open: false }));
     setOpenApps(prev => {
-      const next = prev.filter(a => a.id !== 'mission-control');
+      const next = prev.filter(a => a.id !== 'mission-control-dev');
       setActiveAppId(current => {
-        if (current !== 'mission-control') return current;
+        if (current !== 'mission-control-dev') return current;
         const visible = next.filter(a => !a.minimized);
         return visible.length ? visible[visible.length - 1].id : null;
       });
@@ -310,8 +306,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const advanceMissionStep = useCallback((id: string, status: MissionStepStatus) => {
-    setMissionControl(prev => ({
+  const advanceMissionDevStep = useCallback((id: string, status: MissionDevStepStatus) => {
+    setMissionControlDev(prev => ({
       ...prev,
       steps: prev.steps.map(s => (s.id === id ? { ...s, status } : s)),
     }));
@@ -416,8 +412,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const launchApp = useCallback((app: OpenApp) => {
-    if (app.id === 'mission-control') {
-      setMissionControl(prev => {
+    if (app.id === 'mission-control-dev') {
+      setMissionControlDev(prev => {
         if (prev.open && prev.steps.length) return prev;
         return {
           open: true,
@@ -425,7 +421,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           title: 'Ouverture environnement Cursor',
           subtitle: 'Hermès orchestre Agent Dev → Cursor (simulation HUD).',
           projectName: prev.projectName || 'HoloControl',
-          steps: CURSOR_MISSION_STEPS.map(s => ({ ...s, status: 'pending' as const })),
+          steps: CURSOR_MISSION_DEV_STEPS.map(s => ({ ...s, status: 'pending' as const })),
         };
       });
     }
@@ -438,8 +434,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const closeApp = useCallback((id: string) => {
-    if (id === 'mission-control') {
-      setMissionControl(prev => ({ ...prev, open: false }));
+    if (id === 'mission-control-dev') {
+      setMissionControlDev(prev => ({ ...prev, open: false }));
     }
     setOpenApps(prev => {
       const next = prev.filter(a => a.id !== id);
@@ -537,7 +533,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       coreAuth, setCoreAuth,
       micTestActive, setMicTestActive,
       inputMode, setInputMode, toggleRecoveryMode,
-      missionControl, openMissionControl, closeMissionControl, advanceMissionStep,
+      missionControlDev, openMissionControlDev, closeMissionControlDev, advanceMissionDevStep,
     }}>
       {children}
     </AppContext.Provider>

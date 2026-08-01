@@ -41,7 +41,7 @@ MAX_WAV_BYTES = 8 * 1024 * 1024
 
 # Titre attendu selon le rôle — même table que `role_titles` de
 # `cache_config.yaml`. Sans elle, une ligne portant `{titre}` mais pas de
-# `user_role` (le cas de `mission_ready`) tire au hasard entre monsieur,
+# `user_role` (le cas de `mission_dev_ready`) tire au hasard entre monsieur,
 # madame et mademoiselle : Samir se fait appeler « mademoiselle ».
 ROLE_TITLES = {"admin": "monsieur", "user": "madame", "child": "mademoiselle"}
 

@@ -177,9 +177,9 @@ export const HUD_APPS: HudApp[] = [
     voice: ['tokens', 'quota'], hermesTool: 'node_tokens',
   },
   {
-    id: 'missions', name: 'Missions', icon: Target, color: C.green, cat: 'Hermes',
+    id: 'objectifs', name: 'Objectifs', icon: Target, color: C.green, cat: 'Hermes',
     status: 'hermes', risk: 'info', blurb: 'Objectifs',
-    voice: ['missions', 'objectifs'], hermesTool: 'node_missions',
+    voice: ['objectifs', 'buts'], hermesTool: 'node_missions',
   },
   {
     id: 'skills', name: 'Skills', icon: Sparkles, color: C.violet, cat: 'Hermes',
@@ -199,15 +199,20 @@ export const HUD_APPS: HudApp[] = [
   {
     id: 'cursor', name: 'Cursor', icon: Code, color: C.green, cat: 'Hermes',
     status: 'live', risk: 'info', pinned: true,
-    blurb: 'IDE projet — simulation post Mission Control (§15)',
+    blurb: 'IDE projet — simulation post Mission Control DEV (§15)',
     voice: ['cursor', 'éditeur cursor', 'ouvre cursor'],
   },
   {
-    id: 'mission-control', name: 'Mission Ctrl', icon: Radar, color: C.rose, cat: 'Hermes',
+    id: 'mission-control-dev', name: 'Mission Ctrl DEV', icon: Radar, color: C.rose, cat: 'Hermes',
     status: 'live', risk: 'info', pinned: true,
-    blurb: 'Visuel orchestration Hermès (ex. scénario Cursor)',
-    voice: ['mission control', 'mission-control', 'alertes'],
-    hermesTool: 'node_mission_control',
+    blurb: 'Orchestration projet logiciel (ex. scénario Cursor)',
+    // « alertes » a été retiré : c'est un mot de la maison, il ouvrait le
+    // cockpit de développement. Les alertes relèvent de Mission Control HOME.
+    // « mission control » nu reste accepté à l'oral tant que le cockpit maison
+    // n'existe pas — le jour où il arrive, ce déclencheur devient ambigu et
+    // doit disparaître au profit de « mission control dev ».
+    voice: ['mission control dev', 'mission-control-dev', 'mission control'],
+    hermesTool: 'node_mission_control_dev',
   },
   {
     id: 'crons', name: 'Crons', icon: Timer, color: C.slate, cat: 'Hermes',

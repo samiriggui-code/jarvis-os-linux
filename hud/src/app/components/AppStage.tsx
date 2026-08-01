@@ -7,7 +7,7 @@ import { NeuralMap } from './hermes/NeuralMap';
 import { NodeDetailPanel } from './hermes/NodeDetailPanel';
 import { HERMES_NODES, type NodeId } from './hermes/hermesNodes';
 import { getAppById, VPS_ALLOWLIST, riskLabel } from '../apps/catalog';
-import { MissionControl, CursorSurface } from './mission';
+import { MissionControlDev, CursorSurface } from './missionDev';
 import { SystemMonitor } from './SystemMonitor';
 
 const orbFont = { fontFamily: 'Orbitron, sans-serif' };
@@ -98,7 +98,7 @@ function HermesSurface({ app }: { app: OpenApp }) {
 }
 
 function MockAppContent({ app }: { app: OpenApp }) {
-  const { launchApp, missionControl } = useApp();
+  const { launchApp, missionControlDev } = useApp();
 
   if (app.id === 'jarvis') {
     return <NeuralMap />;
@@ -112,12 +112,12 @@ function MockAppContent({ app }: { app: OpenApp }) {
     );
   }
 
-  if (app.id === 'mission-control') {
-    return <MissionControl />;
+  if (app.id === 'mission-control-dev') {
+    return <MissionControlDev />;
   }
 
   if (app.id === 'cursor') {
-    return <CursorSurface projectName={missionControl.projectName} />;
+    return <CursorSurface projectName={missionControlDev.projectName} />;
   }
 
   if (isHermesNodeId(app.id)) {

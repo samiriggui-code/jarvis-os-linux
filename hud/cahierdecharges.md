@@ -14,10 +14,13 @@ Vision produit (Iron Man) : **pas seulement des commandes vocales** — un syst�
 | **Hermes** | Orchestrateur d'agents (reçoit, choisit, exécute, met à jour la mémoire) |
 | **Core (NUC)** | Cerveau central, autorité, auth, policy, Postgres — **survit sans HUD** |
 | **Agents** | Exécutants spécialisés (maison, média, dev, services…) |
-| **Mission Control** | Fenêtre / scène universelle pour les actions complexes (§15) |
+| **Mission Control DEV** | Cockpit d'orchestration logicielle — projets, Cursor, agents (§15.1.1) |
+| **Mission Control HOME** | Cockpit du foyer — domotique, sécurité, tablette murale (§15.1.2) |
 | **HUD** | Affichage temps réel ; commandes simples = voix seule |
 
-Flux canonique : Utilisateur → HUD / Mission Control → Hermes → Agents → résultat → mémoire (§15). Détail topologie machines : guide `docs/INSTALLATION_DEPLOIEMENT.md` + §14.
+> Les deux cockpits sont **distincts** et ne partagent que le Core. Le nom « Mission Control » nu ne désigne rien : toujours préciser DEV ou HOME (§15.1).
+
+Flux canonique : Utilisateur → HUD / cockpit → Hermes → Agents → résultat → mémoire (§15). Détail topologie machines : guide `docs/INSTALLATION_DEPLOIEMENT.md` + §14.
 
 ### 1.1 Base upstream — ne pas refaire le moteur
 
@@ -1932,7 +1935,7 @@ Le Core **ne dépend pas** du HUD. Si HUD, Dashboard ou Hermes tombent, le Core 
 
 | Niveau | Accès | Capacités |
 |--------|--------|-----------|
-| **0 — Mission Control Recovery** | HUD / Dashboard en mode recovery (§6.5.1) | Voir services, redémarrer, logs, réparer (clics autorisés) |
+| **0 — Console Recovery** | HUD / Dashboard en mode recovery (§6.5.1) | Voir services, redémarrer, logs, réparer (clics autorisés) |
 | **−1 — Terminal Linux** | SSH / console locale NUC | `systemctl status|restart` sur `jarvis-core`, `hermes-agent`, voix, etc. |
 | **−2 — Physique** | BIOS / accès machine | Dernier recours |
 
@@ -2420,22 +2423,65 @@ NUC joignable ?
 
 > **Points ouverts** : profil d'installation dédié au rôle relais du VPS (à croiser §5 « profils d'installation » et §6.5.2) ; politique de rétention du journal de session côté VPS (durée, purge, chiffrement au repos — à croiser §6.11) ; comportement attendu quand le tunnel est **partiellement** dégradé (NUC joignable mais latence élevée) — bascule franche ou dégradation progressive.
 
-## 15. Mission Control, Memory Engine & orchestration projet
+## 15. Mission Control DEV / HOME, Memory Engine & orchestration projet
 
-Spécification fonctionnelle fusionnée (vision JARVIS / Hermes / Mission Control). Elle **complète** §2, §11, §13.12 et le guide d’installation — elle ne remplace pas les décisions topologie déjà tranchées (Core NUC, Ollama VPS → OpenRouter, clients web, ProLiant = Plex Windows).
+Spécification fonctionnelle fusionnée (vision JARVIS / Hermes / cockpits). Elle **complète** §2, §11, §13.12 et le guide d’installation — elle ne remplace pas les décisions topologie déjà tranchées (Core NUC, Ollama VPS → OpenRouter, clients web, ProLiant = Plex Windows).
 
-### 15.1 Mission Control
+### 15.1 Les deux Mission Control
 
-**Mission Control** = fenêtre / scène universelle du HUD. Elle n’apparaît **que si nécessaire**.
+Il existe **deux** Mission Control. Ils ne partagent que le **Core** (auth, biométrie, voix, mémoire, agents, permissions). Leurs responsabilités sont disjointes.
+
+```
+                 JARVIS CORE
+                      │
+       ┌──────────────┴──────────────┐
+       ▼                             ▼
+MISSION CONTROL DEV          MISSION CONTROL HOME
+(cockpit du créateur)        (cockpit du foyer)
+
+Créer                        Habiter
+Coder · déployer             Contrôler · surveiller
+Cursor · agents IA · Git     Domotique · sécurité · caméras
+Mémoire projets              Vie quotidienne
+Session privée               Session familiale multi-profils
+```
+
+**Règle d’architecture — non négociable.** Aucun code, écran ou logique métier de l’un ne dépend de l’autre. Aucun module ne porte le nom générique « Mission Control », ni le mot « Mission » seul : tout module précise son domaine (`mission_dev`, `missionDev/`, `mission_dev_*` côté événements WS et dialogues). Le mot nu ne dit pas de quel cockpit on parle — c’est précisément la confusion à empêcher.
+
+#### 15.1.1 Mission Control DEV
+
+Cockpit d’orchestration du **développement logiciel**, réservé au propriétaire. Scène du HUD, qui n’apparaît **que si nécessaire**.
 
 | Type d’action | UI |
 |---------------|-----|
-| Simple (lumière, auth, macro connue) | **Voix seule** — pas de Mission Control |
-| Complexe (créer un projet, déployer, multi-étapes) | **Mission Control** + commentaire vocal JARVIS |
+| Simple (lumière, auth, macro connue) | **Voix seule** — pas de cockpit |
+| Complexe (créer un projet, déployer, multi-étapes) | **Mission Control DEV** + commentaire vocal JARVIS |
 
-Exemple « Jarvis crée un projet » : dialogue (nom) → validation → progression (mémoire DB, agent, Cursor…) → Hermes orchestre.
+Exemple « Jarvis crée un projet » : dialogue (nom) → validation → progression (mémoire DB, agent, Cursor…) → Hermes orchestre. Une fois Cursor ouvert, l’utilisateur continue à la voix (« refactorise ce composant ») : JARVIS choisit les agents, transmet, et le cockpit affiche agent actif, tâche, fichiers modifiés, progression, erreurs. Chaque action alimente la mémoire projet (§15.4).
 
-Le Dashboard admin (§13.7) reste le cockpit technique ; Mission Control est l’**expérience opérationnelle** dans le HUD.
+Cursor est l’atelier ; Mission Control DEV est le chef d’orchestre. Le Dashboard admin (§13.7) reste le cockpit **technique** ; Mission Control DEV est l’**expérience opérationnelle** dans le HUD.
+
+#### 15.1.2 Mission Control HOME
+
+Cockpit **du foyer**, affiché en permanence sur la tablette murale ou un écran dédié, orbe JARVIS visible en continu (§3.2). Il expose l’état de la maison et permet de la piloter : domotique, sécurité, alarmes, caméras, ouvertures, éclairage, chauffage, consommation, réseau, serveurs locaux, appareils connectés, scénarios.
+
+Pilotage par la voix, le tactile et les tuiles. Il ne contient **jamais** d’outil de développement.
+
+> **Statut : non implémenté.** Le code existant sous `mission_dev` / `missionDev/` est le cockpit DEV exclusivement. La surface maison actuelle est dispersée dans le Dashboard admin (entités HA, monitoring) — elle devra être reprise ici, pas étendue là-bas.
+
+#### 15.1.3 Sessions — deux natures distinctes
+
+C’est la différence la plus lourde de conséquences, et elle est de sécurité :
+
+| | Mission Control DEV | Mission Control HOME |
+|---|---|---|
+| Portée | **Privée** — le créateur de JARVIS | **Familiale** — tout habitant autorisé |
+| Auth | Session propriétaire | Visage / voix / profil, **par personne** |
+| Droits | Ceux du propriétaire | **Gradués par profil** (§10.1) |
+
+La session HOME n’est **pas** un bypass. Une tablette allumée en permanence ne donne aucun droit implicite : chaque habitant est identifié et ses permissions restent portées par son profil — enfant (musique, vidéos, lumière chambre) < famille (chauffage, volets, appareils) < administrateur (sécurité, utilisateurs, configuration). Un écran toujours disponible n’est pas un écran toujours autorisé.
+
+> **Point ouvert** : ergonomie de l’identification passive sur la tablette murale (reconnaissance à l’approche vs. action explicite), et durée de session avant re-identification — à croiser §10.1 et §14.
 
 ### 15.2 Hermes — rôle d’orchestrateur
 
@@ -2487,12 +2533,12 @@ Les 6 tables vocales §13.12 (`transcriptions`, `skills`, `commandes`, `pré-com
 
 Cible produit :
 
-1. « Jarvis crée un nouveau projet » → Mission Control (nom, valider)
+1. « Jarvis crée un nouveau projet » → Mission Control DEV (nom, valider)
 2. Core NUC : lignes DB projet + mémoire + journal
 3. Hermes délègue à un **agent machine de dev** (ouvrir dossier, Cursor, git…)
 
 > **Tranché aujourd’hui** : clients = **navigateur web** ; **pas** d’agent Windows / Android natif en premier déploiement (`docs/INSTALLATION_DEPLOIEMENT.md`).  
-> **Cible** : Agent Laptop (« JARVIS DEV NODE » : Cursor, Git, Docker) jumelé au Core — **après** Phase A NUC. Jusque-là, Mission Control + mémoire projet peuvent vivre **sans** ouvrir Cursor automatiquement.
+> **Cible** : Agent Laptop (« JARVIS DEV NODE » : Cursor, Git, Docker) jumelé au Core — **après** Phase A NUC. Jusque-là, Mission Control DEV + mémoire projet peuvent vivre **sans** ouvrir Cursor automatiquement.
 
 Déploiement (« Jarvis déploie… ») : Agent Dev → git → tests → Docker → cible (ex. VPS) avec **validation obligatoire** (Policy / confirmation).
 
@@ -2513,7 +2559,7 @@ orientée *runs*. Cela ouvre une voie qui ne dépend d’aucun agent installé :
 « Jarvis ouvre mon projet HUD » suppose le poste de dev allumé et l’agent
 Laptop. Mais « Jarvis, lance l’agent sur telle branche » fonctionne **sans
 aucun agent local**, par l’API cloud. C’est la voie à privilégier pour un
-premier essai de Mission Control sur un vrai chantier.
+premier essai de Mission Control DEV sur un vrai chantier.
 
 #### Surface de l’API Cloud Agents
 
@@ -2521,7 +2567,7 @@ premier essai de Mission Control sur un vrai chantier.
 |---|---|
 | Créer un agent (prompt + dépôt) | « crée un projet », « corrige ce bug » |
 | **Follow-up** sur un agent existant | relance dans le même contexte |
-| **Streaming SSE** — statut, texte, **appels d’outils**, fin | **progression Mission Control** |
+| **Streaming SSE** — statut, texte, **appels d’outils**, fin | **progression Mission Control DEV** |
 | Reprise par `Last-Event-ID` | survivre à une coupure sans perdre le run |
 | Annuler un run | le STOP de l’orbe |
 | Artefacts (URLs présignées) | récupérer les livrables |
@@ -2532,7 +2578,7 @@ Authentification Basic ou Bearer (clé utilisateur ou compte de service).
 
 > **La structure est identique à celle de Hermes** — sessions, runs, SSE,
 > `tool.started`, annulation. **Un seul client à écrire, deux moteurs
-> pilotés** : Mission Control affichera la progression de Cursor exactement
+> pilotés** : Mission Control DEV affichera la progression de Cursor exactement
 > comme celle de Hermes. Cf. le client `HermesAPI` de `vendor/refs/jarvis_ai`.
 
 #### Capture des décisions — écouter git, pas Cursor
@@ -2635,14 +2681,14 @@ Pour la colonne de droite, la demande passe par la voix et suspend l'action
 > « Cette installation touche au système. Autorisez-vous ? »
 
 Côté moteur, rien à inventer : le flux SSE de Hermes émet un événement
-`approval` qui **suspend le run** jusqu'à réponse (§15.5). Mission Control
+`approval` qui **suspend le run** jusqu'à réponse (§15.5). Mission Control DEV
 affiche la carte, l'utilisateur autorise, le run reprend.
 
 ### 15.7 Contexte utilisateur & machines
 
 JARVIS doit raisonner avec : **qui** (profil §10.1), **où** (pièce / extérieur §14), **quel appareil** (kiosque, portable web, tablette), **quel usage** (dev, maison, média, admin).
 
-Profils machines (cible) : portable = DEV · salon = perso / média · tablette murale = maison toujours allumée (JARVIS HOME, Mission Control, tactile + voix). Toujours le même schéma : Utilisateur → JARVIS → Hermes → agent → résultat → mémoire.
+Profils machines (cible) : portable = **DEV**, seul poste à ouvrir Mission Control DEV (§15.1.1) · salon = perso / média · tablette murale = maison toujours allumée, qui affiche **Mission Control HOME** (§15.1.2), tactile + voix, en session familiale (§15.1.3). L’appareil détermine le cockpit : la tablette murale n’ouvre jamais le cockpit de développement, le portable n’est pas un tableau de bord domestique. Toujours le même schéma : Utilisateur → JARVIS → Hermes → agent → résultat → mémoire.
 
 ### 15.8 Vision finale (rappel)
 
@@ -2650,12 +2696,12 @@ JARVIS n’est pas « une IA qui répond » : une intelligence qui connaît proj
 
 ## 16. Suite
 
-> Brouillon `cahierdechargereact.txt` (agents distribués) : **fusionné** dans §13 puis fichier racine **supprimé**. HUD Qt/QML : **retiré** du monorepo — fronts cibles = React (`vendor/figma1` / `figma2`, WIP). Auth unifiée + User Manager : **§10.1**. Dialogue Manager + protocole Auth immersif : **§13.10** (`core/dialogues/`). Identité vocale Voice System : **§3.4**. Vision Mission Control / Memory Engine / agents : **§15** (2026-07-31).
+> Brouillon `cahierdechargereact.txt` (agents distribués) : **fusionné** dans §13 puis fichier racine **supprimé**. HUD Qt/QML : **retiré** du monorepo — fronts cibles = React (`vendor/figma1` / `figma2`, WIP). Auth unifiée + User Manager : **§10.1**. Dialogue Manager + protocole Auth immersif : **§13.10** (`core/dialogues/`). Identité vocale Voice System : **§3.4**. Vision Mission Control / Memory Engine / agents : **§15** (2026-07-31). Scission en **Mission Control DEV** et **Mission Control HOME**, règle de nommage et nature des sessions : **§15.1** (2026-08-01).
 
 Sections à compléter au fil des prochains apports :
 - Phasage / roadmap (MVP1 → MVPn) — prioriser : Auth/User Manager, Core↔HUD React WS, Voice Manager (`jarvis-voice`), Memory Engine §15 (tables projet), puis Holomat, puis agents natifs
 - Matrice permission ↔ commande vocale / tool
-- Contrat d'événements WS figé (états orbe §3.2, auth §10.1, `dialogue_line`, Mission Control progress)
+- Contrat d'événements WS figé (états orbe §3.2, auth §10.1, `dialogue_line`, Mission Control DEV progress)
 - Visage holographique Auth : particules / wireframe *dans* l'orbe (pas un avatar cartoon) — ref. visuelle à trancher
 - Lecteur Dialogue Manager (YAML → Voice Manager → TTS + WS) + densité cinematic
 - Réplication du timbre entre Piper local et ElevenLabs — voix originale uniquement (arbitrage moteur : **tranché** §3.4 ; identité unifiée par le Voice Filter : §14.5)

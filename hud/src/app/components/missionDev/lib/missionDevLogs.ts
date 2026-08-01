@@ -1,13 +1,13 @@
-import type { MissionStep } from '../../context/AppContext';
+import type { MissionDevStep } from '../../context/AppContext';
 
-export function missionProgressPct(steps: MissionStep[]) {
+export function missionDevProgressPct(steps: MissionDevStep[]) {
   if (!steps.length) return 0;
   const done = steps.filter(s => s.status === 'done').length;
   const running = steps.some(s => s.status === 'running') ? 0.4 : 0;
   return Math.min(100, Math.round(((done + running) / steps.length) * 100));
 }
 
-export function logLinesForStep(step: MissionStep, projectName: string): string[] {
+export function logLinesForStep(step: MissionDevStep, projectName: string): string[] {
   const p = projectName || 'projet';
   const map: Record<string, string[]> = {
     memory: [

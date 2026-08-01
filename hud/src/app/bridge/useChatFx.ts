@@ -9,7 +9,7 @@ export function useChatFx(): ChatSideEffects {
   const {
     setScanningActive, setSettingsOpen, setAppGridOpen, setGestureOpen,
     launchApp, requestDashboard, openSettings, addNotification, coreAuth,
-    setInputMode, openMissionControl, closeMissionControl,
+    setInputMode, openMissionControlDev, closeMissionControlDev,
   } = useApp();
 
   const role = coreAuth?.user?.role ?? null;
@@ -30,8 +30,8 @@ export function useChatFx(): ChatSideEffects {
       isAdmin,
       role,
       setInputMode,
-      openMissionControl,
-      closeMissionControl,
+      openMissionControlDev,
+      closeMissionControlDev,
       navigateDashboard: (page: string) => postDashboardNavigate(page),
       onLocaleSticky: (lang: 'fr' | 'en') => {
         try {
@@ -58,7 +58,7 @@ export function useChatFx(): ChatSideEffects {
     [
       setScanningActive, setSettingsOpen, setAppGridOpen, setGestureOpen,
       launchApp, requestDashboard, openSettings, addNotification, isAdmin, role,
-      setInputMode, openMissionControl, closeMissionControl,
+      setInputMode, openMissionControlDev, closeMissionControlDev,
     ],
   );
 }

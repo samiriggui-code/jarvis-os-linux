@@ -13,7 +13,7 @@
 #     calqué sur « Visage : validé. » et « Score global : optimal. »
 #   • VOCABULAIRE SF TECHNIQUE : réamorçage, sous-systèmes, paramètres
 #     nominaux, chaîne d'exécution, élévation de privilèges, intégrité.
-#   • AUCUN trait d'esprit sur un incident (règle de `mission.yaml`).
+#   • AUCUN trait d'esprit sur un incident (règle de `mission_dev.yaml`).
 #
 # ─── CE QUE CE DOMAINE ANNONCE ────────────────────────────────────────────
 #
@@ -22,7 +22,7 @@
 #
 # ⚠ « Séquence de réamorçage engagée » ANNONCE UNE ACTION RÉELLE. Si rien
 # n'est tenté derrière, la phrase est un mensonge — pire que le silence. Même
-# règle que `mission_search_start` : à ne câbler que sur les composants qui
+# règle que `mission_dev_search_start` : à ne câbler que sur les composants qui
 # ont une stratégie dans `jarvis_core/recovery.py`.
 #
 # ⚠ Jamais « Hermes », jamais « voicebox » : `{module}` porte le nom du
@@ -71,7 +71,7 @@ lines:
     orb_state: error
 
   # Relance d'attente pendant un réamorçage long (un conteneur qui recharge
-  # ses modèles). Deux maximum, puis silence — règle de `mission.yaml`.
+  # ses modèles). Deux maximum, puis silence — règle de `mission_dev.yaml`.
   - event: recovery_wait
     tone: technical
     security_level: public

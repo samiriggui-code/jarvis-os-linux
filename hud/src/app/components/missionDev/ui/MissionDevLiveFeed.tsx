@@ -1,17 +1,17 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { MC_ACCENT, MC_CYAN, mcMono, type MissionLogLine } from '../lib/mcTokens';
+import { MC_ACCENT, MC_CYAN, mcMono, type MissionDevLogLine } from '../lib/mcDevTokens';
 
 /**
  * Flux live Hermès — une page de lignes, PAS de scrollbar.
  * Quand la page est pleine → le parent passe en écran jaune puis nouvelle vue.
  */
-export function MissionLiveFeed({
+export function MissionDevLiveFeed({
   lines,
   liveLabel,
   page,
 }: {
-  lines: MissionLogLine[];
+  lines: MissionDevLogLine[];
   liveLabel: string;
   page: number;
 }) {

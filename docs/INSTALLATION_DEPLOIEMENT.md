@@ -1,6 +1,6 @@
 # JARVIS OS — Architecture & installation de déploiement
 
-> Vision Mission Control / Memory Engine / agents : `hud/cahierdecharges.md` **§15**.  
+> Vision Mission Control DEV / HOME, Memory Engine, agents : `hud/cahierdecharges.md` **§15**.  
 > **Décision produit (tranché)** — cible **prod**, pas un parcours « optionnel / plus tard ».  
 > **Core + Hermes + HA + voix + Holomat** sur le **NUC**.  
 > **VPS** = TLS + HUD/Dash + reverse WSS + **Ollama (LLM #1)** + relais hors domicile.  
@@ -287,8 +287,39 @@ JARVIS_HERMES_URL=http://127.0.0.1:8642
 ### 7.2 Hermes
 
 ```bash
-# vendor/agents/hermes-agent/ + seed obligatoire :
+# 1) Installer le code sous /opt/jarvis/hermes-agent (depuis vendor/agents/hermes-agent)
+sudo rsync -a vendor/agents/hermes-agent/ /opt/jarvis/hermes-agent/
+cd /opt/jarvis/hermes-agent
+# ⚠ Hermes exige >=3.11,<3.14 (pyproject). Sur une distro récente, `python3`
+#    peut déjà être en 3.14 : pydantic-core n'a pas de roue cp314 et part en
+#    compilation maturin, qui échoue. Forcer l'interpréteur si besoin.
+python3.12 -m venv .venv || python3 -m venv .venv
+.venv/bin/pip install -e .
+
+# 2) Seed conscience + skills produit
+export HERMES_HOME=/var/lib/jarvis/hermes
 bash deploy/scripts/seed-hermes-consciousness.sh --force-soul
+
+# 3) Clé de l'API locale — bootstrap-nuc-tree.sh la GÉNÈRE déjà dans
+#    /etc/jarvis/hermes.env (chmod 600). Sinon, à la main :
+#      cp deploy/hermes/env.example /etc/jarvis/hermes.env
+#      openssl rand -hex 32   → API_SERVER_KEY=
+#
+#    ⚠ 16 caractères minimum, et pas un placeholder connu ("changeme"…).
+#    En dessous, Hermes n'enrôle PAS la plateforme api_server : la gateway
+#    démarre, systemd dit « active (running) », et rien n'écoute sur 8642.
+#    `API_SERVER_ENABLED=true` seul ne suffit pas.
+# Core : JARVIS_HERMES_URL=http://127.0.0.1:8642
+
+# 4) Service (Wants dans jarvis.target — Alias: hermes-agent)
+sudo cp deploy/systemd/jarvis-hermes.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now jarvis-hermes
+
+# 5) Vérifier que l'API écoute VRAIMENT — « active » ne prouve rien ici
+curl -sS http://127.0.0.1:8642/health     # {"status":"ok",…}
+ss -lntp | grep 8642                      # sinon : clé trop faible (cf. 3)
+
 # Providers : Ollama VPS → OpenRouter
 # Skills HA : config + discovery écosystème (appairage obligatoire)
 ```

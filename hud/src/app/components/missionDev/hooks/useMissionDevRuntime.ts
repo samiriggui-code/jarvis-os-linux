@@ -1,20 +1,20 @@
 /**
- * Mission Control — runtime piloté par le Core (WS mission_*).
- * Plus de simulation timer : progression = mission_progress.
+ * Mission Control — runtime piloté par le Core (WS mission_dev_*).
+ * Plus de simulation timer : progression = mission_dev_progress.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { MissionStep, MissionStepStatus } from '../../../context/AppContext';
+import type { MissionDevStep, MissionDevStepStatus } from '../../../context/AppContext';
 import { getCoreClient } from '../../../bridge/coreClient';
-import type { MissionLogLine } from '../lib/mcTokens';
+import type { MissionDevLogLine } from '../lib/mcDevTokens';
 
 export const STREAM_PAGE_SIZE = 6;
 export const RECAP_PAGE_SIZE = 3;
 
-export type MissionUiPhase = 'stream' | 'enumerate' | 'done';
+export type MissionDevUiPhase = 'stream' | 'enumerate' | 'done';
 
 type AddMessage = (msg: { type: 'ai'; text: string; source?: 'system' | 'core' }) => void;
 
-function toneForLog(status: string): MissionLogLine['tone'] {
+function toneForLog(status: string): MissionDevLogLine['tone'] {
   if (status === 'done') return 'ok';
   if (status === 'running') return 'live';
   if (status === 'error') return 'sys';
@@ -24,11 +24,11 @@ function toneForLog(status: string): MissionLogLine['tone'] {
 /**
  * Écoute Core → avance les steps / logs / récap / handoff Cursor.
  */
-export function useMissionRuntime(
-  steps: MissionStep[],
+export function useMissionDevRuntime(
+  steps: MissionDevStep[],
   projectName: string,
   scenario: string | null,
-  advanceMissionStep: (id: string, status: MissionStepStatus) => void,
+  advanceMissionDevStep: (id: string, status: MissionDevStepStatus) => void,
   addMessage: AddMessage,
   onHandoffToCursor?: (projectName: string) => void,
   /** true une fois la mission ouverte et le start envoyé */
@@ -38,9 +38,9 @@ export function useMissionRuntime(
   const running = steps.find(s => s.status === 'running');
   const doneSteps = steps.filter(s => s.status === 'done');
 
-  const [allLines, setAllLines] = useState<MissionLogLine[]>([]);
+  const [allLines, setAllLines] = useState<MissionDevLogLine[]>([]);
   const [streamPageStart, setStreamPageStart] = useState(0);
-  const [uiPhase, setUiPhase] = useState<MissionUiPhase>('stream');
+  const [uiPhase, setUiPhase] = useState<MissionDevUiPhase>('stream');
   const [cursor, setCursor] = useState(0);
   const [pageStart, setPageStart] = useState(0);
   const [coreDriven, setCoreDriven] = useState(false);
@@ -49,8 +49,8 @@ export function useMissionRuntime(
   const enumKey = useRef<string | null>(null);
   const onHandoffRef = useRef(onHandoffToCursor);
   onHandoffRef.current = onHandoffToCursor;
-  const advanceRef = useRef(advanceMissionStep);
-  advanceRef.current = advanceMissionStep;
+  const advanceRef = useRef(advanceMissionDevStep);
+  advanceRef.current = advanceMissionDevStep;
   const addMsgRef = useRef(addMessage);
   addMsgRef.current = addMessage;
 
@@ -69,7 +69,7 @@ export function useMissionRuntime(
     handoffDone.current = false;
     enumKey.current = null;
     setAllLines([
-      { id: 'sys-0', text: ':: MISSION CONTROL · canal Core', tone: 'sys' },
+      { id: 'sys-0', text: ':: MISSION CONTROL DEV · canal Core', tone: 'sys' },
       { id: 'sys-1', text: `:: cible · ${projectName || 'projet'}`, tone: 'dim' },
     ]);
     setStreamPageStart(0);
@@ -86,7 +86,7 @@ export function useMissionRuntime(
     if (!client.connected) {
       addMsgRef.current({
         type: 'ai',
-        text: 'Core hors ligne — Mission Control nécessite jarvis_core.',
+        text: 'Core hors ligne — Mission Control DEV nécessite jarvis_core.',
         source: 'system',
       });
       setAllLines(prev => [
@@ -95,13 +95,13 @@ export function useMissionRuntime(
       ]);
       return;
     }
-    client.sendMission('start', {
+    client.sendMissionDev('start', {
       scenario: scenario || 'cursor',
       project_name: projectName || 'HoloControl',
     });
     setCoreDriven(true);
     return () => {
-      client.sendMission('abort');
+      client.sendMissionDev('abort');
     };
   }, [active, projectName, scenario]);
 
@@ -111,7 +111,7 @@ export function useMissionRuntime(
     const client = getCoreClient();
     const onProgress = (data: Record<string, unknown>) => {
       const stepId = String(data.step_id || '');
-      const status = String(data.status || '') as MissionStepStatus;
+      const status = String(data.status || '') as MissionDevStepStatus;
       const log = data.log != null ? String(data.log) : null;
       if (stepId && (status === 'running' || status === 'done' || status === 'error')) {
         advanceRef.current(stepId, status);
@@ -133,7 +133,7 @@ export function useMissionRuntime(
         ...prev,
         {
           id: `started-${Date.now()}`,
-          text: `:: mission_started · ${String(data.project_name || projectName)}`,
+          text: `:: mission_dev_started · ${String(data.project_name || projectName)}`,
           tone: 'ok',
         },
       ]);
@@ -144,7 +144,7 @@ export function useMissionRuntime(
       if (!ok) {
         addMsgRef.current({
           type: 'ai',
-          text: `Mission interrompue — ${String(data.error || 'abort')}.`,
+          text: `Mission DEV interrompue — ${String(data.error || 'abort')}.`,
           source: 'core',
         });
         return;
@@ -155,7 +155,7 @@ export function useMissionRuntime(
     const onError = (data: Record<string, unknown>) => {
       addMsgRef.current({
         type: 'ai',
-        text: `Mission erreur — ${String(data.error || 'inconnu')}.`,
+        text: `Mission DEV erreur — ${String(data.error || 'inconnu')}.`,
         source: 'core',
       });
       setAllLines(prev => [
@@ -165,17 +165,17 @@ export function useMissionRuntime(
     };
 
     client.setHandlers({
-      onMissionStarted: onStarted,
-      onMissionProgress: onProgress,
-      onMissionFinished: onFinished,
-      onMissionError: onError,
+      onMissionDevStarted: onStarted,
+      onMissionDevProgress: onProgress,
+      onMissionDevFinished: onFinished,
+      onMissionDevError: onError,
     });
     return () => {
       client.setHandlers({
-        onMissionStarted: undefined,
-        onMissionProgress: undefined,
-        onMissionFinished: undefined,
-        onMissionError: undefined,
+        onMissionDevStarted: undefined,
+        onMissionDevProgress: undefined,
+        onMissionDevFinished: undefined,
+        onMissionDevError: undefined,
       });
     };
   }, [active, projectName]);

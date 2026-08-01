@@ -59,6 +59,10 @@ ROUTES: dict[str, Route] = {
     "ping": Route("handle_ping", "core_error"),
     "auth": Route("handle_auth", "auth_error"),
     "holomat": Route("handle_holomat", "holomat_error"),
+    # Signaux bruts MediaPipe du HUD. Fire-and-forget : aucune réponse, la
+    # sortie repart par le bus (GESTURE_DETECTED / HAND_POINT) comme tout
+    # le reste. À 30 fps, répondre par frame doublerait le trafic pour rien.
+    "gesture": Route("handle_gesture", "core_error"),
     "peripheral": Route("handle_peripheral", "core_error"),
     "preferences": Route("handle_preferences", "preferences_result", {"ok": False}),
     "memory": Route("handle_memory", "memory_result", {"ok": False}),
@@ -68,7 +72,7 @@ ROUTES: dict[str, Route] = {
     "usage": Route("handle_usage", "usage_result", {"ok": False}),
     "user_event": Route("handle_chat", "core_error"),
     "stop_run": Route("handle_stop_run", "core_error"),
-    "mission": Route("handle_mission", "mission_error"),
+    "mission_dev": Route("handle_mission_dev", "mission_dev_error"),
     # Compat contrats HUD — types plats réécrits vers le handler générique.
     "save_hud_preferences": Route(
         "handle_preferences",
@@ -150,9 +154,26 @@ class Orchestrator:
         except Exception as exc:  # noqa: BLE001 — le HUD garde ttsDev en secours
             logger.warning("Voice Manager indisponible (TTS délégué au HUD) : %s", exc)
 
-        from .mission import MissionRunner
+        # Routeur gestuel — pur calcul, aucune dépendance externe (MediaPipe
+        # tourne dans le HUD, le Core est en 3.14 où la roue n'existe pas).
+        # Il ne peut donc pas échouer à la construction : pas de try/except.
+        from .gestures import GestureRouter
 
-        self.mission = MissionRunner()
+        self.gestures = GestureRouter(self.bus, self._load_gesture_profile)
+
+        # Métriques système. `disk_path` : la racine porte /var, /storage et
+        # les logs sur le NUC — c'est ce disque-là qui fait tomber JARVIS.
+        from .metrics import MetricsSampler
+
+        self.metrics = MetricsSampler(
+            self.emit,
+            degraded_count=self._degraded_components,
+            disk_path=os.environ.get("JARVIS_DISK_PATH", "C:\\" if os.name == "nt" else "/"),
+        )
+
+        from .mission_dev import MissionDevRunner
+
+        self.mission_dev = MissionDevRunner()
 
         # Cache vocal — ~680 clips pré-générés. Aucun réseau, aucun coût, et
         # JARVIS parle même quand voicebox, Ollama et Internet sont tombés.
@@ -349,6 +370,8 @@ class Orchestrator:
         fur et à mesure au lieu de retarder le boot.
         """
         asyncio.create_task(self._forward_bus())
+        asyncio.create_task(self.gestures.run())
+        asyncio.create_task(self.metrics.run())
         self._apply_gesture_sensitivity()
         self._register_components()
         self._components_ready.set()
@@ -444,15 +467,28 @@ class Orchestrator:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("forward bus → WS (%s) : %s", event.kind, exc)
 
+    def _degraded_components(self) -> int:
+        """Combien de briques le superviseur donne pour mortes, maintenant.
+
+        Nourrit l'indice de menace : une sonde déjà dégradée pèse plus lourd
+        qu'un CPU chaud, et cette vérité-là existe déjà, il suffit de la lire.
+        """
+        try:
+            return len(self.supervisor.status().get("degraded") or ())
+        except Exception:  # noqa: BLE001
+            return 0
+
+    def _load_gesture_profile(self) -> dict[str, Any]:
+        """Profil gestuel de la session courante — seuils ET bindings."""
+        from .auth.profiles import load_gesture_profile, resolve_user_id
+
+        return load_gesture_profile(resolve_user_id(None, self._session_user_id()))
+
     def _apply_gesture_sensitivity(self, profile: dict[str, Any] | None = None) -> None:
         """Seuils gestuels = préférence utilisateur, pas constante du Core."""
         try:
             if profile is None:
-                from .auth.profiles import load_gesture_profile, resolve_user_id
-
-                profile = load_gesture_profile(
-                    resolve_user_id(None, self._session_user_id())
-                )
+                profile = self._load_gesture_profile()
             self.bus.apply_gesture_profile(profile)
         except Exception as exc:  # noqa: BLE001 — seuils par défaut si ça rate
             logger.warning("profil gestuel non appliqué : %s", exc)
@@ -703,6 +739,33 @@ class Orchestrator:
             await self.broadcast(payload)
         return payload
 
+    async def _send_boot_state(self, ws: Any, *, spoken: bool) -> None:
+        """Encadre le boot pour le HUD — `start` puis `end`, toujours.
+
+        Version muette : aucune séquence vocale n'est jouée, mais le HUD reçoit
+        le même contrat, avec l'état RÉEL des sondes lu sur le superviseur. Il
+        peint ses lignes et passe à l'identification comme d'habitude.
+        """
+        checks = ["hermes", "voice", "face", "holomat", "users", "agents"]
+        try:
+            await ws.send(json.dumps({
+                "type": "boot_state", "phase": "start", "checks": checks,
+            }))
+            degraded = sorted(self.supervisor.status().get("degraded") or ())
+            await ws.send(json.dumps({
+                "type": "boot_state",
+                "phase": "end",
+                # Muet ≠ en échec : le boot précédent a déjà eu lieu, et les
+                # briques mortes sont rapportées telles quelles. Bloquer ici
+                # ferait de « JARVIS s'est tu » un « démarrage interrompu ».
+                "ok": True,
+                "spoken": spoken,
+                "degraded": degraded,
+                "pending_actions": [],
+            }))
+        except Exception as exc:  # noqa: BLE001 — un HUD parti ne casse rien
+            logger.debug("boot_state non délivré : %s", exc)
+
     async def speak_boot_sequence(self, ws: Any) -> None:
         """Démarrage parlé : boot système, puis identification.
 
@@ -714,20 +777,28 @@ class Orchestrator:
         sautées : en développement sans caméra, on entend le boot puis la
         salutation, sans fausse annonce d'analyse.
         """
-        if self.voice_cache is None:
-            return
-
-        # Rejouée à CHAQUE nouvelle connexion : une connexion = un HUD qui
-        # démarre, et il doit s'annoncer. Un verrou définitif donnerait le
-        # symptôme inverse — le premier onglet ouvert consomme la séquence et
-        # plus personne ne l'entend jamais.
+        # ⚠ `boot_state` est le signal de SYNCHRO du HUD, pas un effet de la
+        # parole. Il vivait en aval des deux sorties ci-dessous, si bien que
+        # « JARVIS ne parle pas » devenait « le HUD ne démarre pas » :
         #
-        # Le garde-fou est temporel : une reconnexion en boucle (Wi-Fi qui
-        # sautille, kiosque qui recharge) ne doit pas déclencher la séquence
-        # toutes les deux secondes.
+        #   · cache vocal absent      → aucun boot_state
+        #   · rejeu dans les 30 s     → aucun boot_state
+        #
+        # Le second est le pire : recharger la page deux fois de suite — le
+        # geste le plus banal en développement, et normal pour un kiosque qui
+        # se relance — condamnait l'écran à « NOYAU COGNITIF INJOIGNABLE »
+        # pendant 30 secondes, avec HERMES CORE au rouge alors que le Core
+        # répondait parfaitement.
+        #
+        # Le silence est donc découplé : on se tait, mais on signale toujours.
         now = time.monotonic()
-        if now - self._boot_spoken_at < BOOT_REPLAY_COOLDOWN_S:
-            logger.debug("Séquence de boot ignorée — rejouée trop récemment")
+        silent = (
+            self.voice_cache is None
+            or now - self._boot_spoken_at < BOOT_REPLAY_COOLDOWN_S
+        )
+        if silent:
+            logger.debug("Boot annoncé sans voix (cache absent ou rejeu récent)")
+            await self._send_boot_state(ws, spoken=False)
             return
         self._boot_spoken_at = now
 
@@ -1045,6 +1116,18 @@ class Orchestrator:
         except Exception:  # noqa: BLE001
             return None
 
+    async def handle_gesture(self, ws: Any, data: dict[str, Any]) -> None:
+        """Confidences MediaPipe → bus. Le HUD mesure, le bus décide.
+
+        Rien n'est renvoyé sur `ws` : c'est le seul handler muet, et c'est
+        voulu. Le HUD apprendra qu'un geste a été retenu en recevant
+        `GESTURE_DETECTED` par le forwarder, comme n'importe quel client.
+        """
+        from .gestures import signals_from_hud
+
+        for kind, payload in signals_from_hud(data):
+            self.bus.publish(kind, payload, source="hud")
+
     async def handle_preferences(self, ws: Any, data: dict[str, Any]) -> None:
         """save/get hud_preferences + gesture_profile → core/data/users/<id>/."""
         from .auth.profiles import (
@@ -1090,6 +1173,8 @@ class Orchestrator:
             result = save_gesture_profile(user_id, profile)
             # La sensibilité prend effet tout de suite : pas besoin de relancer.
             self._apply_gesture_sensitivity(profile)
+            # …et les bindings aussi, sinon le routeur servirait son cache.
+            self.gestures.invalidate()
             if self.auth is not None and user_id != "local":
                 try:
                     self.auth.users.mark_biometrics(user_id, gesture=True)
@@ -1454,15 +1539,19 @@ class Orchestrator:
         await self.handle_user_chat(ws, str(data.get("text", "")))
 
     async def handle_stop_run(self, ws: Any, data: dict[str, Any]) -> None:
-        """Barge-in : coupe la parole + annule mission en cours."""
-        if self.mission.running:
-            self.mission.abort()
+        """Barge-in : coupe la parole + annule la mission DEV en cours."""
+        if self.mission_dev.running:
+            self.mission_dev.abort()
         if self.voice is not None:
             await ws.send(json.dumps(self.voice.cancel()))
         await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
 
-    async def handle_mission(self, ws: Any, data: dict[str, Any]) -> None:
-        """Mission Control — start / abort (scenario cursor Phase A)."""
+    async def handle_mission_dev(self, ws: Any, data: dict[str, Any]) -> None:
+        """Mission Control DEV — start / abort (scenario cursor Phase A).
+
+        Cockpit de développement uniquement. Le cockpit maison (Mission Control
+        HOME) aura son propre type WS ; les deux ne se croisent jamais ici.
+        """
         action = str(data.get("action", "start"))
 
         async def send(payload: dict[str, Any]) -> None:
@@ -1477,22 +1566,22 @@ class Orchestrator:
                 await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
 
         if action == "abort":
-            self.mission.abort()
-            await send({"type": "mission_finished", "ok": False, "error": "aborted"})
+            self.mission_dev.abort()
+            await send({"type": "mission_dev_finished", "ok": False, "error": "aborted"})
             return
 
         if action != "start":
-            await send({"type": "mission_error", "error": f"action inconnue: {action}"})
+            await send({"type": "mission_dev_error", "error": f"action inconnue: {action}"})
             return
 
         decision = self.policy.evaluate(
-            action="mission_start",
+            action="mission_dev_start",
             text=str(data.get("project_name", "")),
             risk=RiskLevel.INFO,
         )
         if not decision.allowed:
             await send({
-                "type": "mission_error",
+                "type": "mission_dev_error",
                 "error": decision.reason or "Action refusée par la Policy Engine.",
             })
             return
@@ -1504,7 +1593,7 @@ class Orchestrator:
 
             hermes_ok = hermes.state == READY
 
-        await self.mission.start(
+        await self.mission_dev.start(
             send=send,
             speak=speak,
             project_name=str(data.get("project_name") or "HoloControl"),
