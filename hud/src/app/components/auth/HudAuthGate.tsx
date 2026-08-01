@@ -8,6 +8,7 @@ import { FirstSetupScene } from './FirstSetupScene';
 import { LockScene } from './LockScene';
 import { AuthScene } from './AuthScene';
 import { getCoreClient } from '../../bridge/coreClient';
+import { DEV_BUILD } from '../../bridge/devAuthBypass';
 
 type AuthRoute = 'waiting' | 'offline' | 'first_setup' | 'lock' | 'auth';
 
@@ -91,12 +92,17 @@ export function HudAuthGate() {
         >
           RÉESSAYER
         </button>
-        <a
-          href="?skipAuth=1"
-          style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.35)' }}
-        >
-          Dev only — ?skipAuth=1
-        </a>
+        {/* Le lien s'annonçait « dev only » sans que rien ne le fasse
+            respecter — affiché sur l'écran « Core injoignable », donc
+            précisément quand il fallait le moins. */}
+        {DEV_BUILD && (
+          <a
+            href="?skipAuth=1"
+            style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.35)' }}
+          >
+            Dev only — ?skipAuth=1
+          </a>
+        )}
       </div>
     );
   }

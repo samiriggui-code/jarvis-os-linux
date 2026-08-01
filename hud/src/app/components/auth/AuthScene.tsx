@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Unlock, SkipForward, Mic } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { FaceCamView } from './FaceCamView';
+import { EmmaHologram3D } from './EmmaHologram3D';
 import { Orb } from '../orb';
 import { speakDev, initTtsDev, stopDev } from '../../bridge/ttsDev';
 import { runFaceAuthFlow } from '../../engine/faceAuthSimulator';
@@ -22,6 +23,7 @@ import { authLogin, getEnrollPin, getLastUsername } from '../../bridge/authClien
 import { getCoreClient } from '../../bridge/coreClient';
 import { ensureCamera, getMediaState } from '../../bridge/mediaDevices';
 import { isCoreOnline } from '../CoreBridge';
+import { DEV_BUILD, isAuthBypassEnabled } from '../../bridge/devAuthBypass';
 
 /* ─── Fonts ─────────────────────────────────────────────────────────────────── */
 const orbF = { fontFamily: 'Orbitron, sans-serif' };
@@ -66,8 +68,15 @@ const BOOT_CHECKS_INIT: BootCheck[] = [
  *
  * Généreux exprès : le Core accepte les connexions immédiatement mais il y a
  * une reconnexion WS toutes les 2,5 s derrière (`coreClient`).
+ *
+ * ⚠ DOIT rester au-dessus du garde-fou côté Core. `speak_boot_sequence`
+ * attend `_components_ready` jusqu'à 10 s AVANT d'envoyer `boot_state: start`.
+ * À 8 s, le HUD abandonnait deux secondes trop tôt et affichait « NOYAU
+ * COGNITIF INJOIGNABLE » sur un Core parfaitement vivant — d'autant plus
+ * probable au démarrage à froid du kiosque, où le HUD se connecte pendant que
+ * le Core enregistre encore ses sondes.
  */
-const CORE_HANDSHAKE_MS = 8000;
+const CORE_HANDSHAKE_MS = 14000;
 
 /* ─── Composant ─────────────────────────────────────────────────────────────── */
 export function AuthScene() {
@@ -86,6 +95,8 @@ export function AuthScene() {
     obstruction: false,
     retry: 0,
   });
+  /** Rampe 0→100 en boucle, uniquement pour le mode démo `?holo=1`. */
+  const [holoDemo, setHoloDemo] = useState(0);
   const [orchState, setOrchState]   = useState<OrchestratorState>({
     stepIndex: -1,
     currentStep: null,
@@ -143,8 +154,7 @@ export function AuthScene() {
 
 
   /* — Skip dev — */
-  const skipDev = typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('skipAuth') === '1';
+  const skipDev = isAuthBypassEnabled();
   const faceFailDemo =
     import.meta.env.DEV &&
     typeof window !== 'undefined' &&
@@ -535,6 +545,19 @@ export function AuthScene() {
     orchState.currentStep?.id === 'face_auth_flow' ||
     (faceHologram.phase !== 'waiting' && faceHologram.progress > 0 && !factors.face);
 
+  /** `?holo=1` en dev : force le hologramme pour régler l'effet sans devoir
+   *  refaire une authentification faciale complète à chaque retouche. */
+  const forceHolo =
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('holo');
+
+  useEffect(() => {
+    if (!forceHolo) return;
+    const id = setInterval(() => setHoloDemo(p => (p >= 100 ? 0 : p + 2)), 120);
+    return () => clearInterval(id);
+  }, [forceHolo]);
+
   /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
     <motion.div
@@ -618,13 +641,41 @@ export function AuthScene() {
               ))}
             </div>
 
-            {/* Caméra Holomat */}
+            {/* Caméra Holomat + reconstruction holographique par-dessus.
+                Même boîte, aucune modification de la mise en page : le canvas
+                d'EmmaHologram3D est transparent (`alpha: true`, clear à 0), il
+                se superpose au flux réel. La progression vient de la VRAIE
+                confiance biométrique renvoyée par YuNet/SFace — le hologramme
+                se construit au rythme de la reconnaissance, il ne joue pas une
+                animation décorative dans le vide. */}
             <div className="flex items-end justify-center">
-              <FaceCamView
-                progress={scanProgress}
-                active={inFaceFlow || scanProgress > 0}
-                label={factors.face ? 'HOLOMAT · OK' : 'HOLOMAT · CAM'}
-              />
+              <div className="relative" style={{ width: 'min(92vw, 420px)', height: 280 }}>
+                <FaceCamView
+                  progress={scanProgress}
+                  active={inFaceFlow || scanProgress > 0}
+                  label={factors.face ? 'HOLOMAT · OK' : 'HOLOMAT · CAM'}
+                />
+                {(inFaceFlow || forceHolo) && (
+                  <div
+                    className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden"
+                    style={{
+                      // Monte avec la confiance : au début on voit surtout son
+                      // visage (utile pour se cadrer), à la fin le hologramme
+                      // domine. Plafonné à 0.92 pour garder le réel dessous.
+                      opacity: Math.min(0.92, 0.25 + faceHologram.progress / 130),
+                      transition: 'opacity 400ms linear',
+                      mixBlendMode: 'screen',
+                    }}
+                  >
+                    <EmmaHologram3D
+                      size={280}
+                      progress={forceHolo ? holoDemo : faceHologram.progress}
+                      buildPhase={forceHolo ? 'reconstruction' : faceHologram.phase}
+                      speaking={orchState.isSpeaking}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Message HUD courant */}
@@ -723,17 +774,21 @@ export function AuthScene() {
                   </button>
                 </div>
 
-                <motion.button
-                  type="button" whileTap={{ scale: 0.97 }}
-                  onClick={() => unlockSession({ method: 'dev_skip' })}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2 cursor-pointer"
-                  style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}
-                >
-                  <SkipForward className="w-3.5 h-3.5" style={{ color: '#f59e0b' }} />
-                  <span style={{ ...mono, color: '#f59e0b', fontSize: 9, letterSpacing: '0.08em' }}>
-                    MODE DÉMO — PASSER L'AUTH
-                  </span>
-                </motion.button>
+                {/* Déverrouillage local, sans le Core : un bouton d'écran de
+                    verrouillage qui ouvre le verrou. Retiré du bundle de prod. */}
+                {DEV_BUILD && (
+                  <motion.button
+                    type="button" whileTap={{ scale: 0.97 }}
+                    onClick={() => unlockSession({ method: 'dev_skip' })}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2 cursor-pointer"
+                    style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}
+                  >
+                    <SkipForward className="w-3.5 h-3.5" style={{ color: '#f59e0b' }} />
+                    <span style={{ ...mono, color: '#f59e0b', fontSize: 9, letterSpacing: '0.08em' }}>
+                      MODE DÉMO — PASSER L'AUTH
+                    </span>
+                  </motion.button>
+                )}
               </div>
             )}
           </motion.div>
