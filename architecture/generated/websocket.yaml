@@ -1,0 +1,160 @@
+# ═══ GÉNÉRÉ — NE PAS ÉDITER ═══════════════════════════════════════════
+# Produit par `python architecture/build.py` depuis le code source.
+# Toute correction se fait dans le code, jamais ici : ce fichier est
+# comparé au code par `--check`, il perdrait toujours l'arbitrage.
+# Contrat de messages Core ↔ HUD, dans les deux sens et sur les deux canaux.
+version: 1
+# Deux canaux parallèles : `type` (événements) et `command`
+# (impératifs, via cmd() → {"command": …}). Le HUD les teste
+# séparément. Ne pas les fusionner.
+evenements_emis:
+  - type: FACE_FAILED
+    sources: [core/jarvis_core/holomat/face_engine.py]
+    ecoute_par_le_hud: false
+  - type: FACE_PROGRESS
+    sources: [core/jarvis_core/__init__.py, core/jarvis_core/holomat/face_engine.py]
+    ecoute_par_le_hud: false
+  - type: FACE_SUCCESS
+    sources: [core/jarvis_core/holomat/face_engine.py]
+    ecoute_par_le_hud: false
+  - type: agent_reach_status
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: auth_elevate_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: auth_enroll_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: auth_error
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: auth_login_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: auth_logout_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: auth_recovery_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: auth_revoke_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: auth_status
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: auth_users
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: boot_state
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: chat_reply
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: face_enroll_commit_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: holomat_calibrate_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: holomat_error
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: holomat_status
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: locale_resolved
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: memory_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: mission_dev_error
+    sources: [core/jarvis_core/__init__.py, core/jarvis_core/mission_dev/__init__.py]
+    ecoute_par_le_hud: true
+  - type: mission_dev_finished
+    sources: [core/jarvis_core/__init__.py, core/jarvis_core/mission_dev/__init__.py]
+    ecoute_par_le_hud: true
+  - type: mission_dev_progress
+    sources: [core/jarvis_core/mission_dev/__init__.py]
+    ecoute_par_le_hud: true
+  - type: mission_dev_started
+    sources: [core/jarvis_core/mission_dev/__init__.py]
+    ecoute_par_le_hud: true
+  - type: preferences_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: supervisor_status
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: tts_audio
+    sources: [core/jarvis_core/__init__.py, core/jarvis_core/voice/cache.py, core/jarvis_core/voice/manager.py]
+    ecoute_par_le_hud: true
+  - type: tts_cancel
+    sources: [core/jarvis_core/voice/manager.py]
+    ecoute_par_le_hud: true
+  - type: tts_fallback
+    sources: [core/jarvis_core/__init__.py, core/jarvis_core/voice/manager.py]
+    ecoute_par_le_hud: true
+  - type: tts_skipped
+    sources: [core/jarvis_core/voice/manager.py]
+    ecoute_par_le_hud: true
+  - type: usage_result
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: user_authenticated
+    sources: [core/jarvis_core/auth/models.py]
+    ecoute_par_le_hud: true
+  - type: voice_error
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: voice_playback
+    sources: [core/jarvis_core/voice/manager.py]
+    ecoute_par_le_hud: true
+  - type: voice_profile_saved
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: voice_status
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: voice_transcript
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+commandes_emises:
+  - command: boot
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - command: display_notification
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - command: set_orb_state
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+signaux_bus:
+  - signal: SYSTEM_METRICS
+    sources: [core/jarvis_core/metrics.py]
+  - signal: component_state
+    sources: [core/jarvis_core/supervisor.py]
+hud_envoie:
+  - type: auth
+    route_core_existe: true
+  - type: holomat
+    route_core_existe: true
+  - type: mission_dev
+    route_core_existe: true
+  - type: peripheral
+    route_core_existe: true
+  - type: ping
+    route_core_existe: true
+  - type: save_gesture_profile
+    route_core_existe: true
+  - type: save_hud_preferences
+    route_core_existe: true
+  - type: stop_run
+    route_core_existe: true
+  - type: user_event
+    route_core_existe: true
+  - type: voice
+    route_core_existe: true

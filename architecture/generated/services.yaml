@@ -1,0 +1,23 @@
+# ═══ GÉNÉRÉ — NE PAS ÉDITER ═══════════════════════════════════════════
+# Produit par `python architecture/build.py` depuis le code source.
+# Toute correction se fait dans le code, jamais ici : ce fichier est
+# comparé au code par `--check`, il perdrait toujours l'arbitrage.
+# Unités systemd déployées sur le NUC.
+version: 1
+services:
+  - unite: jarvis-core.service
+    description: JARVIS Core (orchestrator)
+    exec: /opt/jarvis/bin/jarvis-core
+    workdir: /opt/jarvis/core
+  - unite: jarvis-hermes.service
+    description: "JARVIS Hermes Agent (HTTP API :8642)"
+    exec: /opt/jarvis/bin/jarvis-hermes
+    workdir: /opt/jarvis/hermes-agent
+    alias: hermes-agent.service
+  - unite: jarvis-hud.service
+    description: JARVIS HUD (Chromium kiosk → React)
+    exec: /opt/jarvis/bin/jarvis-hud
+  - unite: jarvis-voicebox.service
+    description: JARVIS Voice (voicebox — TTS/STT local)
+    exec: /usr/bin/docker compose up
+    workdir: /opt/jarvis/voicebox

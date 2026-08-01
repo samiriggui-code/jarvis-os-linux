@@ -1,0 +1,119 @@
+# ═══ GÉNÉRÉ — NE PAS ÉDITER ═══════════════════════════════════════════
+# Produit par `python architecture/build.py` depuis le code source.
+# Toute correction se fait dans le code, jamais ici : ce fichier est
+# comparé au code par `--check`, il perdrait toujours l'arbitrage.
+# Contrat annoncé (hudContracts.ts) confronté à ce qui circule.
+version: 1
+CoreToHudEvent:
+  - type: agent_status
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: approval_request
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: auth_progress
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: component_state
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: dialogue_line
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: dismiss_panels
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: display_notification
+    reellement_emis: true
+    consomme_par_le_hud: false
+  - type: face_auth_failed
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: face_auth_success
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: face_hologram
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: gesture_detected
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: holomat_status
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: lip_sync_frame
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: partial_transcript
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: session_auth
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: set_auth_state
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: set_orb_state
+    reellement_emis: true
+    consomme_par_le_hud: false
+  - type: summon_panel
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: supervisor_status
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: transcript
+    reellement_emis: false
+    consomme_par_le_hud: false
+  - type: tts_audio
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: tts_cancel
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: tts_fallback
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: tts_skipped
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: user_authenticated
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: voice_error
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: voice_playback
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: voice_status
+    reellement_emis: true
+    consomme_par_le_hud: true
+  - type: voice_transcript
+    reellement_emis: true
+    consomme_par_le_hud: true
+HudToCoreEvent:
+  - type: approval_decision
+    route_core_existe: false
+  - type: holomat_calibrate_abort
+    route_core_existe: false
+  - type: holomat_calibrate_start
+    route_core_existe: true
+  - type: ping
+    route_core_existe: true
+  - type: save_gesture_profile
+    route_core_existe: true
+  - type: save_hud_preferences
+    route_core_existe: true
+  - type: stop_run
+    route_core_existe: true
+  - type: supervisor
+    route_core_existe: true
+  - type: user_event
+    route_core_existe: true
+  - type: voice
+    route_core_existe: true
+  - type: voice_start
+    route_core_existe: false
+  - type: voice_stop
+    route_core_existe: false

@@ -29,6 +29,12 @@ dashboard/dist/
 # notre historique.
 vendor/
 
+# ─── Assets MediaPipe (gestuel) ───────────────────────────────────────────
+# ~19 Mo de WASM + modèle, reproductibles par
+# `node hud/scripts/fetch-mediapipe.mjs`. Le WASM vient de node_modules, le
+# modèle de storage.googleapis.com — aucun des deux n'est du code à nous.
+hud/public/mediapipe/
+
 # ─── Cache vocal ──────────────────────────────────────────────────────────
 # 174 Mo de WAV — un artefact de build, produit par
 # `scripts/generate_voice_cache.py`. `sync-to-nuc.sh` le qualifie lui-même de
@@ -39,3 +45,13 @@ vendor/
 # sur le NUC, pas ce dépôt. Git est le mauvais outil ici : à chaque
 # régénération, les anciens binaires resteraient dans l'historique à jamais.
 core/data/voice/cache/
+
+# ─── Sortie Graphify ──────────────────────────────────────────────────────
+# ~5 Mo dont un graph.html de 2,2 Mo. Entièrement régénérable par
+# `graphify update .` — analyse AST locale, sans LLM, donc gratuite et
+# reproductible. C'est un artefact, pas une source.
+#
+# L'index d'architecture (`architecture/generated/`), lui, EST versionné :
+# il est petit, lisible en revue, et c'est sa comparaison avec le code qui
+# détecte les dérives. Ne pas confondre les deux.
+graphify-out/

@@ -1,0 +1,49 @@
+# ═══ GÉNÉRÉ — NE PAS ÉDITER ═══════════════════════════════════════════
+# Produit par `python architecture/build.py` depuis le code source.
+# Toute correction se fait dans le code, jamais ici : ce fichier est
+# comparé au code par `--check`, il perdrait toujours l'arbitrage.
+# Bus interne et signaux de séquence — hors de portée de l'AST.
+version: 1
+bus_publies:
+  - evenement: GESTURE_DETECTED
+    politique_debit: PASS
+    sources: [core/jarvis_core/gestures.py]
+publications_dynamiques:  # type passé en variable, invisible à l'AST
+  - "core/jarvis_core/__init__.py:L1129"
+  - "core/jarvis_core/__init__.py:L241"
+  - "core/jarvis_core/__init__.py:L243"
+  - "core/jarvis_core/__init__.py:L500"
+  - "core/jarvis_core/__init__.py:L520"
+politiques_sans_emetteur_STATIQUE:  # peuvent être publiées dynamiquement, cf. ci-dessus
+  - BODY_POSE
+  - EYE_GAZE
+  - FACE_FRAME
+  - HAND_FIST
+  - HAND_OPEN
+  - HAND_PINCH
+  - HAND_POINT
+  - HAND_SWIPE
+  - SYSTEM_METRICS
+signaux_sequence:
+  - signal: enroll.voice
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+  - signal: face.landmarks
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+  - signal: face.matched
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+  - signal: face.model
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+  - signal: face.presence
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+  - signal: face.scanning
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+  - signal: voice.captured
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+attendus_jamais_emis:

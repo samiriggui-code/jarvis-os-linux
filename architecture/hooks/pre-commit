@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Garde-fou d'architecture — refuse un commit qui ferait dériver l'index.
+#
+# Installation :  bash architecture/hooks/install.sh
+# Contournement : git commit --no-verify   (à n'utiliser qu'en connaissance)
+#
+# Deux contrôles, moins d'une seconde, aucun réseau :
+#
+#   1. build.py --check    `generated/` correspond-il encore au code ?
+#   2. _smoke_build.py     les extracteurs disent-ils encore vrai ?
+#
+# Le second compte autant que le premier. Un extracteur faux produit un index
+# faux, et un index faux est pire qu'une documentation périmée : la doc
+# périmée, on s'en méfie ; un rapport généré, on le croit. La première version
+# de `build.py` annonçait sereinement « 0 route » parce qu'elle ne gérait pas
+# `AnnAssign` — verte, muette, et fausse.
+#
+# Pourquoi un hook natif plutôt que le framework `pre-commit` : il n'est pas
+# installé sur cette machine, et ces deux commandes n'ont aucune dépendance
+# hors du venv du Core. Une brique de moins à maintenir.
+set -euo pipefail
+
+RACINE="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$RACINE"
+
+# Le venv du Core porte déjà PyYAML et Pillow ; le Python système ne les a pas.
+if   [[ -x "core/.venv/Scripts/python.exe" ]]; then PY="core/.venv/Scripts/python.exe"
+elif [[ -x "core/.venv/bin/python"        ]]; then PY="core/.venv/bin/python"
+else PY="python3"; fi
+
+echo "── index d'architecture ──────────────────────────────"
+
+if ! "$PY" architecture/build.py --check; then
+  cat >&2 <<'FIN'
+
+✗ COMMIT REFUSÉ — architecture/generated/ a dérivé du code.
+
+  Le code a changé sans que l'index soit régénéré. Corriger :
+
+      python architecture/build.py
+      git add architecture/generated/
+
+  Ne PAS éditer les fichiers de generated/ à la main : ils sont réécrits.
+FIN
+  exit 1
+fi
+
+if ! "$PY" architecture/_smoke_build.py; then
+  cat >&2 <<'FIN'
+
+✗ COMMIT REFUSÉ — les extracteurs HAI ne disent plus vrai.
+
+  Soit un contrat s'est cassé (un message émis que personne ne consomme,
+  une route sans handler), soit un extracteur ne sait plus lire le code.
+  Dans les deux cas, l'index ne serait plus fiable.
+
+  Le message d'échec ci-dessus indique lequel.
+FIN
+  exit 1
+fi
+
+echo "── ok ───────────────────────────────────────────────"

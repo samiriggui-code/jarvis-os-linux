@@ -1,0 +1,92 @@
+# ═══ GÉNÉRÉ — NE PAS ÉDITER ═══════════════════════════════════════════
+# Produit par `python architecture/build.py` depuis le code source.
+# Toute correction se fait dans le code, jamais ici : ce fichier est
+# comparé au code par `--check`, il perdrait toujours l'arbitrage.
+# Dispatch WebSocket entrant : message → handler (invisible à l'AST).
+version: 1
+routes:
+  - message: ping
+    core_handler: handle_ping
+    error_type: core_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L59"
+  - message: auth
+    core_handler: handle_auth
+    error_type: auth_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L60"
+  - message: holomat
+    core_handler: handle_holomat
+    error_type: holomat_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L61"
+  - message: gesture
+    core_handler: handle_gesture
+    error_type: core_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L65"
+  - message: peripheral
+    core_handler: handle_peripheral
+    error_type: core_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L66"
+  - message: preferences
+    core_handler: handle_preferences
+    error_type: preferences_result
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L67"
+  - message: memory
+    core_handler: handle_memory
+    error_type: memory_result
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L68"
+  - message: voice
+    core_handler: handle_voice
+    error_type: voice_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L69"
+  - message: agent_reach
+    core_handler: handle_agent_reach
+    error_type: agent_reach_status
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L70"
+  - message: supervisor
+    core_handler: handle_supervisor
+    error_type: supervisor_status
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L71"
+  - message: usage
+    core_handler: handle_usage
+    error_type: usage_result
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L72"
+  - message: user_event
+    core_handler: handle_chat
+    error_type: core_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L73"
+  - message: stop_run
+    core_handler: handle_stop_run
+    error_type: core_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L74"
+  - message: mission_dev
+    core_handler: handle_mission_dev
+    error_type: mission_dev_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L75"
+  - message: save_hud_preferences
+    core_handler: handle_preferences
+    error_type: preferences_result
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L77"
+  - message: save_gesture_profile
+    core_handler: handle_preferences
+    error_type: preferences_result
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L87"
+  - message: holomat_calibrate_start
+    core_handler: handle_holomat
+    error_type: holomat_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L97"

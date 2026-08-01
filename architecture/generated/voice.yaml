@@ -1,0 +1,64 @@
+# ═══ GÉNÉRÉ — NE PAS ÉDITER ═══════════════════════════════════════════
+# Produit par `python architecture/build.py` depuis le code source.
+# Toute correction se fait dans le code, jamais ici : ce fichier est
+# comparé au code par `--check`, il perdrait toujours l'arbitrage.
+# Événements de dialogue et couverture du cache — hors cache = facturé.
+version: 1
+voix_cache: jarvis2
+domaines:
+  - domaine: auth
+    evenements: 34
+    en_cache: 34
+    synthese_live: []
+  - domaine: boot
+    evenements: 15
+    en_cache: 15
+    synthese_live: []
+  - domaine: devoirs
+    evenements: 14
+    en_cache: 14
+    synthese_live: []
+  - domaine: diagnostic
+    evenements: 22
+    en_cache: 22
+    synthese_live: []
+  - domaine: ecrans
+    evenements: 14
+    en_cache: 14
+    synthese_live: []
+  - domaine: enrolement
+    evenements: 43
+    en_cache: 43
+    synthese_live: []
+  - domaine: mission_dev
+    evenements: 46
+    en_cache: 46
+    synthese_live: []
+  - domaine: peripheriques
+    evenements: 16
+    en_cache: 16
+    synthese_live: []
+  - domaine: quotidien
+    evenements: 40
+    en_cache: 40
+    synthese_live: []
+  - domaine: recovery
+    evenements: 18
+    en_cache: 18
+    synthese_live: []
+  - domaine: reveil
+    evenements: 3
+    en_cache: 3
+    synthese_live: []
+  - domaine: security
+    evenements: 4
+    en_cache: 4
+    synthese_live: []
+  - domaine: session
+    evenements: 17
+    en_cache: 17
+    synthese_live: []
+  - domaine: systeme
+    evenements: 18
+    en_cache: 18
+    synthese_live: []

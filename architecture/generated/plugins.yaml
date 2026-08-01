@@ -1,0 +1,188 @@
+# ═══ GÉNÉRÉ — NE PAS ÉDITER ═══════════════════════════════════════════
+# Produit par `python architecture/build.py` depuis le code source.
+# Toute correction se fait dans le code, jamais ici : ce fichier est
+# comparé au code par `--check`, il perdrait toujours l'arbitrage.
+# Registre d'apps du HUD — résolu à l'exécution par la voix et le dock.
+version: 1
+apps:
+  - id: settings
+    nom: Paramètres
+    statut: live
+    risque: info
+    outil_hermes: null
+    declencheurs: [paramètres, settings, réglages]
+  - id: jarvis
+    nom: Noyau
+    statut: live
+    risque: info
+    outil_hermes: neural_map
+    declencheurs: [noyau, carte hermes, neural]
+  - id: hub
+    nom: Dashboard
+    statut: live
+    risque: admin
+    outil_hermes: dashboard_open
+    declencheurs: [dashboard, admin, cockpit]
+  - id: monitor
+    nom: Moniteur
+    statut: live
+    risque: info
+    outil_hermes: null
+    declencheurs: [moniteur, cpu, ressources]
+  - id: vision
+    nom: Holomat
+    statut: live
+    risque: info
+    outil_hermes: null
+    declencheurs: [holomat, vision, gestes, caméra]
+  - id: security
+    nom: Sécurité
+    statut: hermes
+    risque: admin
+    outil_hermes: security_status
+    declencheurs: [sécurité, policy, auth]
+  - id: network
+    nom: Réseau
+    statut: hermes
+    risque: info
+    outil_hermes: network_status
+    declencheurs: [réseau, wifi, lan]
+  - id: terminal
+    nom: Terminal
+    statut: hermes
+    risque: vps
+    outil_hermes: vps_shell_limited
+    declencheurs: [terminal, shell, console ssh]
+  - id: files
+    nom: Fichiers
+    statut: hermes
+    risque: admin
+    outil_hermes: files_browse
+    declencheurs: [fichiers, dossier, explorer]
+  - id: browser
+    nom: Navigateur
+    statut: hermes
+    risque: info
+    outil_hermes: browser
+    declencheurs: [navigateur, browser, holoweb]
+  - id: reach
+    nom: Internet
+    statut: hermes
+    risque: info
+    outil_hermes: agent_reach
+    declencheurs: [internet, agent-reach, agent reach, recherche web, cherche, github, youtube, reddit, rss, openclaw]
+  - id: docker
+    nom: Docker
+    statut: hermes
+    risque: vps
+    outil_hermes: vps_docker_limited
+    declencheurs: [docker, conteneur, containers]
+  - id: code
+    nom: VS Code
+    statut: hermes
+    risque: vps
+    outil_hermes: vps_code_limited
+    declencheurs: [code, vscode, éditeur]
+  - id: analyze
+    nom: Analyse
+    statut: hermes
+    risque: info
+    outil_hermes: analyze
+    declencheurs: [analyse, stats, données]
+  - id: storage
+    nom: Stockage
+    statut: hermes
+    risque: vps
+    outil_hermes: vps_storage_limited
+    declencheurs: [stockage, disque, volume]
+  - id: cerveau
+    nom: Cerveau
+    statut: hermes
+    risque: info
+    outil_hermes: node_cerveau
+    declencheurs: [cerveau, llm]
+  - id: tokens
+    nom: Tokens
+    statut: hermes
+    risque: info
+    outil_hermes: node_tokens
+    declencheurs: [tokens, quota]
+  - id: objectifs
+    nom: Objectifs
+    statut: hermes
+    risque: info
+    outil_hermes: node_missions
+    declencheurs: [objectifs, buts]
+  - id: skills
+    nom: Skills
+    statut: hermes
+    risque: info
+    outil_hermes: node_skills
+    declencheurs: [skills, compétences]
+  - id: connexions
+    nom: Connexions
+    statut: hermes
+    risque: info
+    outil_hermes: node_connexions
+    declencheurs: [connexions, entités]
+  - id: reseau
+    nom: Topologie
+    statut: hermes
+    risque: info
+    outil_hermes: node_reseau
+    declencheurs: [topologie, mesh]
+  - id: cursor
+    nom: Cursor
+    statut: live
+    risque: info
+    outil_hermes: null
+    declencheurs: [cursor, éditeur cursor, ouvre cursor]
+  - id: mission-control-dev
+    nom: Mission Ctrl DEV
+    statut: live
+    risque: info
+    outil_hermes: node_mission_control_dev
+    declencheurs: [mission control dev, mission-control-dev, mission control]
+  - id: crons
+    nom: Crons
+    statut: hermes
+    risque: admin
+    outil_hermes: node_crons
+    declencheurs: [cron, planifié, schedule]
+  - id: outils
+    nom: Outils
+    statut: hermes
+    risque: info
+    outil_hermes: tool_manager
+    declencheurs: [outils, tools, tool manager]
+  - id: home
+    nom: Maison
+    statut: hermes
+    risque: home
+    outil_hermes: home_assistant
+    declencheurs: [maison, domotique, lumières, home assistant]
+  - id: music
+    nom: Musique
+    statut: hermes
+    risque: media
+    outil_hermes: media_music
+    declencheurs: [musique, spotify, plex audio]
+  - id: video
+    nom: Vidéo
+    statut: hermes
+    risque: media
+    outil_hermes: media_video
+    declencheurs: [vidéo, video, film, plex]
+  - id: mail
+    nom: Courrier
+    statut: soon
+    risque: info
+    outil_hermes: null
+    declencheurs: []
+  - id: calendar
+    nom: Agenda
+    statut: soon
+    risque: info
+    outil_hermes: null
+    declencheurs: []
+declencheurs_ambigus:
