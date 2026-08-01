@@ -56,6 +56,45 @@ export function CoreBridge() {
           message: `${user?.username ?? 'user'} · ${user?.role ?? '?'}`,
         });
       },
+
+      /**
+       * Bout de chaîne du pipeline vocal : micro → Whisper → Core → ici.
+       * Sans ce branchement la transcription arrivait sur le socket et
+       * disparaissait — la parole était comprise, jamais affichée.
+       */
+      onVoiceTranscript: (payload) => {
+        const texte = String(payload.text ?? '').trim();
+        if (payload.ok && texte) {
+          addMessage({ type: 'user', text: texte, source: 'voice' });
+          return;
+        }
+        // Un échec silencieux ferait croire à un micro sourd. La raison vient
+        // du Core (`no_speech`, `stt_unavailable`…), on la montre telle quelle.
+        addNotification({
+          type: 'warning',
+          title: 'Transcription',
+          message: String(payload.reason || payload.error || 'aucune parole détectée'),
+        });
+      },
+
+      /** Le Core parle : l'orbe suit, et le barge-in sait quoi interrompre. */
+      onVoicePlayback: (payload) => {
+        setAiState(payload.phase === 'start' ? 'responding' : 'idle');
+      },
+
+      onVoiceError: (payload) => {
+        addNotification({
+          type: 'error',
+          title: 'Voix',
+          message: String(payload.error ?? 'erreur inconnue'),
+        });
+      },
+
+      onSupervisorStatus: (payload) => {
+        // Pas de notification : ces transitions sont fréquentes et le HUD a
+        // déjà `component_state` pour les peindre. On trace, sans bruit.
+        console.debug('[supervisor]', payload);
+      },
     });
 
     if (import.meta.env.VITE_CORE_WS !== 'false') {

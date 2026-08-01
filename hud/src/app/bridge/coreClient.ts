@@ -14,14 +14,27 @@ export type CoreClientHandlers = {
   onAuthStatus?: (payload: Record<string, unknown>) => void;
   onUserAuthenticated?: (payload: Record<string, unknown>) => void;
   onVoiceStatus?: (payload: Record<string, unknown>) => void;
+  /**
+   * Résultat du STT — `{ ok, text, duration }`. Bout de chaîne du pipeline
+   * micro → Whisper → Core → HUD : sans lui, la parole est transcrite puis
+   * jetée. Le contrat était déclaré dans `hudContracts.ts` mais rien ne le
+   * consommait ; l'index d'architecture l'a signalé.
+   */
+  onVoiceTranscript?: (payload: Record<string, unknown>) => void;
+  /** `phase: 'start' | 'end'` — encadre la lecture TTS, sert au barge-in. */
+  onVoicePlayback?: (payload: Record<string, unknown>) => void;
+  /** Échec côté voix (module absent, voicebox muet, profil refusé). */
+  onVoiceError?: (payload: Record<string, unknown>) => void;
+  /** État des sondes du superviseur — santé des briques. */
+  onSupervisorStatus?: (payload: Record<string, unknown>) => void;
   /** Transition d'une brique surveillée (`unknown|loading|ready|degraded`). */
   onComponentState?: (payload: Record<string, unknown>) => void;
   /** Encadre la séquence de boot parlée : `phase: 'start' | 'end'`. */
   onBootState?: (payload: Record<string, unknown>) => void;
-  onMissionStarted?: (payload: Record<string, unknown>) => void;
-  onMissionProgress?: (payload: Record<string, unknown>) => void;
-  onMissionFinished?: (payload: Record<string, unknown>) => void;
-  onMissionError?: (payload: Record<string, unknown>) => void;
+  onMissionDevStarted?: (payload: Record<string, unknown>) => void;
+  onMissionDevProgress?: (payload: Record<string, unknown>) => void;
+  onMissionDevFinished?: (payload: Record<string, unknown>) => void;
+  onMissionDevError?: (payload: Record<string, unknown>) => void;
   onRaw?: (data: Record<string, unknown>) => void;
 };
 
@@ -48,6 +61,8 @@ class CoreClient {
   private coreDrivesTts = false;
   private listeners = new Set<(data: Record<string, unknown>) => void>();
   connected = false;
+  /** Dernier état signalé aux abonnés. `null` = rien n'a encore été dit. */
+  private lastNotified: boolean | null = null;
 
   constructor(url = DEFAULT_WS) {
     this.url = url;
@@ -68,6 +83,21 @@ class CoreClient {
     return () => { this.listeners.delete(fn); };
   }
 
+  /**
+   * Ne previent QUE sur changement d'etat.
+   *
+   * `onclose` part a chaque echec, et la reconnexion reessaie toutes les
+   * 2,5 s : sans ce filtre, un Core eteint produisait une notification
+   * « Core hors ligne » toutes les 2,5 secondes, indefiniment. On n'en voyait
+   * que deux ou trois a l'ecran — les precedentes avaient expire — ce qui
+   * masquait l'ampleur du probleme et noyait toute autre notification.
+   */
+  private notifyConnection(ok: boolean) {
+    if (this.lastNotified === ok) return;
+    this.lastNotified = ok;
+    this.handlers.onConnected?.(ok);
+  }
+
   connect() {
     if (typeof window === 'undefined') return;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
@@ -79,7 +109,7 @@ class CoreClient {
 
     ws.onopen = () => {
       this.connected = true;
-      this.handlers.onConnected?.(true);
+      this.notifyConnection(true);
       console.debug('[core-ws] connected', this.url);
       this.send({ type: 'ping' });
       this.send({ type: 'auth', action: 'status' });
@@ -87,7 +117,7 @@ class CoreClient {
 
     ws.onclose = () => {
       this.connected = false;
-      this.handlers.onConnected?.(false);
+      this.notifyConnection(false);
       this.ws = null;
       this.flushPending(new Error('Core déconnecté'));
       if (!this.intentionalClose) {
@@ -171,9 +201,9 @@ class CoreClient {
     return this.send({ type: 'voice', action, ...extra });
   }
 
-  /** Mission Control — start / abort (§15). */
-  sendMission(action: 'start' | 'abort', extra: Record<string, unknown> = {}) {
-    return this.send({ type: 'mission', action, ...extra });
+  /** Mission Control DEV — start / abort (§15). */
+  sendMissionDev(action: 'start' | 'abort', extra: Record<string, unknown> = {}) {
+    return this.send({ type: 'mission_dev', action, ...extra });
   }
 
   /** Barge-in : coupe le son local *et* prévient le Core. */
@@ -209,6 +239,30 @@ class CoreClient {
 
     if (data.type === 'voice_status') {
       this.handlers.onVoiceStatus?.(data);
+      return;
+    }
+
+    // Les quatre suivants étaient émis par le Core et déclarés dans
+    // `hudContracts.ts`, mais aucun ne franchissait ce point de dispatch : la
+    // donnée arrivait sur le socket et disparaissait. Trouvés par
+    // `architecture/build.py`, pas à la lecture.
+    if (data.type === 'voice_transcript') {
+      this.handlers.onVoiceTranscript?.(data);
+      return;
+    }
+
+    if (data.type === 'voice_playback') {
+      this.handlers.onVoicePlayback?.(data);
+      return;
+    }
+
+    if (data.type === 'voice_error') {
+      this.handlers.onVoiceError?.(data);
+      return;
+    }
+
+    if (data.type === 'supervisor_status') {
+      this.handlers.onSupervisorStatus?.(data);
       return;
     }
 
@@ -250,20 +304,20 @@ class CoreClient {
       return;
     }
 
-    if (data.type === 'mission_started') {
-      this.handlers.onMissionStarted?.(data);
+    if (data.type === 'mission_dev_started') {
+      this.handlers.onMissionDevStarted?.(data);
       return;
     }
-    if (data.type === 'mission_progress') {
-      this.handlers.onMissionProgress?.(data);
+    if (data.type === 'mission_dev_progress') {
+      this.handlers.onMissionDevProgress?.(data);
       return;
     }
-    if (data.type === 'mission_finished') {
-      this.handlers.onMissionFinished?.(data);
+    if (data.type === 'mission_dev_finished') {
+      this.handlers.onMissionDevFinished?.(data);
       return;
     }
-    if (data.type === 'mission_error') {
-      this.handlers.onMissionError?.(data);
+    if (data.type === 'mission_dev_error') {
+      this.handlers.onMissionDevError?.(data);
       return;
     }
 
