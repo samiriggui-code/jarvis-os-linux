@@ -139,7 +139,9 @@ export async function runFaceAuthFlow(opts: RunFaceAuthOptions): Promise<boolean
 
   while (attempt < maxRetries) {
     if (!opts.isAlive()) return false;
-    const shouldFail = opts.simulateFailOnce && !failOnceUsed;
+    // `simulateFailOnce` est optionnel : sans le `=== true`, `shouldFail` vaut
+    // `boolean | undefined` et ne satisfait pas `runAttempt(…, failAtEnd: boolean)`.
+    const shouldFail = opts.simulateFailOnce === true && !failOnceUsed;
     if (shouldFail) failOnceUsed = true;
 
     if (attempt > 0) {

@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -25,11 +26,36 @@ PORT = 8765
 # boucle ne doit pas faire réciter JARVIS toutes les deux secondes.
 BOOT_REPLAY_COOLDOWN_S = 30.0
 
+# Délai au-delà duquel le Core annonce le boot de lui-même, faute de demande.
+# Couvre la cinématique la plus longue (54 s + repos + raccord ≈ 60 s) avec de
+# la marge : un client qui a l'intention de demander doit avoir le temps, un
+# client qui n'en a pas l'intention ne doit pas attendre indéfiniment.
+BOOT_ANNOUNCE_GRACE_S = 75.0
+
 # Fenêtre pendant laquelle plusieurs périphériques qui reviennent comptent
 # pour UN seul geste. Brancher une webcam à micro intégré fait remonter deux
 # périphériques à quelques millisecondes d'intervalle : c'est un branchement,
 # pas deux, et ça mérite une seule phrase de détection.
 PERIPHERAL_DETECT_GROUP_S = 3.0
+
+# Repli TTS si le cache WAV n'a pas encore la ligne (génération = script).
+SESSION_SAY_FALLBACKS: dict[str, str] = {
+    "session_locked_manual": (
+        "Verrouillage de session. Mise en veille des systèmes. À bientôt."
+    ),
+    "session_locked_auto": (
+        "Verrouillage automatique. Mise en veille des systèmes. À bientôt."
+    ),
+    "session_goodbye": "À bientôt.",
+    "session_closed": "Session verrouillée.",
+    "session_opened": "Session ouverte.",
+    "session_welcome_back": (
+        "Tous les systèmes sont opérationnels. "
+        "Ravi de vous revoir, {titre}. Que puis-je faire pour vous ?"
+    ),
+}
+
+_ROLE_TITLES = {"admin": "monsieur", "user": "madame", "child": "mademoiselle"}
 
 
 @dataclass(frozen=True)
@@ -70,6 +96,11 @@ ROUTES: dict[str, Route] = {
     "agent_reach": Route("handle_agent_reach", "agent_reach_status", {"ok": False}),
     "supervisor": Route("handle_supervisor", "supervisor_status", {"ok": False}),
     "usage": Route("handle_usage", "usage_result", {"ok": False}),
+    # Surface agentique : un document est ADMIS (catalogue + protocole) puis
+    # diffusé à tous les clients. Cf. docs/architecture/JARVIS-Agentic-UI.md
+    # Le HUD annonce la fin de sa cinématique — le Core peut parler.
+    "boot": Route("handle_boot", "core_error"),
+    "surface": Route("handle_surface", "surface_error", {"ok": False}),
     "user_event": Route("handle_chat", "core_error"),
     "stop_run": Route("handle_stop_run", "core_error"),
     "mission_dev": Route("handle_mission_dev", "mission_dev_error"),
@@ -106,6 +137,20 @@ ROUTES: dict[str, Route] = {
 }
 
 
+def _default_prompt(cap: Any) -> str:
+    """Ce qu'on demande à Hermes quand l'utilisateur n'a rien précisé.
+
+    Ouvrir « Maison » sans phrase, c'est demander un état, pas une action. Le
+    défaut est donc volontairement en **lecture** : une tuile ouverte par
+    curiosité ne doit rien allumer. La phrase de l'utilisateur, quand elle
+    existe, remplace celle-ci intégralement.
+    """
+    return (
+        f"Rends l'état actuel pour l'intention « {cap.intent} », en une phrase "
+        "courte et en français. N'exécute aucune action de modification."
+    )
+
+
 class Orchestrator:
     """Cerveau : reçoit les events HUD, applique la policy, répond via WS."""
 
@@ -118,6 +163,48 @@ class Orchestrator:
         self.bus = Bus()
         # Le superviseur signale, il ne redémarre pas : systemd s'en charge.
         self.supervisor = Supervisor(emit=self.emit)
+        # Surfaces agentiques — catalogue + admission + numérotation de séquence.
+        # Un catalogue absent ne bloque pas le boot : le Core refusera juste
+        # toute surface, et `JARVIS BASE` continue de tourner.
+        from .surface import BindingResolver, IntentExecutor, SurfaceBroadcaster
+
+        self.surfaces = SurfaceBroadcaster()
+        # Exécutants d'intentions (P2). Registre volontairement VIDE au départ :
+        # une action autorisée qui n'a pas d'exécutant est refusée bruyamment,
+        # jamais acquittée en silence. Voir `IntentExecutor`.
+        self.intents = IntentExecutor()
+        # Sources de données servies aux liaisons `$bind` (§6.3). C'est le Core
+        # qui lit et filtre — un agent demande, il ne fournit jamais.
+        self.bindings = BindingResolver()
+        self._register_bindings()
+        # Pont vers Hermes — la seule voie entre le Core et l'agent. Construit
+        # toujours : un pont non configuré refuse en le disant, ce qui vaut mieux
+        # qu'un attribut absent découvert au premier clic.
+        from .hermes import HermesBridge
+
+        self.hermes = HermesBridge()
+        # Domotique — adaptateur DIRECT, sans agent ni modèle. Le contrat écrit
+        # `Core → Home Assistant Adapter → HA API` ; le §11 du cahier des charges
+        # exige que la maison réponde même sans LLM. Passer par Hermes violait les
+        # deux, et coûtait 475 s par commande.
+        from .homeassistant import HomeAssistantAdapter
+
+        self.hass = HomeAssistantAdapter()
+        # Vidéo — même raisonnement, même patron. Le §11 nomme Plex au même titre
+        # que HA dans ce qui doit tenir sans modèle, et le marque-page d'une série
+        # est une donnée que Plex possède déjà : rien à faire deviner.
+        from .plex import PlexAdapter
+
+        self.plex = PlexAdapter()
+        # Phrases en attente d'autorisation, indexées par demande. Elles ne
+        # peuvent pas voyager dans la carte d'approbation : celle-ci est diffusée
+        # à tous les clients connectés, et « allume la chambre de Léa » n'a pas à
+        # s'afficher sur l'écran du salon.
+        self._pending_prompts: dict[str, str] = {}
+        # Remplit `self.intents`, resté vide jusqu'ici. Une intention déclarée
+        # sans exécutant reste refusée bruyamment — c'est l'invariant, pas un
+        # défaut à masquer.
+        self._register_capabilities()
         # Auth / User Manager — optionnel, ne doit jamais empêcher le boot Core
         self.auth = None
         try:
@@ -285,6 +372,7 @@ class Orchestrator:
             self.say,
             prime=prime_signals,
             recover=self.recovery.attempt,
+            reveal=self.supervisor.emit_one,
             conditions={
                 "face_ready": lambda: self.face is not None and self.face.ready,
                 "voice_ready": lambda: self.voice is not None and self.voice.available,
@@ -343,12 +431,18 @@ class Orchestrator:
         #: ce qui n'est PAS « en panne » : la sonde `holomat` reste alors en
         #: échec tant que le HUD n'a pas répondu, et la séquence attend.
         self._camera_ok: bool | None = None
+        #: Hits YuNet consécutifs avant `face.presence` (anti faux positif).
+        self._presence_hits: int = 0
         #: État des périphériques rapporté par le HUD — `None` = jamais vu.
         #: Sert à ne parler qu'au changement, cf. `handle_peripheral`.
         self._peripherals: dict[str, bool] = {}
         #: Dernière annonce « détection en cours », pour regrouper les
         #: périphériques qui reviennent ensemble (webcam + micro intégré).
         self._detecting_said_at = 0.0
+        #: Coupe la narration libre (périphériques, relances) après login /
+        #: refresh session — sinon cam denied→ready rejoue un monologue
+        #: pendant que le HUD est déjà ouvert.
+        self._voice_quiet = False
         #: Armé quand les sondes sont enregistrées.
         #:
         #: `serve()` accepte les connexions AVANT `start_background()` — c'est
@@ -359,6 +453,8 @@ class Orchestrator:
         #: opérationnels » sans en avoir vérifié un seul. Exactement le bug
         #: qu'on vient de retirer, par une autre porte.
         self._components_ready = asyncio.Event()
+        #: HUD a demandé un boot silencieux (session déjà ouverte).
+        self._boot_skip = False
 
     def cmd(self, command: str, **kwargs: Any) -> dict[str, Any]:
         return {"command": command, **kwargs}
@@ -416,8 +512,12 @@ class Orchestrator:
             # une caméra qu'il ne tient pas : c'est le HUD qui la rapporte
             # (`{"type":"holomat","action":"camera"}`), d'où `note()` et une
             # sonde qui se contente de relire le dernier état connu.
-            async def holomat_check() -> bool:
-                return self._camera_ok is True
+            async def holomat_check() -> bool | None:
+                # `None` tant que le HUD n'a rien rapporté : le Core ne tient
+                # pas cette caméra, il n'a donc aucun moyen d'affirmer quoi que
+                # ce soit. Ne pas confondre « pas encore de navigateur » avec
+                # « objectif en panne » — la ligne reste grise, pas rouge.
+                return self._camera_ok
 
             self.supervisor.register("holomat", holomat_check, interval_s=20.0)
 
@@ -438,7 +538,10 @@ class Orchestrator:
         async def agents_check() -> bool:
             from .agent_reach_status import status as agent_status
 
-            st = await asyncio.to_thread(agent_status)
+            # `deep=False` : présence du CLI, pas le diagnostic réseau. Ce
+            # dernier prend ~8 s (il sonde GitHub, X, Reddit…) pour un budget
+            # de sonde de 5 s — cf. agent_reach_status.status().
+            st = await asyncio.to_thread(lambda: agent_status(deep=False))
             return bool(st.get("installed"))
 
         self.supervisor.register("agents", agents_check, interval_s=60.0)
@@ -533,7 +636,11 @@ class Orchestrator:
                    "peripheral_camera_ready", "peripheral_camera_lost"),
         "mic": ("peripheral_mic_missing", "peripheral_mic_denied",
                 "peripheral_mic_ready", "peripheral_mic_lost"),
-        "audio_out": ("peripheral_audio_out_missing", "peripheral_audio_out_missing",
+        # `denied` pointait sur la MÊME phrase que `missing` — le cas « accès
+        # refusé » n'avait jamais été envisagé pour une sortie. Il existe
+        # pourtant, et c'est même le plus fréquent : le navigateur ne liste
+        # les sorties audio qu'une fois le micro autorisé.
+        "audio_out": ("peripheral_audio_out_missing", "peripheral_audio_out_denied",
                       "peripheral_audio_out_ready", "peripheral_audio_out_hdmi_lost"),
     }
 
@@ -562,6 +669,16 @@ class Orchestrator:
 
         if previous == ok:
             return  # rien de neuf : on se tait
+
+        # Pendant auth/boot ou session déjà ouverte : on MET À JOUR l'état
+        # mais on ne parle pas. Sinon denied→ready caméra double le monologue
+        # d'identification, et continue après unlock.
+        running = getattr(self.sequences, "_running", None)
+        session_open = bool(self.auth is not None and getattr(self.auth, "active", None))
+        quiet = bool(getattr(self, "_voice_quiet", False) or session_open
+                     or running in ("auth", "boot", "enrollment", "unlock", "lock", "lock_auto"))
+        if quiet:
+            return
 
         if not ok:
             # Le refus d'accès prime sur tout le reste : le matériel EST là,
@@ -725,9 +842,17 @@ class Orchestrator:
                 bindings=bindings,
             )
 
-        if payload is None and fallback_text:
-            # Pas en cache : phrase inédite ou domaine pas encore généré.
-            payload = await self.speak(fallback_text, user_id=user_id)
+        if payload is None:
+            raw = fallback_text or SESSION_SAY_FALLBACKS.get(event)
+            if raw:
+                titre = (bindings or {}).get("titre") or _ROLE_TITLES.get(
+                    (user_role or "").lower(), "monsieur"
+                )
+                text = raw.format(
+                    titre=titre,
+                    user=(bindings or {}).get("user", ""),
+                )
+                payload = await self.speak(text, user_id=user_id)
 
         if payload is None:
             logger.debug("say(%s) : ni cache ni texte de repli", event)
@@ -738,6 +863,131 @@ class Orchestrator:
         else:
             await self.broadcast(payload)
         return payload
+
+    async def _publish_result_surface(
+        self,
+        surface_id: str,
+        *,
+        title: str,
+        body: str,
+        source: str = "",
+        items: list[str] | None = None,
+    ) -> None:
+        """Diffuse un ResultPanel dans la fenêtre d'app — fin de la page vide.
+
+        Hermes / le chat parlaient ; le HUD ouvrait une surface sans document.
+        Ici on pousse un snapshot admissible (composant catalogue) sous la clé
+        `surface_id` (= id d'app, ex. `reach`).
+        """
+        from .surface import SurfaceRejected, validate_document
+
+        cid = "result-main"
+        document = {
+            "surfaces": {
+                surface_id: {
+                    "root": [cid],
+                    "components": {
+                        cid: {
+                            "name": "ResultPanel",
+                            "props": {
+                                "title": title[:120],
+                                "body": (body or "")[:8000],
+                                "source": source[:80],
+                                "items": list(items or [])[:40],
+                            },
+                            "state": "idle",
+                        }
+                    },
+                }
+            }
+        }
+        try:
+            permissions, context = self._surface_guards()
+            document = validate_document(
+                document,
+                self.surfaces.catalog,
+                permissions=permissions,
+                context=context,
+                bindings=self.bindings,
+            )
+        except SurfaceRejected as exc:
+            logger.warning("ResultPanel refusé · %s — %s", surface_id, exc)
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ResultPanel impossible · %s", exc)
+            return
+
+        event = self.surfaces.snapshot(document)
+        # Ouvrir la fenêtre AVANT le snapshot : sinon AgentSurface n'est pas
+        # monté et rate SURFACE_SNAPSHOT → l'utilisateur voit le fallback
+        # « Agent-Reach » vide (bug capture 2026-08-06 Macron).
+        await self.broadcast(
+            {
+                "type": "hud_command",
+                "action": "open_space",
+                "app": surface_id,
+            }
+        )
+        await asyncio.sleep(0.25)
+        await self.broadcast(event)
+        # Second envoi : clients qui montent AgentSurface un tick plus tard.
+        await asyncio.sleep(0.15)
+        again = self.surfaces.resnapshot()
+        if again is not None:
+            await self.broadcast(again)
+
+    async def _try_streaming_platforms(self, ws: Any, text: str) -> bool:
+        """Netflix / Disney+ / Prime — surface agentic + onglet navigateur.
+
+        Pas de contrôle PC distant : on ouvre l'URL sur le client HUD
+        (`open_external`). Plex reste le chemin « média maison » (media.video).
+        """
+        from urllib.parse import quote
+
+        low = " " + " ".join(text.lower().replace("'", " ").split()) + " "
+        platforms: list[tuple[str, str, str]] = [
+            ("netflix", "Netflix", "https://www.netflix.com/search?q="),
+            ("disney", "Disney+", "https://www.disneyplus.com/search?q="),
+            ("prime", "Amazon Prime", "https://www.primevideo.com/search/ref=atv_nb_sr?phrase="),
+            ("amazon", "Amazon Prime", "https://www.primevideo.com/search/ref=atv_nb_sr?phrase="),
+        ]
+        hit = next(
+            ((k, label, base) for k, label, base in platforms if f" {k} " in low),
+            None,
+        )
+        if not hit:
+            # Sans marque explicite → Plex (media.video), pas de vol d'intent.
+            return False
+
+        _, label, base = hit
+        # Extraire un titre approximatif après le nom de plateforme / « série ».
+        q = text
+        for token in (
+            "netflix", "disney+", "disney plus", "disney", "amazon prime",
+            "prime video", "amazon", "prime", "sur", "regarde", "regarder",
+            "une série", "un film", "série", "serie", "film", "épisode", "episode",
+        ):
+            q = re.sub(re.escape(token), " ", q, flags=re.I)
+        q = " ".join(q.split()).strip() or label
+        url = base + quote(q)
+
+        await self._publish_result_surface(
+            "video",
+            title=f"{label} — {q}",
+            body=f"Ouverture de {label}. Lien aussi dans la surface agentic.",
+            source="media.streaming",
+            items=[url],
+        )
+        await self.broadcast({
+            "type": "hud_command",
+            "action": "open_external",
+            "url": url,
+        })
+        spoken = f"J'ouvre {label}."
+        await ws.send(json.dumps({"type": "chat_reply", "text": spoken, "intent": "media.streaming"}))
+        ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await ws.send(json.dumps(ev))
+        return True
 
     async def _send_boot_state(self, ws: Any, *, spoken: bool) -> None:
         """Encadre le boot pour le HUD — `start` puis `end`, toujours.
@@ -793,14 +1043,17 @@ class Orchestrator:
         # Le silence est donc découplé : on se tait, mais on signale toujours.
         now = time.monotonic()
         silent = (
-            self.voice_cache is None
+            getattr(self, "_boot_skip", False)
+            or self.voice_cache is None
             or now - self._boot_spoken_at < BOOT_REPLAY_COOLDOWN_S
         )
         if silent:
-            logger.debug("Boot annoncé sans voix (cache absent ou rejeu récent)")
+            logger.debug("Boot annoncé sans voix (skip/cache/rejeu)")
             await self._send_boot_state(ws, spoken=False)
+            self._boot_skip = False
             return
         self._boot_spoken_at = now
+        self._boot_skip = False
 
         async def say_to(event: str, **kw: Any) -> dict[str, Any] | None:
             return await self.say(event, ws, **kw)
@@ -825,20 +1078,52 @@ class Orchestrator:
             "phase": "start",
             "checks": ["hermes", "voice", "face", "holomat", "users", "agents"],
         }))
+
+        # Rejeu de l'état des briques, JUSTE APRÈS `boot_state` et juste avant
+        # que la séquence ne parle.
+        #
+        # Le Core démarre bien avant le navigateur : quand le HUD arrive — au
+        # bout d'une cinématique de près d'une minute — toutes les sondes ont
+        # déjà basculé `unknown → ready`, et le superviseur ne parle que sur
+        # changement. La checklist restait donc grise pour tout ce qui
+        # fonctionnait. Ce n'est pas un cas limite : avec la cinématique, c'est
+        # le cas nominal.
+        #
+        # L'ordre compte. Avant `boot_state`, le HUD n'a pas encore sa liste de
+        # lignes et jetterait les états ; après le début de la séquence, les
+        # lignes s'allumeraient dans le désordre par rapport à la voix.
+        # ⚠ On réserve les briques que la séquence va annoncer. Le rejeu total
+        # les allumait toutes ICI, avant la première phrase : les six lignes
+        # viraient au vert d'un bloc, puis JARVIS les énumérait pendant vingt
+        # secondes au-dessus d'une checklist déjà finie. Le reste — une brique
+        # sans étape parlée — est bien rejoué, sinon plus rien ne l'afficherait.
+        from .sequences import watched_components
+
+        self.supervisor.replay(exclude=watched_components("boot"))
         self.recovery.reset()
         ok = await self.sequences.run("boot")
-        await ws.send(json.dumps({
-            "type": "boot_state",
-            "phase": "end",
-            "ok": ok,
-            "degraded": sorted(self.sequences.degraded),
-            # Actions système retenues faute d'autorisation. Le HUD les
-            # présente à un admin identifié — elles ne partent jamais seules.
-            "pending_actions": [
-                {"target": s.target, "command": s.command}
-                for s in self.recovery.pending_system
-            ],
-        }))
+        try:
+            await ws.send(json.dumps({
+                "type": "boot_state",
+                "phase": "end",
+                "ok": ok,
+                "degraded": sorted(self.sequences.degraded),
+                "pending_actions": [
+                    {"target": s.target, "command": s.command}
+                    for s in self.recovery.pending_system
+                ],
+            }))
+        except Exception as exc:  # noqa: BLE001
+            # Client parti (1001 going away) pendant le boot — diffuser aux
+            # autres HUD plutôt que laisser l'écran sur « NOYAU INJOIGNABLE ».
+            logger.warning("boot_state end non délivré au client : %s — broadcast", exc)
+            await self.broadcast({
+                "type": "boot_state",
+                "phase": "end",
+                "ok": ok,
+                "degraded": sorted(self.sequences.degraded),
+                "pending_actions": [],
+            })
         if not ok:
             # Étape fatale : on ne lance PAS l'identification. La caméra
             # au-dessus d'une base utilisateurs morte ne mène nulle part, et
@@ -867,6 +1152,847 @@ class Orchestrator:
         sess = getattr(self.auth, "active", None) if self.auth else None
         role = getattr(getattr(sess, "role", None), "value", None)
         return role.lower() if isinstance(role, str) else None
+
+    async def _execute_home(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Domotique — chemin déterministe, sans LLM (cahier des charges §11).
+
+        Le contrat trace `Core → Home Assistant Adapter → HA API` ; Hermes n'y
+        figure pas. C'est aussi ce qui permet à la maison de répondre en « Mode 3,
+        sans LLM » : aucun modèle n'est consulté ici.
+
+        Une ambiguïté n'est pas tranchée au hasard : deux lampes possibles font
+        remonter la liste plutôt qu'un choix. Allumer la mauvaise pièce est pire
+        que demander une précision.
+        """
+        from .homeassistant import HomeAssistantAmbiguous, HomeAssistantUnavailable
+
+        prompt = str(payload.get("prompt") or "").strip()
+        if not prompt and (approval_id := payload.get("approval_id")):
+            prompt = self._pending_prompts.pop(str(approval_id), "")
+
+        try:
+            result = await self.hass.execute(prompt or "état de la maison")
+        except HomeAssistantAmbiguous as exc:
+            await self.say("not_understood", fallback_text=str(exc))
+            return {"ok": False, "ambiguous": True, "reason": str(exc)}
+        except HomeAssistantUnavailable as exc:
+            # `house_unreachable` — la maison ne répond pas. Distinct d'un appareil
+            # absent : là c'est la liaison entière qui manque.
+            await self.say("house_unreachable", fallback_text=str(exc))
+            raise RuntimeError(str(exc)) from exc
+
+        await self._say_home(result)
+        return result
+
+    async def _start_kiosk_enrollment(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Admin → ouvre l'UI d'enrôlement sur TOUS les HUD (kiosk NUC inclus).
+
+        La capture face/voix se fait sur la caméra du kiosk maison, pas sur le
+        portable distant. Le Core diffuse `hud_command/start_enrollment` puis
+        lance la séquence vocale `enrollment`.
+        """
+        sess = self.auth.active if self.auth is not None else None
+        if self.auth is not None and not self.auth.users.is_first_run():
+            if not sess or not (
+                "user_management" in sess.permissions
+                or "dashboard_access" in sess.permissions
+            ):
+                spoken = "Seul un administrateur peut lancer un enrôlement foyer."
+                await self.broadcast(await self.speak(spoken, user_id="local"))
+                return {"ok": False, "reason": "admin_required", "spoken": spoken}
+
+        prompt = str(payload.get("prompt") or "")
+        # Heuristique légère : « enrôle Léa » / « inscris mon conjoint »
+        username = str(payload.get("username") or "").strip()
+        display_name = str(payload.get("display_name") or "").strip()
+        role = "USER"  # foyer kiosk : jamais ADMIN / CHILD via ce canal vocal
+        if display_name and not username:
+            username = (
+                "".join(c for c in display_name.lower() if c.isalnum() or c in "-_")[:24]
+                or "membre"
+            )
+
+        await self.broadcast({
+            "type": "hud_command",
+            "action": "start_enrollment",
+            "username": username or None,
+            "display_name": display_name or None,
+            "role": role,
+        })
+
+        # Narration enrollment sur le kiosk.
+        self._voice_quiet = False
+        try:
+            self.sequences.abort()
+        except Exception:  # noqa: BLE001
+            pass
+        await asyncio.sleep(0.05)
+
+        async def say_to(event: str, **kw: Any) -> dict[str, Any] | None:
+            return await self.say(event, **kw)
+
+        self.sequences._say = say_to
+        task = asyncio.create_task(
+            self.sequences.run("enrollment", **self._say_context())
+        )
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+        spoken = (
+            f"Enrôlement lancé sur le kiosk pour {display_name}."
+            if display_name
+            else "Enrôlement lancé sur le kiosk. Placez la personne face à la caméra."
+        )
+        await self.broadcast(await self.speak(spoken, user_id=sess.user_id if sess else "local"))
+        return {
+            "ok": True,
+            "action": "start_enrollment",
+            "username": username or None,
+            "display_name": display_name or None,
+            "role": role,
+            "spoken": spoken,
+        }
+
+    async def _execute_hud(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Actions quotidiennes HUD — Core décide, le navigateur exécute.
+
+        Verrouiller, mute, veille, caméra, fermer un *espace* (app JARVIS) :
+        zéro Hermes. On diffuse `hud_command` à tous les clients ; le HUD
+        applique et répond. Sans cet envoi, JARVIS « comprend » mais n'agit pas.
+        """
+        intent = str(payload.get("intent") or "").strip()
+        # L'exécutant est enregistré par intention ; on la reprend du payload
+        # si présent, sinon du contexte d'appel via le registre.
+        if not intent:
+            # Les handlers sont bindés sans intent dans le payload d'origine —
+            # `_execute_intent` passe surface_id/app/prompt. On lit l'intention
+            # depuis le prompt matché via le registre d'enregistrement.
+            intent = str(getattr(self, "_hud_intent_hint", "") or "")
+
+        prompt = str(payload.get("prompt") or "").strip().lower()
+        # Deviner depuis le prompt si l'intent n'est pas dans le payload.
+        if not intent:
+            if any(k in prompt for k in ("verrouill", "lock")):
+                intent = "hud.lock"
+            elif any(k in prompt for k in ("veille", "repos", "standby")):
+                intent = "hud.idle"
+            elif any(k in prompt for k in ("ferme", "close")):
+                intent = "hud.close_space"
+            elif any(k in prompt for k in ("remets le son", "unmute", "écoute", "allume le micro")):
+                intent = "hud.unmute"
+            elif any(k in prompt for k in ("coupe le son", "mute", "sourdine", "silence")):
+                intent = "hud.mute"
+            elif any(k in prompt for k in ("allume la cam", "ouvre la cam", "active la cam", "réveille la cam")):
+                intent = "hud.camera_on"
+            elif any(k in prompt for k in ("coupe la cam", "éteins la cam", "ferme la cam", "arrête la cam")):
+                intent = "hud.camera_off"
+            elif any(k in prompt for k in (
+                "enrôl", "enrol", "inscris", "nouvel utilisateur", "nouveau profil",
+                "ajoute un profil", "enrolement", "enrôlement", "family enroll",
+            )):
+                intent = "hud.enroll"
+
+        action = {
+            "hud.lock": "lock",
+            "hud.idle": "idle",
+            "hud.close_space": "close_spaces",
+            "hud.mute": "mute",
+            "hud.unmute": "unmute",
+            "hud.camera_on": "camera_on",
+            "hud.camera_off": "camera_off",
+            "hud.enroll": "start_enrollment",
+        }.get(intent)
+
+        if not action:
+            return {"ok": False, "reason": f"commande HUD inconnue : {intent}"}
+
+        # Enrôlement foyer : admin seulement → broadcast kiosk + séquence Core.
+        if action == "start_enrollment":
+            return await self._start_kiosk_enrollment(payload)
+
+        close_all = action == "close_spaces" and (
+            "tout" in prompt or "espaces" in prompt or "fenêtres" in prompt or "fenetres" in prompt
+        )
+
+        # Voix lock/veille AVANT de diffuser (session encore active pour le titre).
+        if action == "lock":
+            try:
+                self.sequences.abort()
+            except Exception:  # noqa: BLE001
+                pass
+            await asyncio.sleep(0.05)
+
+            async def say_to(event: str, **kw: Any) -> dict[str, Any] | None:
+                return await self.say(event, **kw)
+
+            self.sequences._say = say_to
+            await self.sequences.run("lock", **self._say_context())
+        elif action == "idle":
+            try:
+                self.sequences.abort()
+            except Exception:  # noqa: BLE001
+                pass
+            await asyncio.sleep(0.05)
+
+            async def say_idle(event: str, **kw: Any) -> dict[str, Any] | None:
+                return await self.say(event, **kw)
+
+            self.sequences._say = say_idle
+            await self.sequences.run("lock_auto", **self._say_context())
+
+        cmd = {
+            "type": "hud_command",
+            "action": action,
+            "close_all": close_all,
+            "intent": intent,
+        }
+        await self.broadcast(cmd)
+
+        # Autres actions : phrase courte (mute, caméra…). Lock/idle déjà parlés.
+        if action not in ("lock", "idle"):
+            spoken = {
+                "close_spaces": "Espaces fermés." if close_all else "Espace fermé.",
+                "mute": "Micro coupé.",
+                "unmute": "Micro réactivé.",
+                "camera_on": "Caméra allumée.",
+                "camera_off": "Caméra coupée.",
+            }.get(action, "C'est fait.")
+            ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+            await self.broadcast(ev)
+            await self.broadcast(self.cmd("display_notification", message=spoken, duration=3.0))
+        else:
+            await self.broadcast(
+                self.cmd(
+                    "display_notification",
+                    message="Session verrouillée." if action == "lock" else "Mode veille.",
+                    duration=3.0,
+                )
+            )
+        return {"ok": True, "action": action}
+
+    async def _execute_capabilities(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """« Quels outils as-tu ? » → ResultPanel, pas une liste parlée seule."""
+        from .capabilities import CAPABILITIES, allows
+
+        role = self._session_role()
+        lines: list[str] = []
+        for cap in CAPABILITIES.values():
+            if not allows(cap, role):
+                continue
+            note = (cap.note or "").strip()
+            lines.append(
+                f"{cap.intent} · {cap.app_id}"
+                + (f" — {note}" if note else "")
+            )
+        body = (
+            f"{len(lines)} intentions disponibles pour votre profil. "
+            "Demandez une action (« cherche… », « verrouille… ») : "
+            "JARVIS ouvre une surface composée quand c’est pertinent."
+        )
+        await self._publish_result_surface(
+            "reach",
+            title="Outils & capacités",
+            body=body,
+            source="system.capabilities",
+            items=lines[:30],
+        )
+        spoken = f"J'ai {len(lines)} intentions disponibles. Je les affiche."
+        ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(ev)
+        return {"ok": True, "count": len(lines)}
+
+    async def _execute_introspect(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Parcourt skills Hermes + catalogue UI + intentions — visible en surface."""
+        from pathlib import Path
+
+        from .capabilities import CAPABILITIES, allows
+
+        role = self._session_role()
+        prompt = str(payload.get("prompt") or "").lower()
+
+        items: list[str] = []
+
+        # 1 · Intentions Core
+        items.append("—— Intentions orchestrateur ——")
+        for cap in CAPABILITIES.values():
+            if not allows(cap, role):
+                continue
+            items.append(f"{cap.intent} [{cap.owner.value}] · app={cap.app_id}")
+
+        # 2 · Catalogue UI agentique
+        items.append("—— Composants surface (catalogue) ——")
+        try:
+            for name in sorted(self.surfaces.catalog.names):
+                d = self.surfaces.catalog.get(name) or {}
+                desc = str(d.get("description") or "")[:80]
+                items.append(f"{name} — {desc}")
+        except Exception as exc:  # noqa: BLE001
+            items.append(f"(catalogue illisible : {exc})")
+
+        # 3 · Skills Hermes (fichiers déployés)
+        items.append("—— Compétences Hermes (SKILL.md) ——")
+        skill_roots = [
+            Path("/opt/jarvis/deploy/hermes/skills"),
+            Path(__file__).resolve().parents[2] / "deploy" / "hermes" / "skills",
+        ]
+        found = False
+        for root in skill_roots:
+            if not root.is_dir():
+                continue
+            for skill_md in sorted(root.glob("*/SKILL.md")):
+                found = True
+                name = skill_md.parent.name
+                try:
+                    head = skill_md.read_text(encoding="utf-8")[:400]
+                    first = next(
+                        (ln.strip("# ").strip() for ln in head.splitlines() if ln.strip()),
+                        name,
+                    )
+                except Exception:  # noqa: BLE001
+                    first = name
+                items.append(f"skill:{name} — {first}")
+            if found:
+                break
+        if not found:
+            items.append("(aucun SKILL.md trouvé sous deploy/hermes/skills)")
+
+        body = (
+            "Introspection JARVIS : intentions, composants agentiques, compétences Hermes. "
+            "Demandez une action précise pour l’exécuter (Policy → autorisation)."
+        )
+        if "code" in prompt:
+            body += " Le code produit vit dans core/jarvis_core et hud/src — pas d’exécution shell libre."
+
+        await self._publish_result_surface(
+            "reach",
+            title="Introspection JARVIS",
+            body=body,
+            source="system.introspect",
+            items=items[:60],
+        )
+        spoken = "Voici ce que je peux faire — intentions, surfaces et compétences."
+        ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(ev)
+        return {"ok": True, "items": len(items)}
+
+    async def _execute_media_pause(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Coupe / pause la musique via HA media_player — sans Hermes."""
+        from .homeassistant import HomeAssistantUnavailable
+
+        prompt = str(payload.get("prompt") or "coupe la musique").strip()
+        try:
+            result = await self.hass.execute(prompt)
+        except HomeAssistantUnavailable as exc:
+            await self.speak(
+                "Je n'ai pas accès à la musique pour le moment.",
+                user_id=self._session_user_id() or "local",
+            )
+            return {"ok": False, "reason": str(exc)}
+        except Exception as exc:  # noqa: BLE001
+            # Ambiguïté / autre : on dit vrai.
+            msg = str(exc) or "Impossible de couper la musique."
+            await self.speak(msg, user_id=self._session_user_id() or "local")
+            return {"ok": False, "reason": msg}
+
+        if result.get("ok"):
+            ev = await self.speak("Musique coupée.", user_id=self._session_user_id() or "local")
+            await self.broadcast(ev)
+        else:
+            ev = await self.speak(
+                str(result.get("reason") or "Aucun lecteur trouvé."),
+                user_id=self._session_user_id() or "local",
+            )
+            await self.broadcast(ev)
+        return result
+
+    async def _say_home(self, result: dict[str, Any]) -> None:
+        """La réponse orale d'une action domestique — depuis le CACHE, sans LLM.
+
+        `dialogues/quotidien.yaml` est décrit comme « réponses aux intentions
+        déterministes (sans LLM) — pré-générées et mises en cache ». Les phrases
+        existaient donc déjà (`light_on`, `light_off`, `device_unreachable`…) ;
+        ce qui manquait, c'était de les déclencher. Une action muette n'est pas
+        une action : l'utilisateur ne sait pas si elle a eu lieu.
+
+        `say()` lit le cache d'abord et ne synthétise qu'à défaut — c'est ce qui
+        rend la maison bavarde hors ligne, et gratuite.
+        """
+        # `{room}` et `{device}` viennent du nom convivial de l'entité, celui que
+        # l'utilisateur a lui-même donné dans Home Assistant. Reprendre son
+        # vocabulaire vaut mieux que de lui réciter un `entity_id`.
+        name = str(result.get("entity_id") or "").split(".")[-1].replace("_", " ")
+
+        if not result.get("ok"):
+            await self.say(
+                "device_unreachable",
+                bindings={"device": name or "cet appareil"},
+                fallback_text=str(result.get("reason") or "Appareil injoignable."),
+            )
+            return
+
+        action = str(result.get("action") or "")
+        event = {"on": "light_on", "off": "light_off", "open": "light_on",
+                 "close": "light_off", "toggle": "ack_done"}.get(action)
+
+        if event is None:
+            # Lecture d'état : rien à annoncer, la surface l'affiche déjà. Parler
+            # ici doublerait l'écran pour ne rien ajouter.
+            return
+
+        await self.say(event, bindings={"room": name or "la pièce"}, fallback_text="C'est fait.")
+
+    async def _execute_video(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Vidéo — chemin déterministe, sans LLM (cahier des charges §11).
+
+        Le §11 range Plex à côté de Home Assistant dans ce qui doit répondre en
+        « Mode 3 ». La capacité était pourtant marquée `DEVICE` — déclarée à
+        l'utilisateur, sans rien derrière. C'est le même trou que celui qu'avait
+        laissé `IntentExecutor` vide, à un étage au-dessus.
+
+        Une ambiguïté ne se tranche pas au hasard, ici moins qu'ailleurs : lancer
+        le mauvais épisode le marque comme vu et déplace le marque-page de Plex.
+        L'erreur ne se contente pas d'échouer, elle abîme un état.
+        """
+        from .plex import PlexAmbiguous, PlexUnavailable
+
+        prompt = str(payload.get("prompt") or "").strip()
+        if not prompt and (approval_id := payload.get("approval_id")):
+            prompt = self._pending_prompts.pop(str(approval_id), "")
+
+        try:
+            result = await self.plex.execute(prompt or "qu'est-ce qui joue")
+        except PlexAmbiguous as exc:
+            await self.say("not_understood", fallback_text=str(exc))
+            return {"ok": False, "ambiguous": True, "reason": str(exc)}
+        except PlexUnavailable as exc:
+            # `device_unreachable` et non `house_unreachable` : c'est un lecteur
+            # qui manque, pas la maison entière.
+            await self.say(
+                "device_unreachable",
+                bindings={"device": "le lecteur"},
+                fallback_text=str(exc),
+            )
+            raise RuntimeError(str(exc)) from exc
+
+        await self._say_video(result)
+        return result
+
+    async def _say_video(self, result: dict[str, Any]) -> None:
+        """La réponse orale d'une demande vidéo — depuis le CACHE, sans LLM.
+
+        `media_launched` existait dans `dialogues/quotidien.yaml` depuis le début,
+        avec ses clips déjà générés. Comme les événements domotiques avant
+        aujourd'hui, il n'était jamais déclenché : la phrase attendait un
+        appelant. Une action muette n'est pas une action.
+        """
+        if not result.get("ok"):
+            await self.say(
+                "device_unreachable",
+                bindings={"device": "le lecteur"},
+                fallback_text=str(result.get("reason") or "Je ne trouve pas ce titre."),
+            )
+            return
+
+        if result.get("action") != "play":
+            # Question d'état : la surface affiche déjà la liste. Parler ici
+            # doublerait l'écran sans rien ajouter — même règle que la domotique.
+            return
+
+        # `{service}` est le mot du gabarit ; on y met le titre, parce que c'est
+        # ce que l'utilisateur reconnaît. « Plex lancé » ne lui apprend rien.
+        await self.say(
+            "media_launched",
+            bindings={"service": str(result.get("title") or "La lecture")},
+            fallback_text="C'est parti.",
+        )
+
+    async def _open_intent(self, ws: Any, cap: Any, prompt: str = "") -> None:
+        """Ouvre une intention — **le seul chemin**, pour le clic comme pour la voix.
+
+        Deux appelants : `surface/open` (tuile du volet) et `handle_user_chat`
+        (phrase reconnue). Ils partagent ce corps délibérément. Si la voix avait
+        son propre chemin, il finirait par diverger — et ce serait l'un des deux,
+        forcément, qui perdrait un contrôle en route.
+
+        L'ordre est celui du contrat, sans exception possible :
+        rôle → exécutant existant → Policy → autorisation → exécution.
+        """
+        from .capabilities import allows
+
+        role = self._session_role()
+        base = {"type": "surface_error", "ok": False, "app": cap.app_id, "intent": cap.intent}
+
+        if not allows(cap, role):
+            logger.info("intention REFUSÉE (rôle) · %s · rôle=%s", cap.intent, role)
+            await ws.send(json.dumps({**base, "reason": "Réservé à l'administrateur."}))
+            return
+
+        if not cap.available:
+            # Refus honnête plutôt qu'échec silencieux : l'intention existe, rien
+            # ne la réalise, et on dit lequel des deux fait défaut.
+            await ws.send(
+                json.dumps(
+                    {**base, "reason": cap.note or "Aucun exécutant pour cette intention."}
+                )
+            )
+            return
+
+        decision = self.policy.evaluate(action=cap.intent, risk=cap.risk)
+
+        if not decision.allowed and not decision.needs_confirmation:
+            await ws.send(json.dumps({**base, "reason": decision.reason}))
+            return
+
+        if decision.needs_confirmation:
+            # La phrase de l'utilisateur ne peut pas voyager dans la carte
+            # d'autorisation : celle-ci est diffusée à TOUS les clients, et
+            # « allume la chambre de Léa » n'a rien à faire sur l'écran du salon.
+            approval_id, event = self.surfaces.open_approval(
+                intent=cap.intent,
+                gravity=cap.risk.name.lower(),
+                reason=decision.reason or "Confirmation requise.",
+                surface_id="apps",
+            )
+            if prompt:
+                self._pending_prompts[approval_id] = prompt
+            logger.info(
+                "intention EN ATTENTE · %s · approval=%s — %s",
+                cap.intent, approval_id, decision.reason,
+            )
+            await self.broadcast(event)
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "surface_result",
+                        "ok": True,
+                        "app": cap.app_id,
+                        "intent": cap.intent,
+                        "pending": approval_id,
+                    }
+                )
+            )
+            return
+
+        logger.info("intention AUTORISÉE · %s (%s)", cap.intent, cap.risk.name.lower())
+        await self._execute_intent(
+            ws,
+            cap.intent,
+            {
+                "surface_id": "apps",
+                "app": cap.app_id,
+                "prompt": prompt,
+                "intent": cap.intent,
+            },
+        )
+
+    def _register_capabilities(self) -> None:
+        """Donne un exécutant à chaque intention du volet Applications.
+
+        `IntentExecutor` était vide : toute intention approuvée repartait en
+        « aucun exécutant enregistré ». Le refus était correct — c'est ce qui a
+        rendu le trou visible — mais il fallait bien finir par le combler.
+
+        Deux familles seulement :
+
+          * **CORE** — le Core sait faire. L'exécutant se contente ici de rendre
+            l'état ; le rendu revient à une page produit ou à une composition.
+          * **HERMES** — délégué au pont, après Policy. L'exécutant capture la
+            capacité par valeur : sans ça, toutes les fermetures partageraient la
+            dernière de la boucle, et « Musique » allumerait la maison.
+
+        `DEVICE` n'est pas enregistré du tout : aucun Device Manager n'existe, et
+        inscrire un exécutant qui échouerait toujours ferait passer une absence
+        d'architecture pour une panne d'exécution.
+        """
+        from .capabilities import CAPABILITIES, Owner
+
+        # Exécutants Core RÉELS, par intention. Ce qui n'est pas ici retombe sur
+        # le rapporteur d'état ci-dessous — lequel ne prétend jamais avoir agi.
+        real: dict[str, Any] = {
+            "home.control": self._execute_home,
+            "media.video": self._execute_video,
+            "media.pause": self._execute_media_pause,
+            "hud.lock": self._execute_hud,
+            "hud.idle": self._execute_hud,
+            "hud.close_space": self._execute_hud,
+            "hud.mute": self._execute_hud,
+            "hud.unmute": self._execute_hud,
+            "hud.camera_on": self._execute_hud,
+            "hud.camera_off": self._execute_hud,
+            "hud.enroll": self._execute_hud,
+            "system.capabilities": self._execute_capabilities,
+            "system.introspect": self._execute_introspect,
+            "core.holomat": self._execute_camera_view,
+        }
+
+        for cap in CAPABILITIES.values():
+            if cap.owner is Owner.CORE:
+                if handler := real.get(cap.intent):
+                    self.intents.register(cap.intent, handler)
+                    continue
+
+                def _core_handler(payload: dict[str, Any], _cap=cap) -> dict[str, Any]:
+                    return {
+                        "intent": _cap.intent,
+                        "owner": "core",
+                        "display": _cap.display.value,
+                        "note": _cap.note,
+                    }
+
+                self.intents.register(cap.intent, _core_handler)
+                continue
+
+            if cap.owner is not Owner.HERMES:
+                continue
+
+            async def _hermes_handler(payload: dict[str, Any], _cap=cap) -> dict[str, Any]:
+                from .hermes import HermesRefused, HermesUnavailable
+
+                # La décision est refaite ici et non passée par le payload : une
+                # autorisation transmise dans un message est une autorisation
+                # falsifiable. Le coût est une évaluation de plus, pure et locale.
+                decision = self.policy.evaluate(action=_cap.intent, risk=_cap.risk)
+
+                prompt = str(payload.get("prompt") or "").strip()
+                if not prompt and (approval_id := payload.get("approval_id")):
+                    # Reprise après autorisation : la phrase avait été mise de
+                    # côté au moment d'ouvrir la carte. `pop` — une demande
+                    # accordée ne se rejoue pas.
+                    prompt = self._pending_prompts.pop(str(approval_id), "")
+                if not prompt:
+                    prompt = _default_prompt(_cap)
+
+                try:
+                    reply = await self.hermes.ask(
+                        _cap, prompt, role=self._session_role(), decision=decision
+                    )
+                except (HermesRefused, HermesUnavailable) as exc:
+                    # Remonté tel quel : `_execute_intent` distingue déjà « pas
+                    # d'exécutant » de « l'exécutant a échoué », et c'est bien du
+                    # second qu'il s'agit.
+                    raise RuntimeError(str(exc)) from exc
+
+                text = (reply.text or "").strip()
+                if text and _cap.app_id:
+                    await self._publish_result_surface(
+                        _cap.app_id,
+                        title=_cap.app_id.replace("-", " ").title(),
+                        body=text,
+                        source=_cap.intent,
+                    )
+
+                return {
+                    "intent": _cap.intent,
+                    "owner": "hermes",
+                    "toolset": _cap.toolset,
+                    "display": _cap.display.value,
+                    "text": text,
+                }
+
+            self.intents.register(cap.intent, _hermes_handler)
+
+        logger.info("capacités enregistrées · %d intentions", len(self.intents.actions))
+
+    def _register_bindings(self) -> None:
+        """Sources que le Core accepte de servir à une composition.
+
+        Volontairement **courte**. Chaque entrée est une donnée qu'un agent
+        pourra faire afficher : on en ouvre une parce qu'on en a besoin, jamais
+        « au cas où ». Chacune porte la permission qu'elle exige, vérifiée à la
+        lecture contre la session en cours.
+
+        Rien de sensible ici : charge machine et mémoire. Le jour où une source
+        touche au foyer ou aux utilisateurs, sa permission doit être distincte
+        de `system.read`.
+        """
+        from . import metrics
+
+        def _metric(key: str):
+            def read():
+                sample = metrics.sample()
+                return sample.get(key) if isinstance(sample, dict) else None
+
+            return read
+
+        for key in ("cpu", "ram", "disk"):
+            self.bindings.register(f"system.{key}", "system.read", _metric(key), "number")
+        self.bindings.register("system.uptime_s", "system.read", _metric("uptime_s"), "integer")
+        self.bindings.register("system.host", "system.read", _metric("host"), "string")
+
+    def _surface_component_name(self, surface_id: str, component_id: str) -> str | None:
+        """Nom catalogue du composant qui émet, retrouvé dans NOTRE document.
+
+        On ne demande pas au client de quel composant il s'agit : on le lit dans
+        la copie de vérité côté Core. Sinon la dérivation de gravité se
+        contenterait de déplacer la confiance d'un champ à un autre.
+        """
+        surface = self.surfaces.document.get("surfaces", {}).get(surface_id)
+        if not isinstance(surface, dict):
+            return None
+        node = surface.get("components", {}).get(component_id)
+        return node.get("name") if isinstance(node, dict) else None
+
+    def _surface_guards(self) -> tuple[set[str], set[str]]:
+        """Ce que la session en cours a le droit de voir, et le matériel présent.
+
+        Retourne `(permissions, contexte)` pour l'admission d'un document (§7.1).
+        """
+        from .surface import permissions_for
+
+        permissions = permissions_for(self._session_role(), self.surfaces.catalog)
+
+        # Contexte matériel. `camera` = le navigateur peut demander getUserMedia
+        # (kiosk NUC → webcam USB LG ; portable distant → caméra du portable).
+        # On l'ajoute dès qu'une session est ouverte : sinon CameraPreview est
+        # refusé (« contexte absent ») et la voix tombe en chat OpenRouter.
+        context: set[str] = {"camera"}
+        if getattr(self, "face", None) is not None:
+            context.add("face")
+
+        return permissions, context
+
+    async def _execute_camera_view(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Ouvre le flux caméra navigateur dans une surface agentic.
+
+        Pas de ThinQ / RTSP LG pour l'instant : honnêteté dans le ResultPanel.
+        Sur le kiosk du NUC, getUserMedia vise en général la webcam USB (LG).
+        """
+        from .surface import SurfaceRejected, validate_document
+
+        prompt = str(payload.get("prompt") or "").strip().lower()
+        lg = any(w in prompt for w in ("lg", "thinq", "chambre", "nuc"))
+
+        # Allume la caméra côté HUD + ouvre Holomat.
+        await self.broadcast({"type": "hud_command", "action": "camera_on"})
+        await self.broadcast({
+            "type": "hud_command",
+            "action": "open_space",
+            "app": "vision",
+        })
+        await asyncio.sleep(0.2)
+
+        body = (
+            "Aperçu caméra du navigateur (getUserMedia). "
+            + (
+                "Caméra LG ThinQ / RTSP IP : pas encore câblée — "
+                "sur le kiosk NUC, choisissez la webcam USB LG dans les permissions navigateur."
+                if lg
+                else "Demandez « caméra LG » pour le détail chambre / NUC."
+            )
+        )
+        document = {
+            "surfaces": {
+                "vision": {
+                    "root": ["cam-preview", "cam-note"],
+                    "components": {
+                        "cam-preview": {
+                            "name": "CameraPreview",
+                            "props": {"mirrored": True, "opacity": 1},
+                            "state": "idle",
+                        },
+                        "cam-note": {
+                            "name": "ResultPanel",
+                            "props": {
+                                "title": "Visuel caméra",
+                                "body": body,
+                                "source": "core.holomat",
+                                "items": [
+                                    "Flux = navigateur (pas ThinQ cloud)",
+                                    "Kiosk NUC → webcam USB locale",
+                                    "Distant → caméra du portable",
+                                ],
+                            },
+                            "state": "idle",
+                        },
+                    },
+                }
+            }
+        }
+        try:
+            permissions, context = self._surface_guards()
+            document = validate_document(
+                document,
+                self.surfaces.catalog,
+                permissions=permissions,
+                context=context,
+                bindings=self.bindings,
+            )
+        except SurfaceRejected as exc:
+            logger.warning("surface caméra refusée · %s", exc)
+            await self._publish_result_surface(
+                "vision",
+                title="Visuel caméra",
+                body=f"Impossible d'afficher CameraPreview ({exc}). {body}",
+                source="core.holomat",
+                items=[],
+            )
+            spoken = "J'ouvre la caméra, mais la surface a été refusée."
+            await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
+            return {"ok": False, "reason": str(exc)}
+
+        event = self.surfaces.snapshot(document)
+        await self.broadcast(event)
+        await asyncio.sleep(0.15)
+        again = self.surfaces.resnapshot()
+        if again is not None:
+            await self.broadcast(again)
+
+        spoken = "Voici le flux caméra."
+        ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(ev)
+        return {"ok": True, "app": "vision"}
+
+    async def _execute_intent(
+        self,
+        ws: Any,
+        intent: str,
+        payload: dict[str, Any],
+        *,
+        granted: bool | None = None,
+    ) -> None:
+        """Exécute une intention autorisée, ou refuse bruyamment faute d'exécutant.
+
+        ⚠ Le refus est le comportement important. Une intention sans exécutant
+        pourrait repartir avec `ok: True` — l'utilisateur verrait « autorisé »,
+        l'écran serait cohérent, et rien ne se serait produit. C'est exactement
+        le mode de panne que ce projet paie depuis le début : déclaré, jamais
+        appelé, et rien ne le signale.
+        """
+        from .surface import IntentNotExecutable
+
+        base: dict[str, Any] = {"type": "surface_result", "intent": intent}
+        if granted is not None:
+            base["granted"] = granted
+
+        try:
+            result = await self.intents.execute(intent, payload)
+        except IntentNotExecutable as exc:
+            logger.error("intention NON EXÉCUTÉE · %s — %s", intent, exc)
+            await ws.send(
+                json.dumps(
+                    {
+                        **base,
+                        "ok": False,
+                        "executed": False,
+                        "reason": str(exc),
+                        "known_actions": self.intents.actions,
+                    }
+                )
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            # L'exécutant a échoué. C'est distinct de « pas d'exécutant » : là
+            # quelqu'un a essayé et n'a pas pu, et le HUD doit pouvoir le dire.
+            logger.exception("intention EN ÉCHEC · %s", intent)
+            await ws.send(
+                json.dumps({**base, "ok": False, "executed": True, "reason": f"échec : {exc}"})
+            )
+            return
+
+        logger.info("intention EXÉCUTÉE · %s", intent)
+        await ws.send(
+            json.dumps({**base, "ok": True, "executed": True, "result": result if isinstance(result, (str, int, float, bool, list, dict, type(None))) else str(result)})
+        )
 
     def _say_context(self) -> dict[str, Any]:
         """Qui écoute — rôle, adresse et prénom de la session active.
@@ -905,9 +2031,198 @@ class Orchestrator:
         for ws in dead:
             self.clients.discard(ws)
 
+    async def _chat_via_capability(self, ws: Any, cap: Any, text: str) -> bool:
+        """Délègue à Hermes pour une phrase routée — True si réponse parlée.
+
+        En cas d'échec (toolset off, crédits, timeout), False : l'appelant
+        bascule sur `providers.complete` pour ne pas laisser l'utilisateur
+        dans le vide après dix secondes de « thinking ».
+        """
+        from .capabilities import allows
+        from .hermes import HermesRefused, HermesUnavailable
+
+        role = self._session_role()
+        if not allows(cap, role) or not cap.available:
+            return False
+
+        decision = self.policy.evaluate(action=cap.intent, risk=cap.risk)
+        if not decision.allowed or decision.needs_confirmation:
+            # Confirmation / refus : laisser `_open_intent` gérer l'UI dédiée.
+            await self._open_intent(ws, cap, text)
+            return True
+
+        try:
+            reply = await self.hermes.ask(
+                cap, text, role=role, decision=decision
+            )
+        except (HermesRefused, HermesUnavailable) as exc:
+            logger.warning("Hermes chat · %s : %s", cap.intent, exc)
+            await ws.send(
+                json.dumps(
+                    self.cmd(
+                        "display_notification",
+                        message=f"Hermes indisponible — réponse locale. ({exc})",
+                        duration=4.0,
+                    )
+                )
+            )
+            return False
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Hermes chat · %s", cap.intent)
+            await ws.send(
+                json.dumps(
+                    self.cmd(
+                        "display_notification",
+                        message=f"Hermes en échec — réponse locale. ({exc})",
+                        duration=4.0,
+                    )
+                )
+            )
+            return False
+
+        body = (reply.text or "").strip() or "C’est fait."
+        uid = self._session_user_id() or "local"
+        if getattr(cap, "app_id", None):
+            items: list[str] = []
+            if cap.intent == "web.search":
+                from urllib.parse import quote
+
+                items.append(
+                    "https://www.google.com/search?q=" + quote(text.strip()[:200])
+                )
+            await self._publish_result_surface(
+                cap.app_id,
+                title=str(cap.app_id).replace("-", " ").title(),
+                body=body,
+                source=cap.intent,
+                items=items or None,
+            )
+        await ws.send(json.dumps(self.cmd("set_orb_state", state="speaking")))
+        await ws.send(
+            json.dumps({"type": "chat_reply", "text": body, "intent": cap.intent})
+        )
+        ev = await self.speak(body, user_id=uid)
+        await ws.send(json.dumps(ev))
+        if ev.get("type") == "tts_skipped":
+            await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
+        return True
+
+    async def _fallback_web_surface(self, ws: Any, text: str) -> None:
+        """Hermes web OFF / HS — surface Internet + Google, sans mensonge LLM.
+
+        Observé : toolset `web` hors `platform_toolsets` → OpenRouter disait
+        « Je procède à la recherche… » et n'ouvrait rien.
+        """
+        from urllib.parse import quote
+
+        q = text.strip()[:200] or "actualité"
+        # Photos / images → Google Images ; sinon recherche web classique.
+        low = q.lower()
+        wants_img = any(
+            w in low
+            for w in ("photo", "photos", "image", "images", "cliché", "cliches", "visuel")
+        )
+        if wants_img:
+            url = "https://www.google.com/search?tbm=isch&q=" + quote(q)
+            title = "Recherche images"
+        else:
+            url = "https://www.google.com/search?q=" + quote(q)
+            title = "Recherche web"
+        body = (
+            "Hermes n'a pas répondu à temps. "
+            "Voici le lien Google — résultats aussi dans cette surface."
+        )
+        await self._publish_result_surface(
+            "reach",
+            title=title,
+            body=body,
+            source="web.search.fallback",
+            items=[url],
+        )
+        await self.broadcast({
+            "type": "hud_command",
+            "action": "open_external",
+            "url": url,
+        })
+        spoken = "J'ouvre la recherche sur Google."
+        await ws.send(json.dumps({
+            "type": "chat_reply",
+            "text": spoken,
+            "intent": "web.search",
+        }))
+        await ws.send(json.dumps(self.cmd("set_orb_state", state="speaking")))
+        ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await ws.send(json.dumps(ev))
+        if ev.get("type") == "tts_skipped":
+            await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
+
     async def handle_user_chat(self, ws: Any, text: str) -> None:
         from .auth.profiles import load_hud_preferences, resolve_user_id, save_hud_preferences
+        from .capabilities import match_intent
         from .locale import resolve_reply_language, system_prompt_language
+
+        # ── Commande avant conversation ──────────────────────────────────────
+        #
+        # « Jarvis, allume le salon » partait droit dans la complétion, évaluée
+        # `action="chat", risk=INFO`. La phrase était donc jugée au risque d'une
+        # question, alors qu'elle demande d'agir sur la maison. Aucune lampe ne
+        # s'allumait — mais le jour où le pont a existé, c'est ce chemin-là qui
+        # aurait contourné la Policy.
+        #
+        # Une phrase reconnue emprunte maintenant EXACTEMENT le chemin d'un clic
+        # sur la tuile, à son vrai niveau de risque. `match_intent` refuse de
+        # deviner en cas d'ambiguïté : dans le doute, la phrase reste une
+        # conversation, ce qui est le repli sûr.
+
+        # Streaming (Netflix / Disney / Prime) avant Plex / Hermes.
+        if await self._try_streaming_platforms(ws, text):
+            return
+
+        if cap := match_intent(text):
+            logger.info("phrase ROUTÉE · « %s » → %s", text[:48], cap.intent)
+            await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
+            # Hermes (web, etc.) peut être down / toolset off / crédits morts :
+            # on tente, et si ça échoue on RETOMBE en conversation Ollama —
+            # sinon l'utilisateur attend longtemps puis silence.
+            from .capabilities import Owner
+
+            if getattr(cap, "owner", None) is Owner.HERMES:
+                handled = await self._chat_via_capability(ws, cap, text)
+                if handled:
+                    return
+                logger.info(
+                    "Hermes indisponible pour %s — repli surface / local",
+                    cap.intent,
+                )
+                # Recherche web : ne JAMAIS laisser OpenRouter feindre (« Je
+                # procède… ») sans surface. Ouvrir ResultPanel + Google.
+                if cap.intent == "web.search":
+                    await self._fallback_web_surface(ws, text)
+                    return
+            else:
+                await self._open_intent(ws, cap, text)
+                return
+
+        # Filet : « cherche / trouve / propose / nouvelles… » sans trigger exact
+        # ne doit PAS tomber en chat nu OpenRouter (coquille vide).
+        lowered = " " + " ".join(text.lower().replace("'", " ").split()) + " "
+        research_words = (
+            " cherche ", " trouve ", " propose ", " recherche ",
+            " nouvelles ", " actualité ", " actualites ", " actualités ",
+            " sur internet ", " sur le web ",
+        )
+        if any(w in lowered for w in research_words):
+            from .capabilities import CAPABILITIES, Owner
+
+            cap = CAPABILITIES.get("reach")
+            if cap is not None:
+                logger.info("phrase FORCÉE web.search · « %s »", text[:48])
+                await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
+                handled = await self._chat_via_capability(ws, cap, text)
+                if handled:
+                    return
+                await self._fallback_web_surface(ws, text)
+                return
 
         decision = self.policy.evaluate(action="chat", text=text, risk=RiskLevel.INFO)
         await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
@@ -955,6 +2270,12 @@ class Orchestrator:
             f"L'utilisateur dit : {text}"
         )
         reply = await self.providers.complete(prompt)
+        logger.info(
+            "chat libre · provider=%s · « %s » → %d car.",
+            self.providers.current_mode(),
+            text[:48],
+            len(reply or ""),
+        )
         await ws.send(json.dumps(self.cmd("set_orb_state", state="speaking")))
         await ws.send(
             json.dumps(self.cmd(
@@ -991,16 +2312,77 @@ class Orchestrator:
         # Narration de l'identification — déclenchée par le HUD quand il ouvre
         # son écran d'auth, PAS par la connexion WebSocket. C'est la seule
         # façon que le récit colle à ce que l'utilisateur voit à l'écran.
+        if data.get("action") == "sequence_stop":
+            # Login réussi / refresh session : coupe le monologue immédiatement.
+            self._voice_quiet = True
+            try:
+                self.sequences.abort()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("sequence abort : %s", exc)
+            if self.voice is not None:
+                try:
+                    await ws.send(json.dumps(self.voice.cancel()))
+                except Exception:  # noqa: BLE001
+                    pass
+            await ws.send(json.dumps({"type": "auth_sequence_stop", "ok": True}))
+            return
+
         if data.get("action") == "sequence_start":
+            # ⚠ Le nom était figé sur « auth ». Les scénarios `enrollment`,
+            # `unlock`, `lock` et `admin` existaient dans `sequences.py` sans
+            # que RIEN ne les lance : l'enrôlement se déroulait donc en silence
+            # et le déverrouillage de session n'avait aucune voix. Ce n'était
+            # pas un réglage à corriger, c'était un câble jamais posé.
+            #
+            # Liste blanche plutôt que nom libre : un client ne choisit pas
+            # d'exécuter n'importe quoi dans le Core.
+            wanted = str(data.get("sequence") or "auth")
+            if wanted not in ("auth", "enrollment", "unlock", "lock", "lock_auto", "admin"):
+                await ws.send(json.dumps({
+                    "type": "auth_error", "error": f"séquence inconnue : {wanted}",
+                }))
+                return
+
+            # Narration autorisée pour cette séquence (après un stop précédent).
+            self._voice_quiet = False
+
+            # Une séquence en cours (souvent auth après face OK) : on la coupe
+            # avant d'en lancer une autre, sinon le monologue continue.
+            try:
+                self.sequences.abort()
+            except Exception:  # noqa: BLE001
+                pass
+            # Laisse l'ancienne tâche sortir de son sleep/await avant de
+            # relancer — sinon run() voit encore `_running` et ignore.
+            await asyncio.sleep(0.05)
+
             async def say_to(event: str, **kw: Any) -> dict[str, Any] | None:
                 return await self.say(event, ws, **kw)
 
             self.sequences._say = say_to
             task = asyncio.create_task(
-                self.sequences.run("auth", **self._say_context())
+                self.sequences.run(wanted, **self._say_context())
             )
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
+            return
+
+        # Faits d'enrôlement rapportés par le HUD. `enroll.name` et
+        # `enroll.profile` n'étaient émis NULLE PART : les deux étapes qui les
+        # attendent restaient bloquées jusqu'à leur délai de trente secondes,
+        # sans phrase de repli — une minute de silence au milieu du scénario.
+        # Le Core ne peut pas les deviner : le nom se saisit à l'écran.
+        if data.get("action") == "enroll_signal":
+            step = str(data.get("step") or "")
+            if step in ("name", "profile", "voice", "face"):
+                self.sequences.signal(f"enroll.{step}")
+                await ws.send(json.dumps({
+                    "type": "auth_enroll_signal", "ok": True, "step": step,
+                }))
+            else:
+                await ws.send(json.dumps({
+                    "type": "auth_error", "error": f"étape d'enrôlement inconnue : {step}",
+                }))
             return
 
         action = str(data.get("action", "status"))
@@ -1008,6 +2390,12 @@ class Orchestrator:
 
         if action == "status":
             result = {"type": "auth_status", **self.auth.status()}
+        elif action == "start_enrollment":
+            # Hermes / chat admin → même chemin que hud.enroll
+            out = await self._start_kiosk_enrollment(data)
+            result = {"type": "auth_enrollment_started", **out}
+            await ws.send(json.dumps(result))
+            return
         elif action == "enroll":
             try:
                 # Après first_run : seul un ADMIN connecté peut enroler le foyer
@@ -1024,6 +2412,10 @@ class Orchestrator:
                         }
                         await ws.send(json.dumps(result))
                         return
+                # Après first_run : foyer = USER uniquement (jamais ADMIN ici).
+                enroll_role = data.get("role")
+                if not self.auth.users.is_first_run():
+                    enroll_role = "USER"
                 result = {
                     "type": "auth_enroll_result",
                     **self.auth.enroll(
@@ -1033,7 +2425,7 @@ class Orchestrator:
                         face=bool(data.get("face", False)),
                         voice=bool(data.get("voice", False)),
                         gesture=bool(data.get("gesture", False)),
-                        role=data.get("role"),
+                        role=enroll_role,
                     ),
                 }
             except ValueError as exc:
@@ -1051,6 +2443,17 @@ class Orchestrator:
             }
             if result.get("ok") and result.get("event"):
                 await ws.send(json.dumps(result["event"]))
+                # Session ouverte : coupe immédiatement le monologue auth.
+                self._voice_quiet = True
+                try:
+                    self.sequences.abort()
+                except Exception:  # noqa: BLE001
+                    pass
+                if self.voice is not None:
+                    try:
+                        await ws.send(json.dumps(self.voice.cancel()))
+                    except Exception:  # noqa: BLE001
+                        pass
         elif action == "recovery_login":
             # Niveau 0 (docs/RECOVERY.md) : PIN seul, sans caméra ni micro.
             # Le seul chemin qui fonctionne quand la biométrie est morte.
@@ -1367,10 +2770,6 @@ class Orchestrator:
             if not jpeg_b64:
                 await ws.send(json.dumps({"type": "holomat_error", "error": "jpeg_b64 manquant"}))
                 return
-            # Une trame reçue = la caméra tourne et quelqu'un est devant.
-            # C'est le premier fait réel de la séquence d'identification.
-            self.sequences.signal("face.presence")
-            self.sequences.signal("face.scanning")
 
             if mode == "enroll":
                 username = str(data.get("username", "")).strip()
@@ -1391,7 +2790,7 @@ class Orchestrator:
                 # la séquence doit attendre le vrai verdict, pas la simple
                 # arrivée d'une image. Sinon JARVIS annonce « identité
                 # confirmée » devant n'importe qui.
-                if ev.get("ok") and ev.get("match"):
+                if ev.get("type") == "FACE_SUCCESS" and ev.get("user_id"):
                     self.sequences.signal("face.matched")
                     # SEUL endroit du programme où naît une attestation
                     # biométrique. C'est ici que le Core CONSTATE une
@@ -1402,6 +2801,19 @@ class Orchestrator:
                         self.auth.attest_biometric(
                             matched_id, "face", float(ev.get("confidence") or 0.0)
                         )
+
+            # ⚠ Présence = VISAGE YuNet stable, pas « une trame JPEG est arrivée ».
+            # 3 hits consécutifs : un faux positif isolé (reflet TV, poster) ne
+            # doit pas lancer le speech d'authentification dans une pièce vide.
+            from .holomat.face_engine import PRESENCE_HITS_NEEDED
+
+            if ev.get("face_found"):
+                self._presence_hits += 1
+                if self._presence_hits >= PRESENCE_HITS_NEEDED:
+                    self.sequences.signal("face.presence")
+                    self.sequences.signal("face.scanning")
+            else:
+                self._presence_hits = 0
 
             await ws.send(json.dumps(ev))
             return
@@ -1522,6 +2934,363 @@ class Orchestrator:
 
         await ws.send(json.dumps({"type": "voice_error", "error": f"action inconnue: {action}"}))
 
+    def _boot_requested(self, ws: Any) -> asyncio.Event:
+        """Signal « ce client est prêt à entendre le boot », un par connexion."""
+        events = getattr(self, "_boot_events", None)
+        if events is None:
+            events = {}
+            self._boot_events = events
+        key = id(ws)
+        if key not in events:
+            events[key] = asyncio.Event()
+        return events[key]
+
+    async def handle_boot(self, ws: Any, data: dict[str, Any]) -> None:
+        """Le HUD signale la fin de sa cinématique — l'annonce peut partir.
+
+        C'est ce qui SYNCHRONISE la voix avec l'image : le Core ne devine pas
+        la durée de la cinématique, il attend qu'on la lui dise. Changer la
+        durée du voyage, ajouter un acte, mettre une machine plus lente — rien
+        de tout cela ne désynchronise quoi que ce soit.
+        """
+        action = str(data.get("action") or "announce")
+        if action == "skip":
+            # Refresh / session déjà ouverte : pas de monologue boot.
+            # On arme quand même le signal pour ne pas bloquer le grace timer,
+            # et on envoie un boot_state end silencieux.
+            self._boot_requested(ws).set()
+            self._boot_skip = True
+            logger.info("boot skip demandé par le HUD (session déjà ouverte)")
+            await self._send_boot_state(ws, spoken=False)
+            return
+        if action != "announce":
+            await ws.send(json.dumps({"type": "core_error", "reason": f"action boot inconnue : {action}"}))
+            return
+        self._boot_skip = False
+        logger.info("cinématique terminée — annonce du boot demandée par le HUD")
+        self._boot_requested(ws).set()
+
+    async def handle_surface(self, ws: Any, data: dict[str, Any]) -> None:
+        """Admet un document de surface et le diffuse au HUD.
+
+        Le Core est le SEUL chemin entre un agent et l'écran : rien n'atteint
+        le HUD sans passer par cette validation. En P0 l'émetteur est un
+        fichier JSON écrit à la main ; en P3 ce sera Hermes. Le contrôle est le
+        même — c'est tout l'intérêt de le poser maintenant.
+
+        Un refus repart à l'appelant avec sa raison, et n'est jamais diffusé :
+        une composition invalide ne doit pas atteindre l'écran, même
+        partiellement.
+        """
+        from .surface import SurfaceRejected, validate_document
+
+        action = str(data.get("action") or "snapshot")
+
+        if action == "catalog":
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "surface_catalog",
+                        "ok": True,
+                        "components": self.surfaces.catalog.names,
+                    }
+                )
+            )
+            return
+
+        if action == "intent":
+            # Une intention remontée par un composant. Elle n'exécute RIEN par
+            # elle-même : la Policy tranche, et seule une autorisation permet
+            # d'aller plus loin. C'est l'invariant du produit :
+            #   IA → Proposition → Policy Engine → Autorisation → Exécution
+            from .surface import gravity_for, risk_of
+
+            intent = str(data.get("intent") or "")
+            surface_id = str(data.get("surface_id") or "")
+            component_id = str(data.get("component_id") or "")
+
+            # ⚠ La gravité est DÉRIVÉE du catalogue, jamais reçue du client.
+            # Elle était lue dans `data["gravity"]` : n'importe quel WebSocket
+            # pouvait donc annoncer `gravity: "info"` pour une action `admin` et
+            # traverser la Policy sans confirmation. Le HUD calculait bien la
+            # bonne valeur, mais un contrôle appliqué du côté contrôlé n'est pas
+            # un contrôle.
+            component_name = self._surface_component_name(surface_id, component_id)
+            gravity = gravity_for(self.surfaces.catalog, component_name, intent)
+
+            claimed = data.get("gravity")
+            if isinstance(claimed, str) and claimed.lower() != gravity:
+                logger.warning(
+                    "gravité annoncée « %s » ignorée · %s → %s (catalogue, composant %s)",
+                    claimed,
+                    intent,
+                    gravity,
+                    component_name or "?",
+                )
+
+            decision = self.policy.evaluate(action=intent, risk=RiskLevel(risk_of(gravity)))
+
+            if not decision.allowed and not decision.needs_confirmation:
+                logger.warning("intention REFUSÉE · %s (%s) — %s", intent, gravity, decision.reason)
+                await ws.send(
+                    json.dumps(
+                        {"type": "surface_error", "ok": False, "intent": intent, "reason": decision.reason}
+                    )
+                )
+                return
+
+            if decision.needs_confirmation:
+                approval_id, event = self.surfaces.open_approval(
+                    intent=intent,
+                    gravity=gravity,
+                    reason=decision.reason or "Confirmation requise.",
+                    surface_id=surface_id,
+                )
+                logger.info(
+                    "intention EN ATTENTE · %s (%s) · approval=%s — %s",
+                    intent,
+                    gravity,
+                    approval_id,
+                    decision.reason,
+                )
+                await self.broadcast(event)
+                await ws.send(
+                    json.dumps({"type": "surface_result", "ok": True, "pending": approval_id})
+                )
+                return
+
+            # Autorisée sans confirmation — gravité faible uniquement.
+            logger.info("intention AUTORISÉE · %s (%s)", intent, gravity)
+            await self._execute_intent(ws, intent, {"surface_id": surface_id, "component_id": component_id})
+            return
+
+        if action == "approval":
+            approval_id = str(data.get("approval_id") or "")
+            granted = bool(data.get("granted"))
+            closed = self.surfaces.close_approval(approval_id, granted)
+            if closed is None:
+                await ws.send(
+                    json.dumps({"type": "surface_error", "ok": False, "reason": "demande inconnue ou déjà traitée"})
+                )
+                return
+            event, record = closed
+            # Tracé dans les deux sens : une autorisation comme un refus doivent
+            # laisser une trace. Un refus silencieux est indistinguable d'un bug.
+            logger.info("approbation %s · approval=%s", "ACCORDÉE" if granted else "REFUSÉE", approval_id)
+            await self.broadcast(event)
+
+            if not granted:
+                # Une phrase mise de côté pour cette demande n'a plus de raison
+                # d'exister. La garder ferait s'accumuler en mémoire ce que
+                # l'utilisateur vient précisément de refuser.
+                self._pending_prompts.pop(approval_id, None)
+                await ws.send(json.dumps({"type": "surface_result", "ok": True, "granted": False}))
+                return
+
+            # ⚠ Le maillon qui manquait. L'intention approuvée était perdue ici :
+            # la carte disparaissait, l'état était rediffusé, et rien ne
+            # s'exécutait. « Autorisation → Exécution » s'arrêtait à la flèche.
+            await self._execute_intent(
+                ws,
+                str(record.get("intent") or ""),
+                {"surface_id": record.get("surface_id", ""), "approval_id": approval_id},
+                granted=True,
+            )
+            return
+
+        if action == "open":
+            # Une tuile du volet Applications. C'est une INTENTION, pas une app :
+            # ce qui l'exécute derrière (Core, Hermes, agent d'appareil) ne
+            # remonte jamais à l'utilisateur.
+            #
+            # Le chemin est identique à celui d'une intention émise par un
+            # composant — même Policy, même carte d'autorisation, même exécution.
+            # Le lanceur ne bénéficie d'aucun raccourci : c'est ce qui empêche
+            # « cliquer sur Maison » d'être plus permissif que « demander à
+            # Hermes d'allumer le salon ».
+            from .capabilities import for_app
+
+            app_id = str(data.get("app") or "")
+            cap = for_app(app_id)
+            if cap is None:
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "surface_error",
+                            "ok": False,
+                            "app": app_id,
+                            "reason": f"intention inconnue : « {app_id} »",
+                        }
+                    )
+                )
+                return
+
+            await self._open_intent(ws, cap, str(data.get("prompt") or "").strip())
+            return
+
+        if action == "compose":
+            # P3 — une question produit une surface. Le chemin est volontairement
+            # identique à celui d'un document écrit à la main : la proposition du
+            # LLM ne bénéficie d'AUCUN passe-droit, elle traverse la même
+            # admission. C'est tout l'intérêt d'avoir fait P2 avant.
+            from .composer import CompositionRejected, SurfaceComposer
+
+            question = str(data.get("question") or "").strip()
+            if not question:
+                await ws.send(
+                    json.dumps({"type": "surface_error", "ok": False, "reason": "question vide"})
+                )
+                return
+
+            # La fenêtre visée. Sans elle, la composition atterrissait sous la
+            # clé « main » du gabarit tandis que le HUD cherchait l'id de l'app :
+            # admise, diffusée, et invisible. On l'exige donc explicitement.
+            target = str(data.get("surface_id") or "").strip()
+            if not target:
+                await ws.send(
+                    json.dumps(
+                        {"type": "surface_error", "ok": False, "reason": "`surface_id` absent — on ne compose pas dans le vide"}
+                    )
+                )
+                return
+
+            permissions, context = self._surface_guards()
+            composer = SurfaceComposer(self.surfaces.catalog, self.providers)
+
+            try:
+                proposal = await composer.propose(
+                    question,
+                    surface_id=target,
+                    permissions=permissions,
+                    binding_sources=self.bindings.describe(permissions),
+                )
+                document = validate_document(
+                    proposal["document"],
+                    self.surfaces.catalog,
+                    permissions=permissions,
+                    context=context,
+                    bindings=self.bindings,
+                )
+            except (CompositionRejected, SurfaceRejected) as exc:
+                # Critère de sortie P3 : « une proposition invalide est rejetée
+                # ET VISIBLE ». Journal serveur et retour client, comme un refus
+                # d'admission ordinaire.
+                logger.warning("composition refusée · « %s » — %s", question[:60], exc)
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "surface_error",
+                            "ok": False,
+                            "reason": str(exc),
+                            "question": question,
+                        }
+                    )
+                )
+                return
+            except Exception as exc:  # noqa: BLE001
+                # Pas de LLM joignable, réseau coupé… `JARVIS BASE` doit survivre
+                # sans IA : on refuse la composition, on ne casse pas le Core.
+                logger.error("composition impossible · %s", exc)
+                await ws.send(
+                    json.dumps(
+                        {"type": "surface_error", "ok": False, "reason": f"composition indisponible : {exc}"}
+                    )
+                )
+                return
+
+            event = self.surfaces.snapshot(document)
+            await self.broadcast(event)
+            logger.info(
+                "surface COMPOSÉE · run=%s · surface=%s · confiance=%.2f · « %s »",
+                event["run_id"][:8],
+                target,
+                proposal["confidence"],
+                question[:60],
+            )
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "surface_result",
+                        "ok": True,
+                        "composed": True,
+                        "surface_id": target,
+                        "confidence": proposal["confidence"],
+                        "reasoning": proposal["reasoning"],
+                    }
+                )
+            )
+            return
+
+        if action == "resync":
+            # Le HUD a détecté un trou de séquence et jeté son état. On lui
+            # renvoie l'état RÉEL (deltas compris), sans changer de `run_id` :
+            # ce n'est pas une nouvelle composition, c'est la même, retrouvée.
+            event = self.surfaces.resnapshot()
+            if event is None:
+                await ws.send(json.dumps({"type": "surface_error", "ok": False, "reason": "aucune surface en cours"}))
+                return
+            logger.info("resynchronisation · run=%s", event["run_id"][:8])
+            await ws.send(json.dumps(event))
+            return
+
+        if action == "delta":
+            ops = data.get("ops")
+            if not isinstance(ops, list) or not ops:
+                await ws.send(json.dumps({"type": "surface_error", "ok": False, "reason": "`ops` vide ou absent"}))
+                return
+            try:
+                permissions, context = self._surface_guards()
+                event = self.surfaces.delta(ops)
+                # Le document patché doit rester admissible : un delta ne doit
+                # pas pouvoir introduire par la bande un composant hors
+                # catalogue — ni une permission, une prop ou une liaison de
+                # données — que le snapshot aurait refusé.
+                validate_document(
+                    self.surfaces.document,
+                    self.surfaces.catalog,
+                    permissions=permissions,
+                    context=context,
+                    bindings=self.bindings,
+                )
+            except SurfaceRejected as exc:
+                logger.warning("delta refusé : %s", exc)
+                await ws.send(json.dumps({"type": "surface_error", "ok": False, "reason": str(exc)}))
+                return
+            await self.broadcast(event)
+            logger.info("delta diffusé · run=%s · seq=%s · %d op(s)", event["run_id"][:8], event["seq"], len(ops))
+            await ws.send(json.dumps({"type": "surface_result", "ok": True, "seq": event["seq"]}))
+            return
+
+        if action != "snapshot":
+            await ws.send(
+                json.dumps({"type": "surface_error", "ok": False, "reason": f"action inconnue : {action}"})
+            )
+            return
+
+        try:
+            permissions, context = self._surface_guards()
+            document = validate_document(
+                data.get("document"),
+                self.surfaces.catalog,
+                permissions=permissions,
+                context=context,
+                bindings=self.bindings,
+            )
+        except SurfaceRejected as exc:
+            # Bruyant des deux côtés : journal serveur ET retour au client.
+            logger.warning("surface refusée : %s", exc)
+            await ws.send(json.dumps({"type": "surface_error", "ok": False, "reason": str(exc)}))
+            return
+
+        event = self.surfaces.snapshot(document)
+        await self.broadcast(event)
+        logger.info(
+            "surface diffusée · run=%s · surfaces=%s",
+            event["run_id"][:8],
+            ", ".join(document.get("surfaces", {})),
+        )
+        await ws.send(json.dumps({"type": "surface_result", "ok": True, "run_id": event["run_id"]}))
+
     async def handle_ping(self, ws: Any, data: dict[str, Any]) -> None:
         await ws.send(
             json.dumps(
@@ -1593,10 +3362,18 @@ class Orchestrator:
 
             hermes_ok = hermes.state == READY
 
+        pname = str(data.get("project_name") or "").strip()
+        if not pname:
+            await send({
+                "type": "mission_dev_error",
+                "error": "Nom de projet manquant — dites « nouveau projet MonNom ».",
+            })
+            return
+
         await self.mission_dev.start(
             send=send,
             speak=speak,
-            project_name=str(data.get("project_name") or "HoloControl"),
+            project_name=pname,
             scenario=str(data.get("scenario") or "cursor"),
             owner_user_id=self._session_user_id(),
             hermes_ok=hermes_ok,
@@ -1741,7 +3518,28 @@ async def handler(orchestrator: Orchestrator, ws: Any) -> None:
         # `create_task()` nu peut être ramassé par le GC avant d'avoir tourné,
         # et son exception disparaît en silence — ce qui donne exactement le
         # symptôme « rien ne se passe, aucune erreur ».
-        boot_task = asyncio.create_task(orchestrator.speak_boot_sequence(ws))
+        # ⚠ Annonce DIFFÉRÉE, pas immédiate.
+        #
+        # Le HUD joue une cinématique de près d'une minute avant d'afficher la
+        # checklist. Il se connecte au tout début du raccord, pour que la
+        # liaison soit établie quand l'écran apparaît — mais si le Core parlait
+        # dès la connexion, JARVIS annoncerait les vérifications par-dessus la
+        # fin de la cinématique, décalé de plusieurs secondes.
+        #
+        # Le HUD envoie donc `{"type": "boot", "action": "announce"}` quand la
+        # cinématique se termine réellement. Le repli ci-dessous existe pour
+        # tout client qui ne le fait pas — kiosque sans cinématique, outil de
+        # diagnostic, `?boot=0` : sans lui, un HUD muet resterait bloqué.
+        async def _boot_when_ready() -> None:
+            try:
+                await asyncio.wait_for(
+                    orchestrator._boot_requested(ws).wait(), timeout=BOOT_ANNOUNCE_GRACE_S
+                )
+            except (asyncio.TimeoutError, TimeoutError):
+                logger.debug("aucune demande d'annonce en %.0f s — boot joué d'office", BOOT_ANNOUNCE_GRACE_S)
+            await orchestrator.speak_boot_sequence(ws)
+
+        boot_task = asyncio.create_task(_boot_when_ready())
         orchestrator._tasks.add(boot_task)
         boot_task.add_done_callback(orchestrator._tasks.discard)
         boot_task.add_done_callback(

@@ -27,7 +27,14 @@ SFACE = DATA / "face_recognition_sface_2021dec.onnx"
 ENROLL_SAMPLES_NEEDED = 8
 # SFace cosine : docs OpenCV ~0.363 pour match — on vise un peu plus strict
 VERIFY_THRESHOLD = 0.363
-MIN_FACE_SCORE = 0.6
+# Présence auth = visage assez proche (pas ménage au fond), stable quelques frames.
+# Trop strict (0.18 + 5 hits) → une personne qui passe devant la cam ne déclenchait rien.
+MIN_FACE_SCORE = 0.72
+MIN_FACE_FRAC_W = 0.12
+MIN_FACE_FRAC_H = 0.14
+CENTER_TOL_X = 0.38
+CENTER_TOL_Y = 0.40
+PRESENCE_HITS_NEEDED = 3
 
 
 @dataclass
@@ -56,8 +63,8 @@ class FaceEngine:
                 f"Modèles ONNX manquants sous {DATA} "
                 "(face_detection_yunet_*.onnx + face_recognition_sface_*.onnx)"
             )
-        # input size mis à jour à chaque frame
-        self._detector = cv2.FaceDetectorYN_create(str(YUNET), "", (320, 320), 0.7, 0.3, 5000)
+        # scoreThreshold : équilibre faux positifs salon / vrai passage devant la cam.
+        self._detector = cv2.FaceDetectorYN_create(str(YUNET), "", (320, 320), 0.75, 0.3, 5000)
         self._recognizer = cv2.FaceRecognizerSF_create(str(SFACE), "")
         self._enroll: dict[str, EnrollBuffer] = {}
         logger.info("FaceEngine prêt · YuNet + SFace")
@@ -89,6 +96,15 @@ class FaceEngine:
         if fw < 40 or fh < 40:
             return FaceDetectResult(found=False, reason="too_small", box=(x, y, fw, fh))
 
+        # Champ d’authentification : proche de la caméra + dans le cadre central.
+        # Une personne qui fait le ménage au fond de la pièce ne doit PAS déclencher.
+        if fw / max(w, 1) < MIN_FACE_FRAC_W or fh / max(h, 1) < MIN_FACE_FRAC_H:
+            return FaceDetectResult(found=False, reason="too_far", box=(x, y, fw, fh))
+        cx = (x + fw * 0.5) / max(w, 1)
+        cy = (y + fh * 0.5) / max(h, 1)
+        if abs(cx - 0.5) > CENTER_TOL_X or abs(cy - 0.5) > CENTER_TOL_Y:
+            return FaceDetectResult(found=False, reason="out_of_field", box=(x, y, fw, fh))
+
         aligned = self._recognizer.alignCrop(bgr, face)
         feat = self._recognizer.feature(aligned)
         vec = np.asarray(feat, dtype=np.float32).reshape(-1)
@@ -119,6 +135,7 @@ class FaceEngine:
                 "confidence": 0.0,
                 "phase": "camera_on",
                 "reason": "bad_frame",
+                "face_found": False,
                 "hudText": "OPTICAL SENSOR ONLINE",
                 "hudSubtext": "Frame invalide",
             }
@@ -132,6 +149,7 @@ class FaceEngine:
                 "confidence": 0.0,
                 "phase": phase,
                 "reason": det.reason,
+                "face_found": False,
                 "hudText": "OPTICAL SENSOR ONLINE",
                 "hudSubtext": "Placez votre visage face à la caméra",
             }
@@ -152,6 +170,7 @@ class FaceEngine:
             "phase": "reconstruction",
             "samples": len(buf.samples),
             "needed": ENROLL_SAMPLES_NEEDED,
+            "face_found": True,
             "hudText": "BIOMETRIC SYNTHESIS",
             "hudSubtext": f"FACIAL MATRIX {int(buf.progress)}%",
         }
@@ -201,7 +220,14 @@ class FaceEngine:
     def verify_frame(self, jpeg_b64: str, *, username: str | None = None, user_id: str | None = None) -> dict[str, Any]:
         img = self.decode_jpeg_b64(jpeg_b64)
         if img is None:
-            return {"type": "FACE_PROGRESS", "progress": 0, "confidence": 0, "phase": "camera_on", "reason": "bad_frame"}
+            return {
+                "type": "FACE_PROGRESS",
+                "progress": 0,
+                "confidence": 0,
+                "phase": "camera_on",
+                "reason": "bad_frame",
+                "face_found": False,
+            }
 
         det = self.detect_and_embed(img)
         if not det.found or det.embedding is None:
@@ -211,13 +237,25 @@ class FaceEngine:
                 "confidence": 0.0,
                 "phase": "obstruction" if det.reason == "too_small" else "camera_on",
                 "reason": det.reason,
+                "face_found": False,
                 "hudText": "SCAN FACIAL",
-                "hudSubtext": "Visage non détecté" if det.reason == "no_face" else "Approchez-vous",
+                "hudSubtext": (
+                    "Visage non détecté" if det.reason == "no_face"
+                    else "Trop loin — approchez-vous" if det.reason == "too_far"
+                    else "Hors champ d'authentification" if det.reason == "out_of_field"
+                    else "Approchez-vous"
+                ),
             }
 
         matches = self._load_candidates(username=username, user_id=user_id)
         if not matches:
-            return {"type": "FACE_FAILED", "reason": "no_profile", "hudText": "AUTH FAILED", "hudSubtext": "Aucun profil facial"}
+            return {
+                "type": "FACE_FAILED",
+                "reason": "no_profile",
+                "face_found": True,
+                "hudText": "PROFIL INCONNU",
+                "hudSubtext": "Aucun profil facial — PIN ou enrôlement admin",
+            }
 
         best_id = None
         best_name = None
@@ -241,6 +279,7 @@ class FaceEngine:
                 "mode": "verify",
                 "user_id": best_id,
                 "username": best_name,
+                "face_found": True,
                 "hudText": "SIGNATURE VALIDÉE",
                 "hudSubtext": f"conf {best_score:.2f}",
             }
@@ -250,6 +289,7 @@ class FaceEngine:
             "progress": progress,
             "confidence": max(0.0, best_score),
             "phase": "reconstruction",
+            "face_found": True,
             "hudText": "BIOMETRIC SYNTHESIS",
             "hudSubtext": f"FACIAL MATRIX {int(progress)}%",
         }

@@ -10,14 +10,21 @@ description: >-
 
 ## Principe
 
-1. Le **lanceur HUD** ouvre une **surface** (fenêtre).
-2. **Hermes** exécute l’outil (`hermesTool`) déclaré dans le catalogue.
-3. **Policy Engine** tranche (surtout `risk: vps|admin|home`).
-4. Ajout d’outils = nœud **Outils** / `tool_manager` — pas d’app inventée hors catalogue sans enrollment.
+1. Le **lanceur HUD** émet une **intention** (`intent`), jamais un nom d’outil.
+2. Le **Core** résout l’intention : `core/jarvis_core/capabilities.py` dit qui exécute
+   et avec quel **toolset**. C’est la seule source de vérité.
+3. **Policy Engine** tranche AVANT tout appel (surtout `risk: vps|admin|home`).
+4. Le Core te tend alors le toolset autorisé pour CETTE session — tu ne le réclames pas.
+5. Ajout d’outils = nœud **Outils** — pas d’app inventée hors catalogue sans enrollment.
+
+⚠ Le champ `hermesTool` n’existe plus. Il nommait des outils (`home_assistant`,
+`node_cerveau`, `agent_reach`) dont aucun n’existait chez toi. Il est remplacé par
+`intent`, résolu côté Core.
 
 ## Catalogue (ids)
 
-Voir monorepo `hud/src/app/apps/catalog.ts` → `hermesAppsManifest()`.
+Déclaration des tuiles : `hud/src/app/apps/catalog.ts`.
+Résolution intention → toolset : `core/jarvis_core/capabilities.py`.
 
 | id | risk | notes |
 |----|------|-------|
@@ -49,9 +56,11 @@ Préfixe Jarvis obligatoire (skill jarvis-os / SOUL).
 
 ## Ajouter un outil
 
-1. Déclarer dans Hermes Tool Manager (`outils`).
-2. Optionnel : entrée catalogue HUD `status: hermes` + `hermesTool`.
-3. Risk correct ; si VPS → allowlist + confirmation ADMIN.
+1. Vérifier que le **toolset** existe et est activé (`GET /v1/toolsets`).
+2. Ajouter la capacité dans `core/jarvis_core/capabilities.py` (intent, owner, toolset,
+   risk, permission).
+3. Optionnel : entrée catalogue HUD `status: surface` + `intent` correspondant.
+4. Risk correct ; si VPS → allowlist + confirmation ADMIN.
 
 ## Ne pas
 

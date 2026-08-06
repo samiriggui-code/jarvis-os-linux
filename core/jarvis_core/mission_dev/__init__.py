@@ -35,6 +35,28 @@ logger = logging.getLogger("jarvis.core.mission_dev")
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 Speak = Callable[[str], Awaitable[None]]
 
+
+def projects_root() -> Path:
+    """Racine des workspaces Mission Control DEV.
+
+    Priorité :
+      1. ``JARVIS_PROJECTS_ROOT`` (ex. ``C:\\laragon\\www`` si le Core tourne
+         sur le PC Windows, ou un partage monté sur le NUC)
+      2. Windows : ``C:\\laragon\\www`` s'il existe (ou OS nt)
+      3. sinon ``{default_data_dir()}/projects`` (NUC Linux typique)
+
+    Le Core sur le NUC **ne peut pas** écrire sur le disque du laptop Windows
+    sans agent satellite / partage — d'où la variable d'environnement.
+    """
+    env = (os.environ.get("JARVIS_PROJECTS_ROOT") or "").strip()
+    if env:
+        return Path(env)
+    win = Path(r"C:\laragon\www")
+    if os.name == "nt" or win.is_dir():
+        return win
+    return Path(default_data_dir()) / "projects"
+
+
 CURSOR_STEPS: list[dict[str, str]] = [
     {"id": "memory", "label": "Création mémoire projet (DB)"},
     {"id": "hermes", "label": "Hermès — analyse & routage"},
@@ -44,19 +66,13 @@ CURSOR_STEPS: list[dict[str, str]] = [
     {"id": "ready", "label": "Prêt pour développement"},
 ]
 
-# Voix majordome (mission_dev.yaml) — une ligne par jalon
+# Voix : UNE ligne courte par jalon TERMINÉ — pas de monologue running/done.
 VOICE: dict[str, str] = {
-    "memory:running": "J'ouvre le journal du projet.",
-    "memory:done": "Mémoire projet en place.",
-    "hermes:running": "J'analyse la demande.",
-    "hermes:done": "Orientation déterminée.",
-    "agent-dev:running": "Délégation à l'agent de développement.",
-    "agent-dev:done": "L'agent est en poste.",
-    "cursor:running": "Je prépare le contexte de travail.",
+    "memory:done": "Mémoire projet prête.",
+    "hermes:done": "Routage prêt.",
+    "agent-dev:done": "Agent en poste.",
     "cursor:done": "Contexte assemblé.",
-    "git:running": "Initialisation du dépôt.",
-    "git:done": "Le dépôt est initialisé.",
-    "ready:running": "Vérification finale.",
+    "git:done": "Dépôt initialisé.",
     "ready:done": "Prêt pour le développement.",
 }
 
@@ -131,8 +147,12 @@ class MissionDevRunner:
             "scenario": "cursor",
         })
         line = VOICE.get(f"{step_id}:{status}")
-        if line:
+        if line and status == "done":
             await speak(line)
+            # Laisse le WAV finir avant l’étape suivante (plus de monologue empilé).
+            await asyncio.sleep(1.8)
+        elif status == "running":
+            await asyncio.sleep(0.25)
 
     async def _run(
         self,
@@ -146,7 +166,10 @@ class MissionDevRunner:
     ) -> None:
         mission_dev_id = str(uuid.uuid4())
         self.active_id = mission_dev_id
-        name = (project_name or "HoloControl").strip() or "HoloControl"
+        # Pas de HoloControl magique : le nom vient de la voix / du HUD.
+        # Si absent, horodatage — jamais un projet fantôme « HoloControl ».
+        raw = (project_name or "").strip()
+        name = raw if raw else f"Projet-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M')}"
         safe = _safe_name(name)
 
         await send({
@@ -156,19 +179,20 @@ class MissionDevRunner:
             "scenario": scenario,
             "steps": CURSOR_STEPS,
         })
-        await speak(f"Très bien. Projet {name} initialisé.")
-
+        # Une seule intro — le reste = UI + une phrase par jalon done.
+        await speak(f"Mission Control. Projet {name}.")
+        await asyncio.sleep(1.2)
         project_id: str | None = None
         workspace: Path | None = None
 
         try:
-            # 1 · memory — DB
+            # 1 · memory — DB (PostgreSQL / SQLite réel via SQLAlchemy)
             if self._abort.is_set():
                 raise InterruptedError("aborted")
             await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="memory", status="running",
                              project_name=name, log=f">> alloc mémoire · {name}")
             project_id = str(uuid.uuid4())
-            root = Path(default_data_dir()) / "projects" / safe
+            root = projects_root() / safe
             root.mkdir(parents=True, exist_ok=True)
             workspace = root
             with session_scope() as s:
@@ -178,14 +202,17 @@ class MissionDevRunner:
                     status="init",
                     scenario=scenario,
                     owner_user_id=owner_user_id,
-                    workspace_path=str(root),
-                    meta_json=json.dumps({"mission_dev_id": mission_dev_id}),
+                    workspace_path=str(root.resolve()),
+                    meta_json=json.dumps({
+                        "mission_dev_id": mission_dev_id,
+                        "projects_root": str(projects_root()),
+                    }),
                     created_at=_now(),
                     updated_at=_now(),
                 ))
             await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="memory", status="done",
                              project_name=name, project_id=project_id,
-                             log=f">> schema projects.insert({name})")
+                             log=f">> projects.insert({name}) · {root}")
             await asyncio.sleep(0.35)
 
             # 2 · hermes — routage

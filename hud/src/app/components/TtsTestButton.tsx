@@ -112,8 +112,14 @@ export function TtsTestButton() {
     <div className="fixed bottom-4 left-4 z-[500] flex flex-col gap-2 max-w-sm pointer-events-auto">
       {open && (
         <div
-          className="rounded-xl p-3 flex flex-col gap-2 max-h-56 overflow-y-auto"
+          // Le panneau s'ouvre VERS LE HAUT depuis `bottom-4` : une hauteur
+          // fixe (56 = 224 px) coupait la liste des le 4e vocal et, sur un
+          // ecran bas, sortait par le haut de la fenetre. Plafond relatif au
+          // viewport + `overscroll-contain` pour ne pas faire defiler le HUD
+          // derriere une fois en bout de liste.
+          className="rounded-xl p-3 flex flex-col gap-2 overflow-y-auto overscroll-contain"
           style={{
+            maxHeight: 'min(24rem, 50vh)',
             background: 'rgba(0,12,28,0.95)',
             border: '1px solid rgba(0,245,255,0.35)',
             boxShadow: '0 0 20px rgba(0,0,0,0.5)',

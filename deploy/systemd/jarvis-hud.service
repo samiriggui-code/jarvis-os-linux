@@ -1,21 +1,23 @@
 [Unit]
-Description=JARVIS HUD (Chromium kiosk → React)
+Description=JARVIS HUD (X + Chromium kiosk → React)
 # nginx sert le build sur 127.0.0.1:8080 (deploy/nginx/jarvis-hud.conf).
 # `Requires` et pas `Wants` : sans lui, Chromium démarre sur une page
-# d'erreur et le kiosque affiche « connexion refusée » en plein salon.
-After=jarvis-core.service nginx.service graphical-session.target
+# d’erreur et le kiosque affiche « connexion refusée » en plein salon.
+After=jarvis-core.service nginx.service
 Requires=jarvis-core.service nginx.service
 PartOf=jarvis.target
 
 [Service]
 Type=simple
 Environment=JARVIS_CONFIG_DIR=/etc/jarvis
-Environment=JARVIS_HUD_URL=http://127.0.0.1:8080/
-# Session graphique requise (user avec DISPLAY / Wayland)
+Environment=JARVIS_HUD_URL=http://127.0.0.1:8080/?kiosk=1
+Environment=JARVIS_HUD_SCALE=1.35
+Environment=JARVIS_CHROME=/snap/bin/chromium
 Environment=DISPLAY=:0
-ExecStart=/opt/jarvis/bin/jarvis-hud
+# vt7 : laisse tty1 libre ; X prend le HDMI connecté (Sony).
+ExecStart=/usr/bin/xinit /opt/jarvis/bin/jarvis-hud-session -- :0 vt7 -nolisten tcp
 Restart=on-failure
-RestartSec=3
+RestartSec=5
 
 [Install]
 WantedBy=jarvis.target

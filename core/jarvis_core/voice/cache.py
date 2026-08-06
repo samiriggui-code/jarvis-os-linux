@@ -183,6 +183,17 @@ class VoiceCache:
             ]
             pool = filtered or pool
 
+        # Sans prénom demandé : JAMAIS un clip nominatif au hasard
+        # (sinon « Profil de Inès » même quand wanted = {titre: monsieur}).
+        if "user" not in (bindings or {}):
+            no_name = [
+                e for e in pool if not (e.get("bindings") or {}).get("user")
+            ]
+            if no_name:
+                pool = no_name
+
+        if not pool:
+            return None
         return random.choice(pool)
 
     # ── lecture ─────────────────────────────────────────────────────────

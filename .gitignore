@@ -12,6 +12,17 @@ dist/
 .env*
 !.env.example
 secrets.env
+deploy/twingate/*.env
+deploy/twingate/connector.env
+deploy/twingate/api.key
+
+# ─── WireGuard ────────────────────────────────────────────────────────────
+# `wg-add-peer.sh` dépose la configuration d'un appareil dans le répertoire
+# courant. Elle contient sa CLÉ PRIVÉE : c'est le fichier qui, à lui seul,
+# donne l'accès au réseau de la maison depuis l'extérieur. Il est à importer
+# puis à supprimer, jamais à versionner.
+wg-*.conf
+
 *.log
 .DS_Store
 core/.venv/

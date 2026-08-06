@@ -59,8 +59,9 @@ Ne jamais concevoir un monolithe. LLM uniquement via AI Provider Manager
 
 ## Apps HUD / VPS
 
-Skill **hud-apps** : chaque app a un `hermesTool` + `risk`. Terminal/Docker/Code/Stockage =
-**VPS limité** (allowlist + confirmation ADMIN). Outils nouveaux via `outils` / tool_manager.
+Skill **hud-apps** : chaque tuile a un `intent` + `risk`, résolu en toolset par le Core
+(`capabilities.py`). Terminal/Docker/Code/Stockage = **VPS limité** (allowlist +
+confirmation ADMIN). Outils nouveaux via `outils`.
 Dashboard (`hub`) = ADMIN seul.
 
 ## Ce que tu ne inventes pas

@@ -67,25 +67,20 @@ lines:
     face_animation: scan
     orb_state: thinking
 
-  # --- Présence ---
+  # --- Présence (champ d’auth uniquement) ---
+  # Une seule phrase ElevenLabs : détectée = proche caméra, pas « quelqu’un dans la pièce ».
   - event: presence_detected
     tone: cinematic
     security_level: auth
-    text: "Présence humaine détectée."
+    text: "Présence humaine à proximité du champ d'authentification. Lancement du processus d'identification."
     face_animation: acknowledge
     orb_state: listening
-
-  - event: presence_detected
-    tone: cinematic
-    security_level: auth
-    text: "Initialisation du processus d'identification biométrique."
-    face_animation: scan
-    orb_state: thinking
+    hud_overlay: face_scan_active
 
   - event: face_scan_prompt
     tone: cinematic
     security_level: auth
-    text: "Veuillez rester immobile quelques secondes."
+    text: "Veuillez vous placer face à la caméra, dans le champ d'authentification."
     face_animation: speak
     orb_state: listening
     hud_overlay: face_scan_active
@@ -93,7 +88,7 @@ lines:
   - event: face_scan_prompt
     tone: cinematic
     security_level: auth
-    text: "Je procède à une analyse multidimensionnelle."
+    text: "Je n'ai personne devant le capteur. Approchez-vous pour démarrer l'identification."
     face_animation: scan
     orb_state: thinking
     hud_overlay: face_scan_active
@@ -185,7 +180,15 @@ lines:
   - event: face_denied
     tone: cinematic
     security_level: alert
-    text: "Authentification secondaire nécessaire."
+    text: "Utilisez le code d'accès, ou validez un enrôlement avec un administrateur."
+    face_animation: speak
+    orb_state: error
+
+  # Profil facial absent sur ce Core (fichier manquant / jamais synchronisé).
+  - event: face_no_profile
+    tone: cinematic
+    security_level: alert
+    text: "Aucun profil facial exploitable. Enrôlement possible après validation administrateur."
     face_animation: speak
     orb_state: error
 
@@ -193,7 +196,7 @@ lines:
   - event: voice_channel_open
     tone: cinematic
     security_level: auth
-    text: "Activation du canal vocal sécurisé."
+    text: "Activation de la liaison vocale sécurisée."
     face_animation: speak
     orb_state: listening
     hud_overlay: voice_channel

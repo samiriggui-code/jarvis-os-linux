@@ -126,7 +126,11 @@ export async function authLogin(opts: {
   method?: string;
   confidence?: number;
 }): Promise<LoginResult> {
-  const username = opts.username || getLastUsername() || undefined;
+  // Face 1:N : ne pas forcer le dernier username si on a déjà un user_id.
+  const username =
+    opts.username
+    || (opts.user_id ? undefined : getLastUsername())
+    || undefined;
   const data = await client().request(
     {
       type: 'auth',
@@ -139,12 +143,27 @@ export async function authLogin(opts: {
     },
     d => d.type === 'auth_login_result',
   );
-  if (data.ok && username) setLastUsername(username);
-  if (data.ok && opts.user_id && !username) {
-    const u = (data as LoginResult).event?.user?.username;
+  if (data.ok) {
+    const u = (data as LoginResult).event?.user?.username || username;
     if (u) setLastUsername(u);
   }
   return data as unknown as LoginResult;
+}
+
+export async function authRecoveryLogin(opts: {
+  pin: string;
+  username?: string;
+}): Promise<LoginResult & { locked?: boolean; retry_after_s?: number; remaining?: number; line?: string }> {
+  const data = await client().request(
+    {
+      type: 'auth',
+      action: 'recovery_login',
+      username: opts.username,
+      pin: opts.pin,
+    },
+    d => d.type === 'auth_recovery_result',
+  );
+  return data as unknown as LoginResult & { locked?: boolean; retry_after_s?: number; remaining?: number; line?: string };
 }
 
 export async function authLogout(): Promise<void> {

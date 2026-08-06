@@ -3,8 +3,120 @@ import { Radar } from 'lucide-react';
 import { authLogout, authRevokeAdmin, type AuthUser } from '../bridge/authClient';
 import { CHAT_STORAGE_KEY } from '../bridge/chatPipeline';
 import { DEV_BUILD, isAuthBypassEnabled } from '../bridge/devAuthBypass';
+import { startAudioBus } from '../bridge/audioBus';
+import { forceReleaseCamera } from '../bridge/mediaDevices';
+import { getCoreClient } from '../bridge/coreClient';
+import { getDeviceProfile } from '../../ui/core/device';
+import { getDevicePolicy } from '../../ui/core/devicePolicy';
 
 export type AIState = 'idle' | 'listening' | 'processing' | 'responding';
+
+const HUD_SESSION_KEY = 'jarvis_hud_session';
+
+type PersistedHudSession = {
+  /** true = HUD ouvert ; false + locked = soft-lock maison (LockScene). */
+  unlocked: boolean;
+  /** Soft-lock foyer : session « ouverte » mais écran verrouillé. */
+  locked?: boolean;
+  user: AuthUser | null;
+  at: number;
+  security?: 'household' | 'remote';
+};
+
+function sessionStore(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  // Maison : localStorage (refresh / fermeture onglet → LockScene, pas logout).
+  // Distant : sessionStorage (fermeture onglet = fin de session).
+  try {
+    const sec = getDevicePolicy().sessionSecurity;
+    if (sec === 'remote') return window.sessionStorage;
+    return window.localStorage;
+  } catch {
+    try { return window.localStorage; } catch { return null; }
+  }
+}
+
+function shouldPlayWelcomeCinematic(explicit?: boolean): boolean {
+  if (explicit === false) return false;
+  if (typeof window === 'undefined') return false;
+  const forced = new URLSearchParams(window.location.search).get('boot');
+  if (forced === '0') return false;
+  if (forced === '1') return true;
+  if (getDeviceProfile().reducedMotion) return false;
+  if (explicit === true) return true;
+  return getDevicePolicy().cinematicBoot;
+}
+
+function loadPersistedSession(): PersistedHudSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const security = getDevicePolicy().sessionSecurity;
+    // Distant : ignorer l’ancien localStorage (session « éternelle » bug).
+    if (security === 'remote') {
+      try { window.localStorage.removeItem(HUD_SESSION_KEY); } catch { /* */ }
+    }
+    const raw =
+      security === 'remote'
+        ? window.sessionStorage.getItem(HUD_SESSION_KEY)
+        : (window.localStorage.getItem(HUD_SESSION_KEY)
+          ?? window.sessionStorage.getItem(HUD_SESSION_KEY));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedHudSession;
+    // TTL 12 h — refresh OK, pas une session éternelle oubliée
+    if (Date.now() - Number(parsed.at || 0) > 12 * 60 * 60 * 1000) {
+      clearPersistedSession();
+      return null;
+    }
+    // Soft-lock (maison OU distant) : unlocked=false + locked=true → LockScene
+    // ⚠ Avant : seul `household` était accepté → soft-lock laptop/téléphone
+    // retombait en AuthScene + boot « NOYAU INJOIGNABLE » (capture Samir).
+    if (parsed.unlocked === true) return parsed;
+    if (parsed.locked === true) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedSession(user: AuthUser | null, opts?: { locked?: boolean }) {
+  try {
+    const security = getDevicePolicy().sessionSecurity;
+    const locked = opts?.locked === true;
+    const payload: PersistedHudSession = {
+      unlocked: !locked,
+      locked: locked || undefined,
+      user,
+      at: Date.now(),
+      security,
+    };
+    const raw = JSON.stringify(payload);
+    const store = sessionStore();
+    store?.setItem(HUD_SESSION_KEY, raw);
+    // Miroir : distant → sessionStorage ; maison → local + session (refresh)
+    if (security === 'household') {
+      try { window.sessionStorage.setItem(HUD_SESSION_KEY, raw); } catch { /* */ }
+    } else {
+      // Distant : garder aussi un miroir sessionStorage (déjà le store principal)
+      // et NE PAS effacer un soft-lock utile au refresh d’onglet.
+      try { window.sessionStorage.setItem(HUD_SESSION_KEY, raw); } catch { /* */ }
+      try { window.localStorage.removeItem(HUD_SESSION_KEY); } catch { /* */ }
+    }
+  } catch { /* */ }
+}
+
+function clearPersistedSession() {
+  try { window.localStorage.removeItem(HUD_SESSION_KEY); } catch { /* */ }
+  try { window.sessionStorage.removeItem(HUD_SESSION_KEY); } catch { /* */ }
+}
+
+/** Stoppe narration Core + WAV en cours (login réussi / session déjà ouverte). */
+export function silenceAuthNarration() {
+  try {
+    const c = getCoreClient();
+    c.send({ type: 'auth', action: 'sequence_stop' });
+    c.send({ type: 'voice', action: 'cancel' });
+  } catch { /* */ }
+}
 
 /** État User Manager (Core WS) — source de vérité pour first_run / profil. */
 export type CoreAuthState = {
@@ -118,8 +230,25 @@ interface AppContextType {
   /** Session HUD déverrouillée (auth Holomat / PIN / dev) */
   sessionUnlocked: boolean;
   sessionWasUnlocked: boolean;
-  unlockSession: (meta?: { method: string; confidence?: number; user?: AuthUser }) => void;
-  lockSession: () => void;
+  /**
+   * Cinématique de bienvenue post-auth/enrôlement.
+   * Pas sur verrouillage / reprise / session persistée.
+   */
+  welcomeCinematic: boolean;
+  completeWelcomeCinematic: () => void;
+  unlockSession: (meta?: {
+    method: string;
+    confidence?: number;
+    user?: AuthUser;
+    /** false = lock / reprise — pas de voyage OrbVoyage */
+    cinematic?: boolean;
+  }) => void;
+  /**
+   * soft = maison (LockScene, famille peut changer d’identité).
+   * hard = distant / demande explicite (logout complet).
+   * défaut = soft si household, hard si remote.
+   */
+  lockSession: (mode?: 'soft' | 'hard') => void;
   /** Accès Dashboard Core (admin) — distinct de la session HUD */
   adminUnlocked: boolean;
   adminGateOpen: boolean;
@@ -199,16 +328,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [openApps, setOpenApps] = useState<OpenApp[]>([]);
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [dashboardOpen, setDashboardOpen] = useState(false);
-  const [sessionUnlocked, setSessionUnlocked] = useState(isAuthBypassEnabled);
-  const [sessionWasUnlocked, setSessionWasUnlocked] = useState(isAuthBypassEnabled);
+  const [sessionUnlocked, setSessionUnlocked] = useState(() => {
+    if (isAuthBypassEnabled()) return true;
+    const p = loadPersistedSession();
+    return p?.unlocked === true;
+  });
+  const [sessionWasUnlocked, setSessionWasUnlocked] = useState(() => {
+    if (isAuthBypassEnabled()) return true;
+    const p = loadPersistedSession();
+    // Soft-lock maison : on a déjà eu une session → LockScene, pas AuthScene.
+    return p?.unlocked === true || p?.locked === true;
+  });
+  const [welcomeCinematic, setWelcomeCinematic] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminGateOpen, setAdminGateOpen] = useState(false);
-  const [coreAuth, setCoreAuthState] = useState<CoreAuthState>({
-    ready: false,
-    online: false,
-    firstRun: null,
-    userCount: 0,
-    user: null,
+  const [coreAuth, setCoreAuthState] = useState<CoreAuthState>(() => {
+    const persisted = loadPersistedSession();
+    return {
+      ready: false,
+      online: false,
+      firstRun: persisted ? false : null,
+      userCount: persisted?.user ? 1 : 0,
+      user: persisted?.user ?? null,
+    };
   });
   const [micTestActive, setMicTestActive] = useState(false);
   const [inputMode, setInputMode] = useState<'voice' | 'recovery'>(() => {
@@ -266,7 +408,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     subtitle?: string;
   }) => {
     const scenario = opts.scenario || 'cursor';
-    const projectName = (opts.projectName || 'HoloControl').trim() || 'HoloControl';
+    const projectName = (opts.projectName || '').trim()
+      || `Projet-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
     setMissionControlDev({
       open: true,
       scenario,
@@ -274,7 +417,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? 'Ouverture environnement Cursor'
         : 'Mission DEV en cours'),
       subtitle: opts.subtitle || (scenario === 'cursor'
-        ? 'Hermès orchestre le projet via le Core.'
+        ? 'Core crée workspace + mémoire DB ; handoff surface Cursor.'
         : 'Suivi d’une action complexe.'),
       projectName,
       steps: CURSOR_MISSION_DEV_STEPS.map(s => ({ ...s, status: 'pending' as const })),
@@ -341,29 +484,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try { sessionStorage.removeItem('jarvis_admin_session'); } catch { /* */ }
   }, []);
 
-  const unlockSession = useCallback((meta?: { method: string; confidence?: number; user?: AuthUser }) => {
+  const completeWelcomeCinematic = useCallback(() => {
+    setWelcomeCinematic(false);
+    // Idle produit après le voyage : micro prêt, caméra coupée.
+    void startAudioBus();
+    forceReleaseCamera();
+  }, []);
+
+  const unlockSession = useCallback((meta?: {
+    method: string;
+    confidence?: number;
+    user?: AuthUser;
+    cinematic?: boolean;
+  }) => {
+    // Coupe le monologue auth immédiatement — sinon Core continue fusion /
+    // systems_ready / greeting pendant que le HUD est déjà ouvert.
+    silenceAuthNarration();
     setSessionUnlocked(true);
     setSessionWasUnlocked(true);
     setAdminUnlocked(false);
     setDashboardOpen(false);
     setAdminGateOpen(false);
-    if (meta?.user) {
-      setCoreAuthState(prev => ({ ...prev, firstRun: false, user: meta.user!, userCount: Math.max(prev.userCount, 1) }));
+    const nextUser = meta?.user ?? null;
+    if (nextUser) {
+      setCoreAuthState(prev => ({ ...prev, firstRun: false, user: nextUser, userCount: Math.max(prev.userCount, 1) }));
     }
+    savePersistedSession(nextUser ?? loadPersistedSession()?.user ?? null);
     try { sessionStorage.removeItem('jarvis_admin_session'); } catch { /* */ }
-    console.debug('[auth] session unlock', meta);
+
+    const playCine = shouldPlayWelcomeCinematic(meta?.cinematic);
+    if (playCine) {
+      // Caméra déjà coupée ; micro armé après le voyage (completeWelcomeCinematic).
+      forceReleaseCamera();
+      setWelcomeCinematic(true);
+    } else {
+      void startAudioBus();
+      forceReleaseCamera();
+    }
+    console.debug('[auth] session unlock', { ...meta, cinematic: playCine });
   }, []);
 
-  const lockSession = useCallback(() => {
-    void authLogout();
+  const lockSession = useCallback((mode?: 'soft' | 'hard') => {
+    // « Verrouille » / bouton = toujours soft (LockScene), jamais AuthScene+boot.
+    // Hard uniquement : fermeture onglet distant, idle remote, déconnexion explicite.
+    const resolved: 'soft' | 'hard' = mode === 'hard' ? 'hard' : 'soft';
+
+    silenceAuthNarration();
+    setWelcomeCinematic(false);
     setSessionUnlocked(false);
     setAdminUnlocked(false);
     setDashboardOpen(false);
     setAdminGateOpen(false);
+    forceReleaseCamera();
+    try { sessionStorage.removeItem('jarvis_admin_session'); } catch { /* */ }
+
+    if (resolved === 'soft') {
+      setSessionWasUnlocked(true);
+      const lastUser = (() => {
+        try { return loadPersistedSession()?.user ?? null; } catch { return null; }
+      })();
+      savePersistedSession(lastUser, { locked: true });
+      void authLogout();
+      console.debug('[auth] soft lock → LockScene');
+      return;
+    }
+
+    void authLogout();
+    clearPersistedSession();
+    setSessionWasUnlocked(false);
     setCoreAuthState(prev => ({ ...prev, user: null }));
-    try {
-      sessionStorage.removeItem('jarvis_admin_session');
-    } catch { /* */ }
+    try { sessionStorage.removeItem('jarvis_boot_ok'); } catch { /* */ }
+    console.debug('[auth] hard logout');
   }, []);
 
   const requestDashboard = useCallback(() => {
@@ -420,7 +611,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           scenario: 'cursor',
           title: 'Ouverture environnement Cursor',
           subtitle: 'Hermès orchestre Agent Dev → Cursor (simulation HUD).',
-          projectName: prev.projectName || 'HoloControl',
+          projectName: prev.projectName
+            || `Projet-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`,
           steps: CURSOR_MISSION_DEV_STEPS.map(s => ({ ...s, status: 'pending' as const })),
         };
       });
@@ -528,7 +720,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       memories, setMemories, addMemory, memorySync, setMemorySync,
       openApps, activeAppId, launchApp, closeApp, focusApp, minimizeApp,
       dashboardOpen, setDashboardOpen,
-      sessionUnlocked, sessionWasUnlocked, unlockSession, lockSession,
+      sessionUnlocked, sessionWasUnlocked, welcomeCinematic, completeWelcomeCinematic,
+      unlockSession, lockSession,
       adminUnlocked, adminGateOpen, requestDashboard, closeAdminGate, grantAdminAccess, revokeAdminAccess,
       coreAuth, setCoreAuth,
       micTestActive, setMicTestActive,

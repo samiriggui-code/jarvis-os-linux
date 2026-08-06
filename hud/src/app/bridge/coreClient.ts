@@ -1,11 +1,22 @@
 /**
- * Client WebSocket → JARVIS Core (ws://127.0.0.1:8765)
+ * Client WebSocket → JARVIS Core
  * Chat + auth (request/response) + TTS piloté par le Core (voicebox).
  */
 import { handleTtsEvent, initTtsCore, stopTtsPlayback } from './ttsCore';
 import { initTtsDev, speakDev, stopDev } from './ttsDev';
 
-const DEFAULT_WS = 'ws://127.0.0.1:8765';
+/** Kiosk / Vite local → Core direct. Accès distant (Twingate, LAN) → même host `/ws` (nginx). */
+function resolveWsUrl(): string {
+  const fromEnv = import.meta.env.VITE_CORE_WS_URL as string | undefined;
+  if (fromEnv) return fromEnv;
+  if (typeof window === 'undefined') return 'ws://127.0.0.1:8765';
+  const { protocol, hostname, host } = window.location;
+  if (hostname === '127.0.0.1' || hostname === 'localhost') {
+    return 'ws://127.0.0.1:8765';
+  }
+  const wsProto = protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProto}//${host}/ws`;
+}
 
 export type CoreClientHandlers = {
   onConnected?: (ok: boolean) => void;
@@ -52,6 +63,9 @@ class CoreClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
   private pending: Pending[] = [];
+  /** Messages envoyés avant l'ouverture WS (ex. announce pendant le raccord). */
+  private outboundQueue: Record<string, unknown>[] = [];
+  private static readonly OUTBOUND_MAX = 32;
   /**
    * Passe à true au 1er event `tts_*`. Tant que le Core n'a pas montré qu'il
    * pilote la voix, on garde l'ancien comportement (parler sur
@@ -64,8 +78,8 @@ class CoreClient {
   /** Dernier état signalé aux abonnés. `null` = rien n'a encore été dit. */
   private lastNotified: boolean | null = null;
 
-  constructor(url = DEFAULT_WS) {
-    this.url = url;
+  constructor(url?: string) {
+    this.url = url || resolveWsUrl();
   }
 
   setHandlers(h: CoreClientHandlers) {
@@ -111,6 +125,7 @@ class CoreClient {
       this.connected = true;
       this.notifyConnection(true);
       console.debug('[core-ws] connected', this.url);
+      this.flushOutbound();
       this.send({ type: 'ping' });
       this.send({ type: 'auth', action: 'status' });
     };
@@ -157,12 +172,28 @@ class CoreClient {
   }
 
   send(payload: Record<string, unknown>) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.debug('[core-ws] send skipped (offline)', payload);
-      return false;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(payload));
+      return true;
     }
-    this.ws.send(JSON.stringify(payload));
-    return true;
+    // Ne pas perdre l'annonce de boot / les signaux critiques pendant le
+    // handshake WSS (lent via Traefik/mobile). Sans file, `announce` partait
+    // dans le vide → le HUD affichait « NOYAU COGNITIF INJOIGNABLE » à 14 s
+    // alors que le Core n'avait encore rien reçu.
+    if (this.outboundQueue.length < CoreClient.OUTBOUND_MAX) {
+      this.outboundQueue.push(payload);
+    }
+    this.connect();
+    console.debug('[core-ws] queued (connecting)', payload.type ?? payload);
+    return false;
+  }
+
+  private flushOutbound() {
+    const queued = this.outboundQueue.splice(0);
+    for (const payload of queued) {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) break;
+      this.ws.send(JSON.stringify(payload));
+    }
   }
 
   /** Envoie et attend un message WS qui match le prédicat. */
@@ -329,8 +360,7 @@ let singleton: CoreClient | null = null;
 
 export function getCoreClient(): CoreClient {
   if (!singleton) {
-    const url = import.meta.env.VITE_CORE_WS_URL || DEFAULT_WS;
-    singleton = new CoreClient(url);
+    singleton = new CoreClient(resolveWsUrl());
   }
   return singleton;
 }

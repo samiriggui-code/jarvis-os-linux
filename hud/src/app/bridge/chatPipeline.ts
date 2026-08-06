@@ -69,11 +69,40 @@ const CHOSE_FABRICABLE =
 const NOUVEAU_PROJET =
   /\b(nouveau|nouvelle|new|demarre|demarrer|lance|lancer|start)\b[^.!?]{0,20}\b(projets?|projects?)\b/;
 
-export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
+/** Mots qui ne sont jamais un nom de projet. */
+const PROJECT_NAME_STOP =
+  /^(un|une|le|la|les|des|mon|ma|mes|ton|ta|tes|notre|votre|nouveau|nouvelle|new|projet|project|appele|appelee|nomme|nommee|named?)$/i;
+
+/**
+ * Extraire le nom après « projet … » / « nommé … ».
+ * Sans nom → null (on demande, on ne force plus HoloControl).
+ */
+function extractProjectName(cmd: string): string | null {
+  const patterns = [
+    /(?:nouveau|nouvelle|new)\s+(?:projet|project)\s+([\p{L}\p{N}][\p{L}\p{N}_-]{1,48})/iu,
+    /(?:projet|project)\s+(?:appel[ée]\s+|nomm[ée]\s+)?([\p{L}\p{N}][\p{L}\p{N}_-]{1,48})/iu,
+    /(?:appel[eé]|nomm[eé]|named?)\s+([\p{L}\p{N}][\p{L}\p{N}_-]{1,48})/iu,
+  ];
+  for (const re of patterns) {
+    const m = cmd.match(re);
+    const raw = m?.[1]?.trim();
+    if (raw && !PROJECT_NAME_STOP.test(raw)) {
+      return raw.replace(/^\w/, (c) => c.toUpperCase());
+    }
+  }
+  return null;
+}
+
+export function interpretCommand(
+  cmd: string,
+  fx: ChatSideEffects,
+  opts?: { deferToCore?: boolean },
+): string {
   const lower = cmd.toLowerCase().trim();
   const locale = fx.locale || loadLocale();
   const resolved = resolveReplyLanguage(locale, cmd);
   const lang = resolved.language;
+  const defer = opts?.deferToCore === true;
 
   if (resolved.switchAck && resolved.stickyUpdate) {
     fx.onLocaleSticky?.(resolved.stickyUpdate);
@@ -99,25 +128,38 @@ export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
 
   // Mission Control DEV — orchestration d'un projet logiciel (§15.1.1)
   const plain = deburr(lower);
+
+  // « ouvre Cursor » seul → surface IDE HUD (pas Mission Control).
+  if (
+    /\b(ouvre|ouvrir|lance|lancer|open|launch)\b/.test(plain)
+    && /\bcursor\b/.test(plain)
+    && !/\b(projet|project)\b/.test(plain)
+    && !/\bmission\s*control\b/.test(plain)
+  ) {
+    const res = openHudApp('cursor', fx);
+    return res.message;
+  }
+
   if (
     /\b(mission\s*control)\b/.test(plain)
-    || /\b(ouvre|ouvrir|lance|lancer|open|launch)\b/.test(plain) && /\bcursor\b/.test(plain)
     || VERBE_FABRIQUER.test(plain) && CHOSE_FABRICABLE.test(plain)
     || NOUVEAU_PROJET.test(plain)
     || /\bcursor\b/.test(plain) && /\b(projet|project|dev)\b/.test(plain)
   ) {
-    // Extraction du nom sur le texte D'ORIGINE : « projet Élan » doit garder
-    // son accent à l'écran, seule la détection travaille en ASCII.
-    const nameMatch = cmd.match(/(?:projet|project)\s+([\p{L}\p{N}][\p{L}\p{N}_-]{1,32})/iu)
-      || cmd.match(/(?:appel[eé]|nomm[eé]|named?)\s+([\p{L}\p{N}][\p{L}\p{N}_-]{1,32})/iu);
-    const projectName = nameMatch?.[1]
-      ? nameMatch[1].replace(/^\w/, c => c.toUpperCase())
-      : 'HoloControl';
+    // Nom sur le texte D'ORIGINE (accents). Plus de défaut « HoloControl ».
+    const projectName = extractProjectName(cmd);
+    if (!projectName) {
+      return bilingual(
+        lang,
+        'Quel nom pour le projet ? Dites par exemple « ouvre un nouveau projet HolomatControl ».',
+        'What should we call the project? Say e.g. “open a new project HolomatControl”.',
+      );
+    }
     fx.openMissionControlDev?.({
       scenario: 'cursor',
       projectName,
       title: 'Ouverture environnement Cursor',
-      subtitle: 'Hermès orchestre le projet via le Core.',
+      subtitle: 'Core crée le workspace + mémoire DB ; handoff surface Cursor.',
     });
     return bilingual(
       lang,
@@ -162,6 +204,9 @@ export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
 
   const byVoice = findAppByVoice(lower);
   if (byVoice) {
+    if (defer) {
+      return bilingual(lang, 'Transmis au Core…', 'Sent to Core…');
+    }
     const res = openHudApp(byVoice, fx);
     if (lang === 'en') {
       return `Sure. Opening ${byVoice.name}.`;
@@ -173,6 +218,9 @@ export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
     /\b(?:ouvre|ouvrir|lance|lancer|start|open|launch)\s+([a-z0-9\-_ ]{2,40})/i,
   );
   if (openMatch) {
+    if (defer) {
+      return bilingual(lang, 'Transmis au Core…', 'Sent to Core…');
+    }
     const tip = openMatch[1].trim();
     const app =
       findAppByVoice(tip) ||
@@ -188,6 +236,9 @@ export function interpretCommand(cmd: string, fx: ChatSideEffects): string {
 
   if (/\b(cherche|recherche|research|look\s+up|deep\s+dive)\b/.test(lower)
     || /\b(youtube|github|reddit|twitter|rss)\b/.test(lower)) {
+    if (defer) {
+      return bilingual(lang, 'Recherche en cours via le Core…', 'Searching via Core…');
+    }
     const res = openHudApp('reach', fx);
     return bilingual(
       lang,

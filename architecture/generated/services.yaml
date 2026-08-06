@@ -15,8 +15,8 @@ services:
     workdir: /opt/jarvis/hermes-agent
     alias: hermes-agent.service
   - unite: jarvis-hud.service
-    description: JARVIS HUD (Chromium kiosk → React)
-    exec: /opt/jarvis/bin/jarvis-hud
+    description: JARVIS HUD (X + Chromium kiosk → React)
+    exec: "/usr/bin/xinit /opt/jarvis/bin/jarvis-hud-session -- :0 vt7 -nolisten tcp"
   - unite: jarvis-tunnel-hud-reverse.service
     description: "JARVIS — reverse tunnel HUD NUC → VPS (127.0.0.1:18080)"
     exec: /usr/bin/ssh -N \

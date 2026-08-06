@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Session X pour le kiosk HUD (lancée par xinit / jarvis-hud.service).
+set -euo pipefail
+export DISPLAY="${DISPLAY:-:0}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR" || true
+export PULSE_RUNTIME_PATH="${PULSE_RUNTIME_PATH:-$XDG_RUNTIME_DIR/pulse}"
+mkdir -p "$PULSE_RUNTIME_PATH"
+
+# Pas d’écran noir / veille sur la TV salon.
+if command -v xset >/dev/null 2>&1; then
+  xset s off || true
+  xset -dpms || true
+  xset s noblank || true
+fi
+
+# Son → HDMI Sony (Pulse). Micro LG AN-VC500 = carte USB-Audio.
+if command -v pulseaudio >/dev/null 2>&1; then
+  export PULSE_COOKIE="${PULSE_COOKIE:-/root/.config/pulse/cookie}"
+  mkdir -p "$(dirname "$PULSE_COOKIE")"
+  [[ -f "$PULSE_COOKIE" ]] || dd if=/dev/urandom of="$PULSE_COOKIE" bs=256 count=1 status=none 2>/dev/null || true
+  pulseaudio --check 2>/dev/null || pulseaudio --start --exit-idle-time=-1 || true
+  sleep 0.5
+  if command -v pactl >/dev/null 2>&1; then
+    SINK="$(pactl list short sinks 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /hdmi/{print $2; exit}')"
+    if [[ -z "${SINK:-}" ]]; then
+      SINK="$(pactl get-default-sink 2>/dev/null || true)"
+    fi
+    if [[ -n "${SINK:-}" ]]; then
+      pactl set-default-sink "$SINK" 2>/dev/null || true
+      pactl set-sink-mute "$SINK" 0 2>/dev/null || true
+      pactl set-sink-volume "$SINK" "${JARVIS_HUD_VOLUME:-85%}" 2>/dev/null || true
+    fi
+    SRC="$(pactl list short sources 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /input/ && !/\.monitor/{print $2; exit}')"
+    if [[ -n "${SRC:-}" ]]; then
+      pactl set-default-source "$SRC" 2>/dev/null || true
+      pactl set-source-mute "$SRC" 0 2>/dev/null || true
+      pactl set-source-volume "$SRC" 100% 2>/dev/null || true
+    fi
+  fi
+fi
+
+# WM minimal pour que Chromium ait une fenêtre gérée.
+if command -v openbox >/dev/null 2>&1; then
+  openbox &
+  sleep 0.5
+fi
+
+exec /opt/jarvis/bin/jarvis-hud

@@ -56,15 +56,27 @@ class WakeWordDetector:
         *,
         config: dict[str, Any] | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
+        is_speaking: Callable[[], bool] | None = None,
     ) -> None:
         self.cfg = config if config is not None else _load_config()
         self._on_wake = on_wake
         self._loop = loop
+        # Passer `VoiceManager.speaking`. Sans ça, JARVIS se réveille lui-même :
+        # la voix sort par les haut-parleurs (la Bravia en HDMI, chez Samir),
+        # le micro la réentend, et le mot de réveil part sur sa propre phrase.
+        # Pire, le barge-in de `manager.py` prend ça pour une interruption
+        # humaine et lui coupe la parole au milieu d'un mot.
+        self._is_speaking = is_speaking
 
         self.threshold: float = float(self.cfg.get("threshold", 0.5))
         self.sample_rate: int = int(self.cfg.get("sample_rate", 16000))
         self.frame_samples: int = int(self.cfg.get("frame_samples", 1280))
         self.refractory_s: float = float(self.cfg.get("refractory_s", 2.0))
+        # Queue de silence après la dernière syllabe. openwakeword décide sur
+        # une fenêtre glissante d'environ 1,5 s : à l'instant où JARVIS se
+        # tait, son tampon contient encore sa propre voix. Rouvrir aussitôt
+        # rendrait la garde inutile — le réveil partirait juste après.
+        self.mute_release_s: float = float(self.cfg.get("mute_release_s", 1.5))
         self.silent_ack_s: float = float(self.cfg.get("silent_ack_if_recent_s", 30.0))
 
         self.available = False
@@ -78,6 +90,8 @@ class WakeWordDetector:
         self._stop = threading.Event()
         self._last_detection = 0.0
         self._last_interaction = 0.0
+        self._muted_until = 0.0
+        self.self_triggers = 0  # réveils étouffés parce que JARVIS parlait
 
     # ── cycle de vie ────────────────────────────────────────────────────
 
@@ -210,6 +224,17 @@ class WakeWordDetector:
                 continue
 
             now = time.monotonic()
+
+            # JARVIS parle : c'est sa voix, pas la tienne.
+            # Testé APRÈS le seuil, pas avant : ce qu'on veut compter, c'est
+            # le nombre de fois où il se serait réveillé lui-même. Un compteur
+            # à zéro dit que le micro et les haut-parleurs sont bien séparés ;
+            # un compteur qui grimpe dit qu'il faut baisser le son ou éloigner
+            # le micro de la télé.
+            if self._muted(now):
+                self.self_triggers += 1
+                continue
+
             # Période réfractaire : un mot prononcé dépasse le seuil sur
             # plusieurs trames consécutives. Sans ça, une phrase déclenche
             # trois réveils.
@@ -219,6 +244,26 @@ class WakeWordDetector:
             self.detections += 1
 
             self._dispatch(score, now)
+
+    def _muted(self, now: float) -> bool:
+        """Vrai pendant que JARVIS parle, et `mute_release_s` après.
+
+        Ne lève jamais : un `is_speaking` cassé doit laisser le réveil marcher,
+        pas le condamner au silence. Un micro trop bavard est un désagrément ;
+        un JARVIS définitivement sourd est une panne.
+        """
+        speaking = False
+        if self._is_speaking is not None:
+            try:
+                speaking = bool(self._is_speaking())
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("état de parole illisible : %s", exc)
+                speaking = False
+
+        if speaking:
+            self._muted_until = now + self.mute_release_s
+            return True
+        return now < self._muted_until
 
     def _dispatch(self, score: float, now: float) -> None:
         """Repasse dans la boucle asyncio — le bus n'est pas thread-safe."""
@@ -250,5 +295,10 @@ class WakeWordDetector:
             "model": self.cfg.get("model"),
             "threshold": self.threshold,
             "detections": self.detections,
+            # Diagnostic de placement micro / haut-parleurs : > 0 signifie que
+            # JARVIS s'entend lui-même. La garde tient, mais le montage est à
+            # revoir (volume, distance du micro à la télé).
+            "self_triggers": self.self_triggers,
+            "muted_by_tts": self._is_speaking is not None,
             "error": self.last_error,
         }

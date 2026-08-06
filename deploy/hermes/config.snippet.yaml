@@ -1,12 +1,56 @@
 # Snippet à fusionner dans $HERMES_HOME/config.yaml
+# (seed-hermes-consciousness.sh le pose / complète automatiquement).
+
+# --- API locale pour le Core (JARVIS_HERMES_URL → :8642) --------------------
 #
-# Pointe Hermes vers les skills produit versionnés dans le monorepo
-# (chemins relatifs = adapter après install, ou utiliser le script seed).
+# ⚠ La forme est IMBRIQUÉE. Un bloc `api_server:` de premier niveau n'est lu
+# par personne : l'adaptateur lit `platforms.api_server.extra` — cf.
+# gateway/platforms/api_server.py (`extra.get("host"/"port"/"key")`) et
+# cli-config.yaml.example, qui documente exactement cette forme.
+#
+# La clé reste hors d'ici — /etc/jarvis/hermes.env, chmod 600. Sans clé d'au
+# moins 16 caractères, la plateforme n'est pas enrôlée du tout.
+platforms:
+  api_server:
+    enabled: true
+    extra:
+      host: "127.0.0.1"
+      port: 8642
+      # key: fournie par API_SERVER_KEY dans /etc/jarvis/hermes.env
+
+# Plafond de runs simultanés (0 = désactivé, défaut 10). Le nom exact est
+# `max_concurrent_runs`, et il vit sous `gateway.`, pas sous `platforms.` —
+# cf. `_resolve_max_concurrent_runs()`. `allow_model_override` n'existe pas
+# pour l'API server : il vient d'un doc de conception (.plans/) jamais
+# implémenté, et d'un module sans rapport (agent/plugin_llm.py).
+gateway:
+  api_server:
+    max_concurrent_runs: 5
 
 skills:
   external_dirs:
     # Exemple Windows (adapter) :
     # - "C:/laragon/www/jarvis-os-linux/deploy/hermes/skills"
-    # Exemple NUC :
-    # - "/opt/jarvis/jarvis-os-linux/deploy/hermes/skills"
+    # Exemple NUC (après sync monorepo ou copie) :
+    # - "/opt/jarvis/share/hermes/skills"
     - "./deploy/hermes/skills"
+
+# Toolsets exposés à la plateforme api_server (= Core).
+# Liste EXPLICITE = plafond. Sans `web`, le Core refuse la délégation et
+# OpenRouter feignait « Je procède… » sans surface (bug 2026-08-06).
+# La grille de rôle reste côté Core (`ROLE_TOOLSETS`).
+platform_toolsets:
+  api_server:
+    - web
+    - browser
+    - file
+    - terminal
+    - code_execution
+    - skills
+    - memory
+    - todo
+    - session_search
+    - cronjob
+    - delegation
+    - homeassistant
+    - spotify

@@ -1,146 +1,440 @@
-<title>JARVIS — Banc d'essai Voice Filter</title>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JARVIS — Voice Filter Lab</title>
 <style>
   :root {
-    --bg: #05080d;
-    --panel: #0b111b;
-    --line: #17324a;
-    --cyan: #4fd8ff;
-    --cyan-dim: #2a7f9e;
-    --text: #cfe6f2;
-    --muted: #6d8798;
+    --bg0: #04070c;
+    --bg1: #081018;
+    --panel: rgba(10, 18, 28, 0.92);
+    --panel-solid: #0b121c;
+    --line: #1a3348;
+    --line-strong: #2a5570;
+    --cyan: #5ce1ff;
+    --cyan-dim: #2a8fad;
+    --cyan-glow: rgba(92, 225, 255, 0.18);
+    --text: #d7eef8;
+    --muted: #7a94a6;
+    --warm: #e0b98a;
+    --warm-dim: #8a6a42;
+    --danger: #ff8f6b;
+    --ok: #6dffb0;
+    --radius: 10px;
+    --font: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
   }
+
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; padding: 24px;
-    background: var(--bg); color: var(--text);
-    font: 14px/1.5 ui-monospace, "SF Mono", Consolas, monospace;
+    margin: 0;
+    color: var(--text);
+    font: 14px/1.5 var(--font);
+    background:
+      radial-gradient(1200px 600px at 12% -10%, rgba(42, 143, 173, 0.18), transparent 55%),
+      radial-gradient(900px 500px at 90% 0%, rgba(92, 225, 255, 0.08), transparent 45%),
+      linear-gradient(180deg, var(--bg1), var(--bg0));
+    min-height: 100vh;
   }
-  h1 { font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: var(--cyan); margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 24px; font-size: 12px; }
-  .wrap { max-width: 1140px; margin: 0 auto; display: grid; gap: 18px; grid-template-columns: 1fr 360px; }
-  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
-  .panel h2 { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--cyan-dim); margin: 0 0 14px; }
-  .grp { border-top: 1px solid var(--line); margin: 18px 0 14px; padding-top: 14px; }
+
+  .shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 28px 22px 40px;
+  }
+
+  .hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  .hero h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    color: var(--cyan);
+  }
+  .hero h1 span {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    text-transform: none;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(8, 16, 24, 0.7);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .badge i {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 10px var(--ok);
+  }
+  .badge.warn i { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+  .wrap {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+  @media (max-width: 1020px) { .wrap { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  }
+  .panel h2 {
+    margin: 0 0 14px;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--cyan-dim);
+  }
+
+  .grp {
+    border-top: 1px solid var(--line);
+    margin: 16px 0 12px;
+    padding-top: 14px;
+  }
   .grp:first-of-type { border: 0; margin-top: 0; padding-top: 0; }
-  .grp h3 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
-  label { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 13px; font-size: 12px; }
-  label .val { color: var(--cyan); font-variant-numeric: tabular-nums; }
-  input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--cyan); }
-  .check { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; font-size: 12px; cursor: pointer; }
-  .check input { accent-color: var(--cyan); width: 15px; height: 15px; }
-  button {
-    font: inherit; font-size: 12px; cursor: pointer;
-    background: #10202f; color: var(--text);
-    border: 1px solid var(--line); border-radius: 4px; padding: 8px 13px;
+  .grp h3 {
+    margin: 0 0 12px;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
-  button:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  button.primary { background: var(--cyan-dim); border-color: var(--cyan); color: #04121a; font-weight: 700; }
-  button.ref { border-color: #4a3a2a; color: #d9b48a; }
-  button.ref:hover { border-color: #d9b48a; color: #f0cfa4; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-  select { font: inherit; font-size: 12px; background: #10202f; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; }
-  #log { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; min-height: 120px; font-size: 12px; }
-  #log div { padding: 2px 0; color: var(--muted); }
-  #log div.on { color: var(--cyan); }
-  pre { background: #05080d; border: 1px solid var(--line); border-radius: 4px; padding: 12px; overflow-x: auto; font-size: 11px; color: var(--muted); margin: 0; }
-  .hint { color: var(--muted); font-size: 11px; margin: 12px 0 0; }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+
+  label.ctrl {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 10px;
+    margin-bottom: 12px;
+    font-size: 12.5px;
+    color: var(--text);
+  }
+  label.ctrl .val {
+    color: var(--cyan);
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+  }
+  input[type=range] {
+    grid-column: 1 / -1;
+    width: 100%;
+    accent-color: var(--cyan);
+    height: 18px;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 13px;
+    font-size: 12.5px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .check input { accent-color: var(--cyan); width: 15px; height: 15px; }
+
+  button, select {
+    font: inherit;
+    font-size: 12.5px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: #101c29;
+    color: var(--text);
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s, box-shadow .15s;
+  }
+  select { min-width: 120px; }
+  button:hover, select:hover {
+    border-color: var(--cyan-dim);
+    color: var(--cyan);
+  }
+  button.primary {
+    background: linear-gradient(180deg, #2f9fbe, #1f7d98);
+    border-color: var(--cyan);
+    color: #031018;
+    font-weight: 700;
+    box-shadow: 0 0 0 1px rgba(92, 225, 255, 0.15), 0 8px 24px rgba(42, 143, 173, 0.25);
+  }
+  button.primary:hover { filter: brightness(1.06); color: #031018; }
+  button.stop {
+    border-color: #5a2f28;
+    color: #ffb19a;
+  }
+  button.ref {
+    border-color: var(--warm-dim);
+    color: var(--warm);
+  }
+  button.ref:hover, button.ref.active {
+    border-color: var(--warm);
+    background: rgba(224, 185, 138, 0.08);
+    color: #f0cfa4;
+  }
+  button.preset.active {
+    border-color: var(--cyan);
+    background: var(--cyan-glow);
+    color: var(--cyan);
+    box-shadow: inset 0 0 0 1px rgba(92, 225, 255, 0.2);
+  }
+
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: rgba(5, 10, 16, 0.55);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .card:hover { border-color: var(--line-strong); }
+  .card.active {
+    border-color: var(--cyan-dim);
+    background: rgba(42, 143, 173, 0.12);
+  }
+  .card strong {
+    display: block;
+    color: var(--cyan);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+  .card span {
+    color: var(--muted);
+    font-size: 11.5px;
+    line-height: 1.4;
+  }
+
+  .hint {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-left: 2px solid var(--cyan-dim);
+    background: rgba(42, 143, 173, 0.06);
+    border-radius: 0 6px 6px 0;
+  }
   .hint b { color: var(--text); font-weight: 600; }
-  .err { color: #ff8f6b; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 12px; }
-  td { padding: 5px 0; border-bottom: 1px solid #0e1a26; color: var(--muted); vertical-align: top; }
-  td:first-child { color: var(--cyan-dim); white-space: nowrap; padding-right: 12px; }
+
+  #log {
+    margin-top: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #050a10;
+    padding: 12px;
+    min-height: 140px;
+    max-height: 300px;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  #log div { padding: 3px 0; color: var(--muted); }
+  #log div.on { color: var(--cyan); }
+  #log .err { color: var(--danger); }
+  #log b { color: var(--cyan); font-weight: 600; }
+
+  .chain { max-height: calc(100vh - 120px); overflow: auto; }
+  .chain::-webkit-scrollbar { width: 8px; }
+  .chain::-webkit-scrollbar-thumb { background: #1d3648; border-radius: 8px; }
+
+  pre#out {
+    background: #050a10;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin: 0;
+    max-height: 240px;
+    white-space: pre-wrap;
+  }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 10px; }
 </style>
+</head>
+<body>
+<div class="shell">
+  <header class="hero">
+    <h1>Voice Filter Lab
+      <span>Règle à l'oreille, puis copie les réglages dans le HUD. Aucun appel ElevenLabs — lecture du cache local.</span>
+    </h1>
+    <div class="badge" id="status"><i></i><span>En attente du cache…</span></div>
+  </header>
 
-<div class="wrap">
-  <div>
-    <h1>Voice Filter — banc d'essai</h1>
-    <p class="sub">Règle à l'oreille, puis colle les réglages dans le HUD. Aucun appel ElevenLabs : on rejoue le cache.</p>
-
+  <div class="wrap">
     <div class="panel">
       <h2>Lecture</h2>
       <div class="row">
-        <select id="domain"></select>
-        <button class="primary" id="play">▶ Jouer la séquence</button>
-        <button id="stop">■ Stop</button>
+        <select id="voice" title="Pack vocal" aria-label="Pack vocal">
+          <option value="jarvis">jarvis</option>
+          <option value="jarvis2">jarvis2</option>
+        </select>
+        <select id="domain" aria-label="Domaine"></select>
+        <button class="primary" id="play" type="button">Jouer la séquence</button>
+        <button class="stop" id="stop" type="button">Stop</button>
       </div>
 
-      <div class="row">
-        <button class="ref" data-preset="sec">Sec — référence</button>
-        <button data-preset="proche">Proche</button>
-        <button data-preset="piece">Pièce</button>
-        <button data-preset="cristallin">Cristallin</button>
-        <button data-preset="profond">Profond</button>
-        <button data-preset="spectral">Spectral</button>
+      <div class="presets" id="presetBar">
+        <button class="ref preset" data-preset="sec" type="button">Sec — référence</button>
+        <button class="preset" data-preset="proche" type="button">Proche</button>
+        <button class="preset" data-preset="piece" type="button">Pièce</button>
+        <button class="preset" data-preset="cristallin" type="button">Cristallin</button>
+        <button class="preset" data-preset="profond" type="button">Profond</button>
+        <button class="preset" data-preset="spectral" type="button">Spectral</button>
+        <button class="preset" data-preset="hologramme" type="button">Hologramme</button>
+        <button class="preset" data-preset="radio" type="button">Radio</button>
+        <button class="preset" data-preset="glass" type="button">Glass</button>
+        <button class="preset" data-preset="machine" type="button">Machine</button>
       </div>
 
-      <table>
-        <tr><td>Proche</td><td>L'hologramme est à côté de toi. Réverb courte, peu de pré-délai. Intime, très intelligible — le plus utilisable au quotidien.</td></tr>
-        <tr><td>Pièce</td><td>Il occupe l'espace autour de toi. Queue plus longue, pré-délai marqué. Bon compromis présence / spectacle.</td></tr>
-        <tr><td>Cristallin</td><td>Brillant, aigu, « flux de données ». Queue claire, air poussé, doublage rapide. Le plus science-fiction sans être fatigant.</td></tr>
-        <tr><td>Profond</td><td>Vaste, grave, machine immense. Queue longue et sombre. Superbe sur une phrase de boot, pesant sur une réponse courte.</td></tr>
-        <tr><td>Spectral</td><td>Doublage et désaccord poussés au maximum utile. Franchement non-humain. À réserver aux moments rares.</td></tr>
-      </table>
+      <div class="cards" id="presetCards">
+        <div class="card" data-preset="proche"><strong>Proche</strong><span>Hologramme à côté de toi. Réverb courte. Intelligible au quotidien.</span></div>
+        <div class="card" data-preset="piece"><strong>Pièce</strong><span>Il occupe l'espace. Queue plus longue, présence / spectacle.</span></div>
+        <div class="card" data-preset="cristallin"><strong>Cristallin</strong><span>Brillant, flux de données. Air poussé, doublage rapide.</span></div>
+        <div class="card" data-preset="profond"><strong>Profond</strong><span>Machine immense. Queue sombre. Superbe en boot.</span></div>
+        <div class="card" data-preset="spectral"><strong>Spectral</strong><span>Doublage + désaccord max. Non-humain, moments rares.</span></div>
+        <div class="card" data-preset="hologramme"><strong>Hologramme</strong><span>Chorus + carrier + tremolo. Le vrai rendu projection.</span></div>
+        <div class="card" data-preset="radio"><strong>Radio</strong><span>Bande étroite, grit, echo court. Transmission distante.</span></div>
+        <div class="card" data-preset="glass"><strong>Glass</strong><span>Shimmer aigu, echo clair. Fragile et précieux.</span></div>
+        <div class="card" data-preset="machine"><strong>Machine</strong><span>Grit + carrier + corps grave. Plus robot, moins majordome.</span></div>
+      </div>
 
-      <p class="hint"><b>Reviens sur Sec toutes les trois écoutes.</b> L'oreille s'habitue en quelques secondes et finit par trouver normal un réglage franchement excessif.</p>
+      <p class="hint"><b>Reviens sur Sec toutes les trois écoutes.</b> L'oreille s'habitue vite et normalise l'excessif.</p>
       <div id="log"></div>
     </div>
-  </div>
 
-  <div class="panel">
-    <h2>Chaîne</h2>
+    <div class="panel chain">
+      <h2>Chaîne d'effets</h2>
 
-    <div class="grp">
-      <h3>Timbre</h3>
-      <label>Passe-haut <span class="val" id="v-hp">90 Hz</span>
-        <input type="range" id="hp" min="0" max="300" value="90"></label>
-      <label>Présence (3 kHz) <span class="val" id="v-eq">+4.0 dB</span>
-        <input type="range" id="eq" min="-6" max="9" step="0.5" value="4"></label>
-      <label>Air (8 kHz) <span class="val" id="v-air">+2.0 dB</span>
-        <input type="range" id="air" min="-6" max="9" step="0.5" value="2"></label>
-      <label>Compression <span class="val" id="v-comp">-22 dB</span>
-        <input type="range" id="comp" min="-40" max="0" value="-22"></label>
+      <div class="grp">
+        <h3>Timbre</h3>
+        <label class="ctrl">Passe-haut <span class="val" id="v-hp">90 Hz</span>
+          <input type="range" id="hp" min="0" max="400" value="90"></label>
+        <label class="ctrl">Corps (180 Hz) <span class="val" id="v-body">0.0 dB</span>
+          <input type="range" id="body" min="-8" max="8" step="0.5" value="0"></label>
+        <label class="ctrl">Présence (3 kHz) <span class="val" id="v-eq">+4.0 dB</span>
+          <input type="range" id="eq" min="-6" max="9" step="0.5" value="4"></label>
+        <label class="ctrl">Air (8 kHz) <span class="val" id="v-air">+2.0 dB</span>
+          <input type="range" id="air" min="-6" max="9" step="0.5" value="2"></label>
+        <label class="ctrl">Compression <span class="val" id="v-comp">-22 dB</span>
+          <input type="range" id="comp" min="-40" max="0" value="-22"></label>
+      </div>
+
+      <div class="grp">
+        <h3>Espace</h3>
+        <label class="ctrl">Réverb — mix <span class="val" id="v-wet">20 %</span>
+          <input type="range" id="wet" min="0" max="70" value="20"></label>
+        <label class="ctrl">Réverb — longueur <span class="val" id="v-decay">1.10 s</span>
+          <input type="range" id="decay" min="0.2" max="3.5" step="0.1" value="1.1"></label>
+        <label class="ctrl">Pré-délai <span class="val" id="v-pre">18 ms</span>
+          <input type="range" id="pre" min="0" max="100" value="18"></label>
+        <label class="ctrl">Amortissement <span class="val" id="v-damp">8000 Hz</span>
+          <input type="range" id="damp" min="1200" max="16000" step="200" value="8000"></label>
+        <label class="ctrl">Echo — mix <span class="val" id="v-echo">0 %</span>
+          <input type="range" id="echo" min="0" max="50" value="0"></label>
+        <label class="ctrl">Echo — temps <span class="val" id="v-echoMs">120 ms</span>
+          <input type="range" id="echoMs" min="40" max="420" step="10" value="120"></label>
+        <label class="ctrl">Echo — feedback <span class="val" id="v-echoFb">25 %</span>
+          <input type="range" id="echoFb" min="0" max="70" value="25"></label>
+      </div>
+
+      <div class="grp">
+        <h3>Doublage / Chorus</h3>
+        <label class="ctrl">Doublage mix <span class="val" id="v-dbl">30 %</span>
+          <input type="range" id="dbl" min="0" max="70" value="30"></label>
+        <label class="ctrl">Retard <span class="val" id="v-delay">22 ms</span>
+          <input type="range" id="delay" min="5" max="60" value="22"></label>
+        <label class="ctrl">Désaccord <span class="val" id="v-detune">4.0</span>
+          <input type="range" id="detune" min="0" max="12" step="0.5" value="4"></label>
+        <label class="check"><input type="checkbox" id="voice2" checked> Seconde voix (désaccord inverse)</label>
+        <label class="ctrl">Chorus mix <span class="val" id="v-chorus">0 %</span>
+          <input type="range" id="chorus" min="0" max="60" value="0"></label>
+        <label class="ctrl">Chorus rate <span class="val" id="v-chRate">0.40 Hz</span>
+          <input type="range" id="chRate" min="0.05" max="2" step="0.05" value="0.4"></label>
+        <label class="ctrl">Largeur stéréo <span class="val" id="v-width">55 %</span>
+          <input type="range" id="width" min="0" max="100" value="55"></label>
+      </div>
+
+      <div class="grp">
+        <h3>Holographique</h3>
+        <label class="ctrl">Tremolo <span class="val" id="v-trem">0 %</span>
+          <input type="range" id="trem" min="0" max="60" value="0"></label>
+        <label class="ctrl">Tremolo rate <span class="val" id="v-tremRate">4.0 Hz</span>
+          <input type="range" id="tremRate" min="0.5" max="12" step="0.5" value="4"></label>
+        <label class="ctrl">Carrier (ring) <span class="val" id="v-ring">0 %</span>
+          <input type="range" id="ring" min="0" max="40" value="0"></label>
+        <label class="ctrl">Carrier Hz <span class="val" id="v-ringHz">80 Hz</span>
+          <input type="range" id="ringHz" min="30" max="400" step="5" value="80"></label>
+        <label class="ctrl">Grit / soft clip <span class="val" id="v-grit">0 %</span>
+          <input type="range" id="grit" min="0" max="60" value="0"></label>
+        <label class="ctrl">Bitcrush <span class="val" id="v-crush">0 %</span>
+          <input type="range" id="crush" min="0" max="70" value="0"></label>
+        <label class="ctrl">Noise bed <span class="val" id="v-noise">0 %</span>
+          <input type="range" id="noise" min="0" max="25" value="0"></label>
+        <label class="ctrl">Shimmer (octave) <span class="val" id="v-shim">0 %</span>
+          <input type="range" id="shim" min="0" max="40" value="0"></label>
+      </div>
+
+      <div class="actions">
+        <button id="copy" type="button">Copier les réglages</button>
+      </div>
+      <pre id="out"></pre>
     </div>
-
-    <div class="grp">
-      <h3>Espace</h3>
-      <label>Réverb — mix <span class="val" id="v-wet">20 %</span>
-        <input type="range" id="wet" min="0" max="60" value="20"></label>
-      <label>Réverb — longueur <span class="val" id="v-decay">1.10 s</span>
-        <input type="range" id="decay" min="0.2" max="3" step="0.1" value="1.1"></label>
-      <label>Pré-délai <span class="val" id="v-pre">18 ms</span>
-        <input type="range" id="pre" min="0" max="80" value="18"></label>
-      <label>Amortissement <span class="val" id="v-damp">8000 Hz</span>
-        <input type="range" id="damp" min="1200" max="16000" step="200" value="8000"></label>
-    </div>
-
-    <div class="grp">
-      <h3>Doublage</h3>
-      <label>Mix <span class="val" id="v-dbl">30 %</span>
-        <input type="range" id="dbl" min="0" max="70" value="30"></label>
-      <label>Retard <span class="val" id="v-delay">22 ms</span>
-        <input type="range" id="delay" min="5" max="60" value="22"></label>
-      <label>Désaccord <span class="val" id="v-detune">4.0</span>
-        <input type="range" id="detune" min="0" max="12" step="0.5" value="4"></label>
-      <label class="check"><input type="checkbox" id="voice2" checked> Seconde voix (désaccord inverse)</label>
-      <label>Largeur stéréo <span class="val" id="v-width">55 %</span>
-        <input type="range" id="width" min="0" max="100" value="55"></label>
-    </div>
-
-    <div class="row" style="margin:16px 0 10px">
-      <button id="copy">Copier les réglages</button>
-    </div>
-    <pre id="out"></pre>
   </div>
 </div>
 
 <script>
-const MANIFEST = '../../core/data/voice/cache/manifest.json';
-const CACHE = '../../core/data/voice/cache/';
+const CACHE_ROOT = '../../core/data/voice/cache/';
+const VOICES = ['jarvis', 'jarvis2'];
 
-const P = ['hp','eq','air','comp','wet','decay','pre','damp','dbl','delay','detune','width'];
+const P = [
+  'hp','body','eq','air','comp',
+  'wet','decay','pre','damp','echo','echoMs','echoFb',
+  'dbl','delay','detune','chorus','chRate','width',
+  'trem','tremRate','ring','ringHz','grit','crush','noise','shim',
+];
+
 const FMT = {
   hp: v => v + ' Hz',
+  body: v => (v > 0 ? '+' : '') + (+v).toFixed(1) + ' dB',
   eq: v => (v > 0 ? '+' : '') + (+v).toFixed(1) + ' dB',
   air: v => (v > 0 ? '+' : '') + (+v).toFixed(1) + ' dB',
   comp: v => v + ' dB',
@@ -148,25 +442,104 @@ const FMT = {
   decay: v => (+v).toFixed(2) + ' s',
   pre: v => v + ' ms',
   damp: v => v + ' Hz',
+  echo: v => v + ' %',
+  echoMs: v => v + ' ms',
+  echoFb: v => v + ' %',
   dbl: v => v + ' %',
   delay: v => v + ' ms',
   detune: v => (+v).toFixed(1),
+  chorus: v => v + ' %',
+  chRate: v => (+v).toFixed(2) + ' Hz',
   width: v => v + ' %',
+  trem: v => v + ' %',
+  tremRate: v => (+v).toFixed(1) + ' Hz',
+  ring: v => v + ' %',
+  ringHz: v => v + ' Hz',
+  grit: v => v + ' %',
+  crush: v => v + ' %',
+  noise: v => v + ' %',
+  shim: v => v + ' %',
 };
 
-// Le seul preset non esthétique : c'est l'étalon. Ne jamais le supprimer.
+const ZERO_FX = {
+  body:0, echo:0, echoMs:120, echoFb:25, chorus:0, chRate:0.4,
+  trem:0, tremRate:4, ring:0, ringHz:80, grit:0, crush:0, noise:0, shim:0,
+};
+
 const PRESETS = {
-  sec:        { hp:0,   eq:0,   air:0,   comp:0,   wet:0,  decay:0.9, pre:0,  damp:16000, dbl:0,  delay:20, detune:0,   width:0,  voice2:false },
-  proche:     { hp:90,  eq:4,   air:2,   comp:-20, wet:14, decay:0.6, pre:8,  damp:9000,  dbl:28, delay:18, detune:3.5, width:40, voice2:true },
-  piece:      { hp:85,  eq:4,   air:1.5, comp:-22, wet:24, decay:1.4, pre:25, damp:6000,  dbl:26, delay:26, detune:3.5, width:65, voice2:true },
-  cristallin: { hp:110, eq:5.5, air:4.5, comp:-24, wet:18, decay:0.9, pre:14, damp:14000, dbl:34, delay:16, detune:5,   width:55, voice2:true },
-  profond:    { hp:70,  eq:2.5, air:-1,  comp:-26, wet:28, decay:2.0, pre:35, damp:3500,  dbl:24, delay:34, detune:3,   width:75, voice2:true },
-  spectral:   { hp:100, eq:5,   air:3,   comp:-24, wet:20, decay:1.1, pre:12, damp:8000,  dbl:48, delay:22, detune:8,   width:80, voice2:true },
+  sec: {
+    ...ZERO_FX,
+    hp:0, eq:0, air:0, comp:0, wet:0, decay:0.9, pre:0, damp:16000,
+    dbl:0, delay:20, detune:0, width:0, voice2:false,
+  },
+  proche: {
+    ...ZERO_FX,
+    hp:90, body:0.5, eq:4, air:2, comp:-20, wet:14, decay:0.6, pre:8, damp:9000,
+    dbl:28, delay:18, detune:3.5, width:40, voice2:true, chorus:8, chRate:0.25, trem:4, tremRate:3,
+  },
+  piece: {
+    ...ZERO_FX,
+    hp:85, body:1, eq:4, air:1.5, comp:-22, wet:24, decay:1.4, pre:25, damp:6000,
+    dbl:26, delay:26, detune:3.5, width:65, voice2:true, chorus:12, echo:8, echoMs:160, echoFb:20,
+  },
+  cristallin: {
+    ...ZERO_FX,
+    hp:110, body:-1, eq:5.5, air:4.5, comp:-24, wet:18, decay:0.9, pre:14, damp:14000,
+    dbl:34, delay:16, detune:5, width:55, voice2:true, chorus:18, shim:12, noise:3,
+  },
+  profond: {
+    ...ZERO_FX,
+    hp:70, body:3, eq:2.5, air:-1, comp:-26, wet:28, decay:2.0, pre:35, damp:3500,
+    dbl:24, delay:34, detune:3, width:75, voice2:true, chorus:10, ring:6, ringHz:55, grit:8,
+  },
+  spectral: {
+    ...ZERO_FX,
+    hp:100, body:0, eq:5, air:3, comp:-24, wet:20, decay:1.1, pre:12, damp:8000,
+    dbl:48, delay:22, detune:8, width:80, voice2:true, chorus:28, trem:12, tremRate:5, shim:18, ring:8, ringHz:90,
+  },
+  hologramme: {
+    ...ZERO_FX,
+    hp:95, body:0.5, eq:4.5, air:3, comp:-23, wet:18, decay:1.0, pre:16, damp:9000,
+    dbl:32, delay:20, detune:4.5, width:70, voice2:true,
+    chorus:24, chRate:0.35, trem:10, tremRate:3.5, ring:10, ringHz:72, shim:14, noise:4, echo:6, echoMs:110, echoFb:18,
+  },
+  radio: {
+    ...ZERO_FX,
+    hp:220, body:-3, eq:3, air:-1, comp:-28, wet:8, decay:0.5, pre:10, damp:4500,
+    dbl:10, delay:14, detune:2, width:20, voice2:false,
+    grit:22, crush:28, noise:10, echo:18, echoMs:90, echoFb:30, trem:8, tremRate:7,
+  },
+  glass: {
+    ...ZERO_FX,
+    hp:140, body:-2.5, eq:6, air:5, comp:-24, wet:16, decay:1.2, pre:20, damp:15000,
+    dbl:20, delay:14, detune:6, width:60, voice2:true,
+    chorus:22, chRate:0.55, shim:26, echo:14, echoMs:180, echoFb:22, noise:2,
+  },
+  machine: {
+    ...ZERO_FX,
+    hp:100, body:2, eq:3, air:0, comp:-26, wet:14, decay:0.8, pre:12, damp:5000,
+    dbl:36, delay:28, detune:7, width:50, voice2:true,
+    ring:18, ringHz:110, grit:18, crush:12, chorus:16, trem:6, tremRate:2.5, noise:5,
+  },
 };
 
 const el = id => document.getElementById(id);
-const logBox = el('log'), out = el('out');
-let ctx, entries = [], playing = false, token = 0;
+const logBox = el('log'), out = el('out'), statusEl = el('status');
+let ctx, entries = [], playing = false, token = 0, currentVoice = 'jarvis', activePreset = null;
+const activeNodes = [];
+
+function setStatus(ok, text) {
+  statusEl.classList.toggle('warn', !ok);
+  statusEl.querySelector('span').textContent = text;
+}
+
+function cacheBase() {
+  return CACHE_ROOT + currentVoice + '/';
+}
+
+function manifestUrl() {
+  return cacheBase() + 'manifest.json';
+}
 
 function readParams() {
   const o = { voice2: el('voice2').checked };
@@ -183,6 +556,7 @@ function refresh() {
 function toYaml(p) {
   return `voice_filter:
   highpass_hz: ${p.hp}
+  body_db: ${p.body}
   presence_db: ${p.eq}
   air_db: ${p.air}
   compressor_threshold_db: ${p.comp}
@@ -191,16 +565,35 @@ function toYaml(p) {
     decay_s: ${p.decay.toFixed(2)}
     predelay_ms: ${p.pre}
     damping_hz: ${p.damp}
+  echo:
+    mix: ${(p.echo / 100).toFixed(2)}
+    delay_ms: ${p.echoMs}
+    feedback: ${(p.echoFb / 100).toFixed(2)}
   doubling:
     mix: ${(p.dbl / 100).toFixed(2)}
     delay_ms: ${p.delay}
     detune_cents: ${(p.detune * 4).toFixed(0)}
     second_voice: ${p.voice2}
+  chorus:
+    mix: ${(p.chorus / 100).toFixed(2)}
+    rate_hz: ${p.chRate.toFixed(2)}
+  holographic:
+    tremolo: ${(p.trem / 100).toFixed(2)}
+    tremolo_rate_hz: ${p.tremRate.toFixed(1)}
+    ring_mix: ${(p.ring / 100).toFixed(2)}
+    ring_hz: ${p.ringHz}
+    grit: ${(p.grit / 100).toFixed(2)}
+    bitcrush: ${(p.crush / 100).toFixed(2)}
+    noise_bed: ${(p.noise / 100).toFixed(2)}
+    shimmer: ${(p.shim / 100).toFixed(2)}
   stereo_width: ${(p.width / 100).toFixed(2)}`;
 }
 
-// Réverb générée à la volée : bruit à décroissance exponentielle. Évite
-// d'embarquer un fichier d'impulsion, et rend la longueur réglable au curseur.
+function track(node) {
+  activeNodes.push(node);
+  return node;
+}
+
 function makeIR(seconds) {
   const rate = ctx.sampleRate, len = Math.max(1, Math.floor(rate * seconds));
   const buf = ctx.createBuffer(2, len, rate);
@@ -213,103 +606,245 @@ function makeIR(seconds) {
   return buf;
 }
 
-// Une ligne de doublage : retard + LFO lent sur le temps de retard. Le LFO
-// décale légèrement la hauteur SANS changer la durée — c'est ce qui donne le
-// « pas tout à fait humain », bien plus que la réverb.
-function doublingLine(source, mix, p, { rate, phase, pan }) {
-  const dl = ctx.createDelay(0.25);
-  dl.delayTime.value = p.delay / 1000;
+function softClipCurve(amount) {
+  const n = 2048;
+  const curve = new Float32Array(n);
+  const k = 1 + amount * 12;
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
+  }
+  return curve;
+}
 
-  const lfo = ctx.createOscillator();
+function bitcrushCurve(amount) {
+  const steps = Math.max(2, Math.round(32 - amount * 28));
+  const n = 2048;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
+
+function doublingLine(source, mix, p, { rate, phase, pan }) {
+  const dl = track(ctx.createDelay(0.25));
+  dl.delayTime.value = p.delay / 1000;
+  const lfo = track(ctx.createOscillator());
   lfo.frequency.value = rate;
-  const amt = ctx.createGain();
+  const amt = track(ctx.createGain());
   amt.gain.value = phase * (p.detune / 12) * 0.005;
   lfo.connect(amt); amt.connect(dl.delayTime); lfo.start();
-
-  const g = ctx.createGain();
+  const g = track(ctx.createGain());
   g.gain.value = (p.dbl / 100) * (p.voice2 ? 0.62 : 1);
-
-  const panner = ctx.createStereoPanner();
+  const panner = track(ctx.createStereoPanner());
   panner.pan.value = pan * (p.width / 100);
-
   source.connect(dl); dl.connect(g); g.connect(panner); panner.connect(mix);
 }
 
-function buildChain(p) {
-  const src = ctx.createBufferSource();
+function chorusLine(source, mix, p, { rate, baseMs, pan }) {
+  const dl = track(ctx.createDelay(0.08));
+  dl.delayTime.value = baseMs / 1000;
+  const lfo = track(ctx.createOscillator());
+  lfo.frequency.value = rate;
+  const amt = track(ctx.createGain());
+  amt.gain.value = 0.0035;
+  lfo.connect(amt); amt.connect(dl.delayTime); lfo.start();
+  const g = track(ctx.createGain());
+  g.gain.value = (p.chorus / 100) * 0.55;
+  const panner = track(ctx.createStereoPanner());
+  panner.pan.value = pan * (p.width / 100);
+  source.connect(dl); dl.connect(g); g.connect(panner); panner.connect(mix);
+}
 
-  const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = p.hp || 1;
-
-  const eq = ctx.createBiquadFilter();
+function buildChain(p, durationHint) {
+  const src = track(ctx.createBufferSource());
+  const hp = track(ctx.createBiquadFilter());
+  hp.type = 'highpass'; hp.frequency.value = Math.max(1, p.hp);
+  const body = track(ctx.createBiquadFilter());
+  body.type = 'lowshelf'; body.frequency.value = 180; body.gain.value = p.body;
+  const eq = track(ctx.createBiquadFilter());
   eq.type = 'peaking'; eq.frequency.value = 3000; eq.Q.value = 0.9; eq.gain.value = p.eq;
-
-  const air = ctx.createBiquadFilter();
+  const air = track(ctx.createBiquadFilter());
   air.type = 'highshelf'; air.frequency.value = 8000; air.gain.value = p.air;
-
-  const comp = ctx.createDynamicsCompressor();
+  const comp = track(ctx.createDynamicsCompressor());
   comp.threshold.value = p.comp; comp.ratio.value = 3;
   comp.attack.value = 0.005; comp.release.value = 0.2;
+  src.connect(hp); hp.connect(body); body.connect(eq); eq.connect(air); air.connect(comp);
 
-  src.connect(hp); hp.connect(eq); eq.connect(air); air.connect(comp);
+  let tone = comp;
+  if (p.grit > 0) {
+    const ws = track(ctx.createWaveShaper());
+    ws.curve = softClipCurve(p.grit / 100);
+    ws.oversample = '2x';
+    tone.connect(ws);
+    tone = ws;
+  }
+  if (p.crush > 0) {
+    const ws = track(ctx.createWaveShaper());
+    ws.curve = bitcrushCurve(p.crush / 100);
+    tone.connect(ws);
+    tone = ws;
+  }
+  if (p.trem > 0) {
+    const tremGain = track(ctx.createGain());
+    tremGain.gain.value = 1;
+    const lfo = track(ctx.createOscillator());
+    lfo.frequency.value = p.tremRate;
+    const depth = track(ctx.createGain());
+    depth.gain.value = (p.trem / 100) * 0.45;
+    const offset = track(ctx.createConstantSource());
+    offset.offset.value = 1 - (p.trem / 100) * 0.22;
+    offset.start();
+    lfo.connect(depth);
+    depth.connect(tremGain.gain);
+    offset.connect(tremGain.gain);
+    lfo.start();
+    tone.connect(tremGain);
+    tone = tremGain;
+  }
 
-  const mix = ctx.createGain();
-
-  const dry = ctx.createGain();
-  dry.gain.value = 1 - (p.wet / 100) * 0.5;
-  const dryPan = ctx.createStereoPanner();
+  const mix = track(ctx.createGain());
+  const dry = track(ctx.createGain());
+  dry.gain.value = 1 - (p.wet / 100) * 0.45 - (p.echo / 100) * 0.15;
+  const dryPan = track(ctx.createStereoPanner());
   dryPan.pan.value = -(p.width / 100) * 0.2;
-  comp.connect(dry); dry.connect(dryPan); dryPan.connect(mix);
+  tone.connect(dry); dry.connect(dryPan); dryPan.connect(mix);
 
-  // Réverb : pré-délai → convolution → amortissement.
-  // Le pré-délai est ce qui sépare la voix de son espace : sans lui, la queue
-  // se colle aux consonnes et mange l'intelligibilité. C'est LE paramètre qui
-  // distingue « hologramme » de « cathédrale ».
   if (p.wet > 0) {
-    const pre = ctx.createDelay(0.2);
+    const pre = track(ctx.createDelay(0.2));
     pre.delayTime.value = p.pre / 1000;
-
-    const conv = ctx.createConvolver();
+    const conv = track(ctx.createConvolver());
     conv.buffer = makeIR(p.decay);
-
-    // Amortissement : passe-bas sur la queue seule. Queue sombre = espace
-    // lointain et vaste ; queue claire = proche et cristallin.
-    const damp = ctx.createBiquadFilter();
+    const damp = track(ctx.createBiquadFilter());
     damp.type = 'lowpass'; damp.frequency.value = p.damp;
-
-    const wet = ctx.createGain();
+    const wet = track(ctx.createGain());
     wet.gain.value = p.wet / 100;
-
-    comp.connect(pre); pre.connect(conv); conv.connect(damp);
+    tone.connect(pre); pre.connect(conv); conv.connect(damp);
     damp.connect(wet); wet.connect(mix);
   }
 
+  if (p.echo > 0) {
+    const dl = track(ctx.createDelay(1.0));
+    dl.delayTime.value = p.echoMs / 1000;
+    const fb = track(ctx.createGain());
+    fb.gain.value = p.echoFb / 100;
+    const eg = track(ctx.createGain());
+    eg.gain.value = p.echo / 100;
+    const lp = track(ctx.createBiquadFilter());
+    lp.type = 'lowpass'; lp.frequency.value = 5500;
+    tone.connect(dl); dl.connect(fb); fb.connect(dl);
+    dl.connect(lp); lp.connect(eg); eg.connect(mix);
+  }
+
   if (p.dbl > 0) {
-    doublingLine(comp, mix, p, { rate: 0.28, phase: 1, pan: 0.55 });
-    // Seconde voix : LFO à une autre vitesse et en opposition. La
-    // décorrélation entre les deux est ce qui élargit et épaissit — deux
-    // copies identiques ne feraient qu'augmenter le volume.
+    doublingLine(tone, mix, p, { rate: 0.28, phase: 1, pan: 0.55 });
     if (p.voice2) {
-      doublingLine(comp, mix, { ...p, delay: p.delay * 1.55 }, { rate: 0.19, phase: -1, pan: -0.55 });
+      doublingLine(tone, mix, { ...p, delay: p.delay * 1.55 }, { rate: 0.19, phase: -1, pan: -0.55 });
     }
   }
 
-  mix.connect(ctx.destination);
-  return src;
+  if (p.chorus > 0) {
+    chorusLine(tone, mix, p, { rate: p.chRate, baseMs: 12, pan: 0.7 });
+    chorusLine(tone, mix, p, { rate: p.chRate * 0.73, baseMs: 18, pan: -0.65 });
+  }
+
+  if (p.ring > 0) {
+    const carrier = track(ctx.createOscillator());
+    carrier.frequency.value = p.ringHz;
+    const depth = track(ctx.createGain());
+    depth.gain.value = p.ring / 100 * 0.55;
+    const ringGain = track(ctx.createGain());
+    ringGain.gain.value = 0;
+    const offset = track(ctx.createConstantSource());
+    offset.offset.value = 0;
+    offset.start();
+    carrier.connect(depth);
+    depth.connect(ringGain.gain);
+    const outG = track(ctx.createGain());
+    outG.gain.value = p.ring / 100 * 0.35;
+    tone.connect(ringGain); ringGain.connect(outG); outG.connect(mix);
+    carrier.start();
+  }
+
+  const shimBus = track(ctx.createGain());
+  shimBus.gain.value = p.shim / 100 * 0.35;
+  if (p.shim > 0) {
+    const hpS = track(ctx.createBiquadFilter());
+    hpS.type = 'highpass'; hpS.frequency.value = 1200;
+    shimBus.connect(hpS); hpS.connect(mix);
+  }
+
+  if (p.noise > 0) {
+    const seconds = Math.max(durationHint || 2, 1.2);
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    const ns = track(ctx.createBufferSource());
+    ns.buffer = buf;
+    const bp = track(ctx.createBiquadFilter());
+    bp.type = 'bandpass'; bp.frequency.value = 2800; bp.Q.value = 0.7;
+    const ng = track(ctx.createGain());
+    ng.gain.value = p.noise / 100 * 0.08;
+    ns.connect(bp); bp.connect(ng); ng.connect(mix);
+    ns.start();
+  }
+
+  const master = track(ctx.createGain());
+  master.gain.value = 0.95;
+  mix.connect(master);
+  master.connect(ctx.destination);
+  return { src, shimBus, shimAmount: p.shim };
 }
 
 async function fetchBuffer(file) {
-  const res = await fetch(CACHE + file);
+  const res = await fetch(cacheBase() + file);
   if (!res.ok) throw new Error(file + ' : ' + res.status);
   return ctx.decodeAudioData(await res.arrayBuffer());
 }
 
+function fillDomains(prefer) {
+  const available = [...new Set(entries.filter(e => e.file).map(e => e.domain))];
+  el('domain').innerHTML = available
+    .map(d => `<option value="${d}">${d} (${entries.filter(e => e.domain === d).length})</option>`)
+    .join('');
+  if (prefer && available.includes(prefer)) el('domain').value = prefer;
+}
+
+async function loadVoice(name) {
+  token++;
+  playing = false;
+  currentVoice = name;
+  el('voice').value = name;
+  const res = await fetch(manifestUrl());
+  if (!res.ok) throw new Error(name + '/manifest.json : ' + res.status);
+  const data = await res.json();
+  entries = data.entries || [];
+  fillDomains(el('domain').value);
+  const vid = (data.voice_id || '').slice(0, 8);
+  logBox.innerHTML = '<div>Pack <b>' + name +
+    '</b> · ' + entries.length + ' clips' +
+    (vid ? ' · voice_id ' + vid + '…' : '') +
+    (data.model_id ? ' · ' + data.model_id : '') +
+    '</div>';
+  setStatus(true, name + ' · ' + entries.length + ' clips prêts');
+}
+
 function playOne(buffer, p) {
   return new Promise(resolve => {
-    const src = buildChain(p);
+    const { src, shimBus, shimAmount } = buildChain(p, buffer.duration);
     src.buffer = buffer;
-    src.onended = resolve;
+    src.onended = () => setTimeout(resolve, 350);
     src.start();
+    if (shimAmount > 0) {
+      const shim = track(ctx.createBufferSource());
+      shim.buffer = buffer;
+      shim.playbackRate.value = 2.0;
+      shim.connect(shimBus);
+      shim.start();
+    }
   });
 }
 
@@ -317,8 +852,6 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
 async function playSequence() {
   if (playing) return;
-  // Chrome et iOS exigent un geste utilisateur avant toute sortie audio : le
-  // contexte n'est créé et repris qu'ici, dans le handler du clic.
   ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
   if (ctx.state === 'suspended') await ctx.resume();
 
@@ -327,6 +860,7 @@ async function playSequence() {
   const domain = el('domain').value;
   const list = entries.filter(e => e.domain === domain);
   logBox.innerHTML = '';
+  setStatus(true, 'Lecture · ' + currentVoice + ' / ' + domain);
 
   for (const entry of list) {
     if (mine !== token) break;
@@ -334,9 +868,8 @@ async function playSequence() {
     line.className = 'on';
     line.textContent = '▸ ' + entry.text;
     logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
     try {
-      // Réglages relus à CHAQUE clip : bouge un curseur pendant la séquence
-      // et tu entends l'effet dès la phrase suivante.
       await playOne(await fetchBuffer(entry.file), readParams());
     } catch (err) {
       line.className = 'err';
@@ -346,45 +879,77 @@ async function playSequence() {
     if (entry.pause_ms) await wait(entry.pause_ms);
   }
   playing = false;
+  if (mine === token) setStatus(true, currentVoice + ' · prêt');
 }
 
-P.forEach(k => el(k).addEventListener('input', refresh));
+function markPreset(name) {
+  activePreset = name;
+  document.querySelectorAll('[data-preset]').forEach(node => {
+    node.classList.toggle('active', node.dataset.preset === name);
+  });
+}
+
+function applyPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+  P.forEach(k => {
+    if (preset[k] !== undefined && el(k)) el(k).value = preset[k];
+  });
+  el('voice2').checked = !!preset.voice2;
+  markPreset(name);
+  refresh();
+}
+
+P.forEach(k => el(k).addEventListener('input', () => {
+  activePreset = null;
+  document.querySelectorAll('[data-preset]').forEach(n => n.classList.remove('active'));
+  refresh();
+}));
 el('voice2').addEventListener('change', refresh);
 
 document.querySelectorAll('[data-preset]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const preset = PRESETS[btn.dataset.preset];
-    P.forEach(k => el(k).value = preset[k]);
-    el('voice2').checked = preset.voice2;
-    refresh();
-  });
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
 });
 
 el('play').addEventListener('click', playSequence);
-el('stop').addEventListener('click', () => { token++; playing = false; });
+el('stop').addEventListener('click', () => {
+  token++;
+  playing = false;
+  setStatus(true, currentVoice + ' · arrêté');
+});
+el('voice').addEventListener('change', async () => {
+  try {
+    await loadVoice(el('voice').value);
+  } catch (err) {
+    logBox.innerHTML = '<div class="err">' + err.message + '</div>';
+    setStatus(false, 'Erreur de chargement');
+  }
+});
 el('copy').addEventListener('click', async () => {
   await navigator.clipboard.writeText(out.textContent);
-  el('copy').textContent = 'Copié ✓';
+  el('copy').textContent = 'Copié';
   setTimeout(() => el('copy').textContent = 'Copier les réglages', 1200);
 });
 
 (async function init() {
   refresh();
   try {
-    const res = await fetch(MANIFEST);
-    if (!res.ok) throw new Error('manifest.json : ' + res.status);
-    entries = (await res.json()).entries;
+    const present = [];
+    for (const name of VOICES) {
+      const r = await fetch(CACHE_ROOT + name + '/manifest.json', { method: 'HEAD' });
+      if (r.ok) present.push(name);
+    }
+    if (!present.length) throw new Error('aucun pack jarvis / jarvis2 trouvé');
+    el('voice').innerHTML = present.map(n => `<option value="${n}">${n}</option>`).join('');
+    await loadVoice(present[0]);
   } catch (err) {
+    setStatus(false, 'Cache introuvable');
     logBox.innerHTML = '<div class="err">' + err.message +
       '<br><br>Lancer un serveur depuis la racine du dépôt :<br>' +
       '&nbsp;&nbsp;python -m http.server 8080<br><br>' +
       'puis ouvrir :<br>&nbsp;&nbsp;http://localhost:8080/hud/tools/voice-filter-lab.html</div>';
-    return;
   }
-  const available = [...new Set(entries.filter(e => e.file).map(e => e.domain))];
-  el('domain').innerHTML = available
-    .map(d => `<option value="${d}">${d} (${entries.filter(e => e.domain === d).length})</option>`)
-    .join('');
-  logBox.innerHTML = '<div>Prêt. ' + entries.length + ' clips au manifeste.</div>';
 })();
 </script>
+</body>
+</html>

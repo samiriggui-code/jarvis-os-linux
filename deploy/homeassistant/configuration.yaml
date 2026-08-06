@@ -1,0 +1,35 @@
+# Home Assistant — Pi du salon (jarvis-salon, 192.168.1.27).
+#
+# Ce fichier est la source de vérité, versionnée ici et déployée sur le Pi.
+# Rien d'important ne doit vivre uniquement dans `.storage` : la carte SD d'un
+# Raspberry est un support de sauvegarde discutable, et une configuration cliquée
+# dans un navigateur ne se relit pas.
+#
+# Rappel du contrat (JARVIS-Satellites.md) : ce Pi capte et actionne. Il ne
+# décide pas, ne parle pas, et n'héberge ni mémoire ni logique d'agent.
+
+default_config:
+
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# Chaque fichier de `packages/` est un bloc de configuration autonome. Ça évite
+# le `configuration.yaml` de 800 lignes où plus personne ne retrouve rien.
+homeassistant:
+  packages: !include_dir_named packages
+
+# Tableau de bord en mode YAML, à côté de celui généré automatiquement.
+# `mode: yaml` interdit l'édition par l'interface : le fichier gagne toujours.
+lovelace:
+  mode: storage
+  dashboards:
+    jarvis-maison:
+      mode: yaml
+      title: Maison
+      icon: mdi:home-assistant
+      show_in_sidebar: true
+      filename: dashboards/jarvis.yaml

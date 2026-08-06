@@ -1,0 +1,116 @@
+{
+  "_comment": "Surface de contrôle du CATALOGUE — écrite à la main, aucun LLM. Elle exerce les dix composants enregistrés dans toutes les régions et toutes les tailles, pour vérifier le RENDU sans Core, sans WebSocket et sans modèle. Charger avec ?surface=catalogue puis ouvrir la fenêtre « terminal ». Ce n'est pas une composition plausible : c'est une planche d'essai, et elle dépasse volontairement ce qu'un agent produirait (maximum 6 composants côté composeur).",
+  "surfaces": {
+    "terminal": {
+      "root": ["approval", "monitor", "memory", "console", "camera", "gestures", "scanning", "settings", "action", "voice", "result"],
+      "components": {
+        "approval": {
+          "name": "ApprovalCard",
+          "props": {
+            "approvalId": "essai-catalogue",
+            "action": "service.restart",
+            "gravity": "admin",
+            "reason": "Planche d'essai — aucune autorisation réelle n'est demandée."
+          },
+          "state": "pending",
+          "region": "top",
+          "size": "wide",
+          "children": []
+        },
+        "monitor": {
+          "name": "SystemMonitor",
+          "props": {},
+          "state": "idle",
+          "region": "left",
+          "size": "normal",
+          "children": []
+        },
+        "memory": {
+          "name": "MemoryPanel",
+          "props": {},
+          "state": "idle",
+          "region": "left",
+          "size": "normal",
+          "children": []
+        },
+        "console": {
+          "name": "CommandConsole",
+          "props": {},
+          "state": "idle",
+          "region": "right",
+          "size": "normal",
+          "children": []
+        },
+        "camera": {
+          "name": "CameraPreview",
+          "props": { "mirrored": true, "opacity": 1 },
+          "state": "idle",
+          "region": "right",
+          "size": "normal",
+          "children": []
+        },
+        "gestures": {
+          "name": "GesturePanel",
+          "props": {},
+          "state": "idle",
+          "region": "right",
+          "size": "normal",
+          "children": []
+        },
+        "scanning": {
+          "name": "ScanningPanel",
+          "props": {},
+          "state": "idle",
+          "region": "center",
+          "size": "normal",
+          "children": []
+        },
+        "settings": {
+          "name": "SettingsPanel",
+          "props": {},
+          "state": "idle",
+          "region": "center",
+          "size": "wide",
+          "children": []
+        },
+        "action": {
+          "name": "ActionRequest",
+          "props": {
+            "label": "Essai du bouton d'action",
+            "action": "system.refresh",
+            "detail": "N'exécute rien : émet une intention que la Policy arbitre."
+          },
+          "state": "idle",
+          "region": "center",
+          "size": "wide",
+          "children": []
+        },
+        "voice": {
+          "name": "VoiceBar",
+          "props": {},
+          "state": "idle",
+          "region": "bottom",
+          "size": "wide",
+          "children": []
+        },
+        "result": {
+          "name": "ResultPanel",
+          "props": {
+            "title": "Résultat d'essai",
+            "body": "Planche catalogue — composant ResultPanel (recherche, résumé, outils).",
+            "source": "catalogue",
+            "items": ["lien exemple", "puce 2"]
+          },
+          "state": "idle",
+          "region": "center",
+          "size": "wide",
+          "children": []
+        }
+      }
+    }
+  },
+  "data": {},
+  "pending": {
+    "approvals": {}
+  }
+}

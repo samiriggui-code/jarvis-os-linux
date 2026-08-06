@@ -58,10 +58,10 @@ cd dashboard && npm install && npm run dev    # Dashboard → http://127.0.0.1:5
 |--------|--------|
 | `hud/` | **HUD React (produit)** |
 | `dashboard/` | **Dashboard React (produit)** |
-| `vendor/figma1/`, `vendor/figma2/` | Backup / archive (ne plus développer ici) |
-| `vendor/refs/jarvis_ai/` | Moteur voix + contrat API (réf.) |
-| `vendor/agents/hermes-agent/` | Hermes Agent (réf. / Docker) |
-| `vendor/vision/` | Holomat / hand tracking |
-| `vendor/ui/`, `vendor/services/` | Réfs installateur / voix |
+| `vendor/` | **Sas d'intégration** — vide entre deux travaux. Voir [vendor/README.md](vendor/README.md) |
+
+Les dossiers `vendor/figma1`, `figma2`, `refs/`, `vision/`, `ui/`, `services/` et
+`agents/hermes-agent` **n'existent plus**. Les outils qu'on utilise vivent sur leur
+machine cible (clone git) ou sont épinglés sur leur amont — jamais recopiés ici.
 
 Voir [ARCHITECTURE.md](ARCHITECTURE.md) et [CLAUDE.md](CLAUDE.md).

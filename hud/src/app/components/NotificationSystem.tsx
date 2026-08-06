@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
-import { useApp, Notification } from '../context/AppContext';
+import { useApp, type Notification } from '../context/AppContext';
 
 const mono = { fontFamily: 'Share Tech Mono, monospace' };
 const raj = { fontFamily: 'Rajdhani, sans-serif' };

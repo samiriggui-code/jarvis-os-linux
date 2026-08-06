@@ -14,8 +14,9 @@ import {
   type OrchestratorState,
   type SceneStep,
 } from '../../engine/experienceOrchestrator';
-import { authLogin, getEnrollPin, getLastUsername } from '../../bridge/authClient';
+import { authLogin, getEnrollPin } from '../../bridge/authClient';
 import { runFaceVerifyLive } from '../../bridge/faceAuthLive';
+import { getCoreClient } from '../../bridge/coreClient';
 import { isCoreOnline } from '../CoreBridge';
 
 /* ─── Fonts ─────────────────────────────────────────────────────────────────── */
@@ -57,14 +58,18 @@ export function LockScene({ onUnlock }: Props) {
   const coreUnlock = useCallback(async (meta: { method: string; pin?: string; user_id?: string; username?: string }) => {
     try {
       const res = await authLogin({
-        username: meta.username || getLastUsername() || undefined,
+        username: meta.username || undefined,
         user_id: meta.user_id,
         pin: meta.pin,
         method: meta.method,
         confidence: meta.pin ? 1 : 0.95,
       });
       if (!res.ok) return false;
-      unlockRef.current({ method: meta.method, user: res.event?.user });
+      unlockRef.current({ method: meta.method, user: res.event?.user, cinematic: false });
+      // Voix de reprise — APRÈS login, avec le bon profil (monsieur / prénom enfant).
+      try {
+        getCoreClient().send({ type: 'auth', action: 'sequence_start', sequence: 'unlock' });
+      } catch { /* */ }
       onUnlock?.();
       return true;
     } catch {
@@ -79,6 +84,12 @@ export function LockScene({ onUnlock }: Props) {
     aliveRef.current = true;
     if (orchRef.current) return;
 
+    // Pas de sequence_start ici.
+    // · unlock trop tôt → mauvais prénom (Inès) sans session active
+    // · lock ici → « à bientôt » rejoué à chaque refresh soft-lock
+    // Lock : Core `_execute_hud` / sequence_start depuis lockSession.
+    // Unlock : après authLogin réussi (ci-dessous).
+
     const STEPS: SceneStep[] = [
       {
         id: 'lock_announce',
@@ -91,9 +102,19 @@ export function LockScene({ onUnlock }: Props) {
         pauseAfter: 220,
       },
       {
+        id: 'face_prompt',
+        hudText: 'SESSION VERROUILLÉE',
+        hudSubtext: 'Présence famille — reconnaissance',
+        voiceLine: 'Session verrouillée. Placez-vous face à la caméra.',
+        orbState: 'listening' as const,
+        avatarMode: 'listening' as const,
+        minDuration: 600,
+        pauseAfter: 200,
+      },
+      {
         id: 'face_scan',
         hudText: 'VÉRIFICATION IDENTITÉ',
-        hudSubtext: 'Restez immobile',
+        hudSubtext: 'Analyse faciale en cours',
         voiceLine: 'Scan biométrique en cours.',
         orbState: 'processing' as const,
         avatarMode: 'scanning' as const,
@@ -101,7 +122,9 @@ export function LockScene({ onUnlock }: Props) {
           if (!aliveRef.current) return;
           if (isCoreOnline()) {
             const result = await runFaceVerifyLive({
-              username: getLastUsername() || undefined,
+              // Pas de username : 1:N famille — fille / femme / belle-sœur
+              // peuvent reprendre la session au déverrouillage.
+              reason: 'unlock',
               isAlive: () => aliveRef.current,
               patchFace: (u) => {
                 if (u.progress !== undefined) setFaceProgress(u.progress);
@@ -111,7 +134,26 @@ export function LockScene({ onUnlock }: Props) {
               },
               speak: async (t) => { if (ttsEnabled) await speakDev(t); },
             });
-            if (!result.ok) throw new Error('face_reauth_failed');
+            if (!result.ok) {
+              // Pas de throw : PIN reste disponible. Présence absente ≠ échec permanent.
+              const noFace = result.reason === 'no_face' || result.reason === 'timeout' || result.reason === 'no_camera';
+              orchRef.current?.patchHud({
+                hudText: noFace ? 'PRÉSENCE REQUISE' : 'IDENTITÉ NON CONFIRMÉE',
+                hudSubtext: noFace
+                  ? 'Placez-vous face à la caméra, ou utilisez le PIN'
+                  : 'Réessayez ou utilisez le code PIN',
+              });
+              setPinMode(true);
+              await new Promise<void>((resolve) => {
+                const id = setInterval(() => {
+                  if (!aliveRef.current) {
+                    clearInterval(id);
+                    resolve();
+                  }
+                }, 250);
+              });
+              return;
+            }
             setFaceProgress(100);
             faceHitRef.current = {
               user_id: result.user_id,
@@ -134,10 +176,11 @@ export function LockScene({ onUnlock }: Props) {
         voiceLine: 'Identité confirmée. Session restaurée.',
         orbState: 'responding' as const,
         avatarMode: 'ok' as const,
-        minDuration: 800,
-        pauseAfter: 400,
+        minDuration: 600,
+        pauseAfter: 300,
         onComplete: () => {
           const stash = faceHitRef.current;
+          if (!stash?.user_id && !stash?.username) return;
           void coreUnlock({
             method: 'face_reauth',
             user_id: stash?.user_id,

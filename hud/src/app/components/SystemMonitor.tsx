@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
-import { Activity, Cpu, Database, Wifi, Thermometer, Zap } from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { Activity, Cpu, Database, HardDrive } from 'lucide-react';
+import {
+  useSystemMetrics,
+  formatUptime,
+  THREAT_COLORS,
+  THREAT_LABELS,
+} from '../bridge/systemMetrics';
 
 const orb = { fontFamily: 'Orbitron, sans-serif' };
 const mono = { fontFamily: 'Share Tech Mono, monospace' };
@@ -14,13 +20,15 @@ const glassPanel = {
   borderRadius: '12px',
 };
 
-function generate(base: number, variance: number) {
-  return Math.max(5, Math.min(99, base + (Math.random() - 0.5) * variance * 2));
-}
-
-function initData(base: number, variance: number) {
-  return Array(25).fill(0).map((_, i) => ({ t: i, v: generate(base, variance) }));
-}
+/**
+ * Plus aucun chiffre fabrique ici.
+ *
+ * Ce panneau tournait sur `generate(base, variance)` — une marche aleatoire
+ * autour d'une valeur choisie a la main. Les cartes RESEAU et GPU ont ete
+ * retirees plutot que rebranchees : le Core ne mesure ni l'un ni l'autre, et
+ * une jauge inventee coute la credibilite de celles qui disent vrai. Reste ce
+ * que `jarvis_core/metrics.py` sait reellement : CPU, memoire, disque.
+ */
 
 interface MetricCardProps {
   label: string;
@@ -88,41 +96,27 @@ function MetricCard({ label, value, unit, color, icon, data }: MetricCardProps) 
 }
 
 export function SystemMonitor() {
-  const [cpu, setCpu] = useState(() => initData(42, 18));
-  const [mem, setMem] = useState(() => initData(62, 12));
-  const [net, setNet] = useState(() => initData(35, 30));
-  const [gpu, setGpu] = useState(() => initData(28, 15));
-  const [temp, setTemp] = useState(54);
-  const [uptime, setUptime] = useState(14398);
+  const { metrics: sys, history, ready } = useSystemMetrics();
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const t = Date.now();
-      setCpu(p => [...p.slice(1), { t, v: generate(42, 18) }]);
-      setMem(p => [...p.slice(1), { t, v: generate(62, 12) }]);
-      setNet(p => [...p.slice(1), { t, v: generate(35, 30) }]);
-      setGpu(p => [...p.slice(1), { t, v: generate(28, 15) }]);
-      setTemp(generate(54, 4));
-      setUptime(s => s + 2);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fmtUptime = (s: number) => {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    return `${h}h ${m}m`;
-  };
+  const series = (key: 'cpu' | 'ram' | 'disk') =>
+    history.map((p, i) => ({ t: i, v: p[key] }));
 
   const metrics = [
-    { label: 'CPU', value: cpu[cpu.length - 1].v, unit: '%', color: '#00f5ff', icon: <Cpu className="w-3 h-3" />, data: cpu },
-    { label: 'MÉMOIRE', value: mem[mem.length - 1].v, unit: '%', color: '#a855f7', icon: <Database className="w-3 h-3" />, data: mem },
-    { label: 'RÉSEAU', value: net[net.length - 1].v, unit: '%', color: '#0ea5e9', icon: <Wifi className="w-3 h-3" />, data: net },
-    { label: 'GPU', value: gpu[gpu.length - 1].v, unit: '%', color: '#f59e0b', icon: <Zap className="w-3 h-3" />, data: gpu },
+    { label: 'CPU', value: sys?.cpu ?? 0, unit: '%', color: '#00f5ff',
+      icon: <Cpu className="w-3 h-3" />, data: series('cpu') },
+    { label: 'MÉMOIRE', value: sys?.ram ?? 0, unit: '%', color: '#a855f7',
+      icon: <Database className="w-3 h-3" />, data: series('ram') },
+    { label: 'DISQUE', value: sys?.disk ?? 0, unit: '%', color: '#0ea5e9',
+      icon: <HardDrive className="w-3 h-3" />, data: series('disk') },
   ];
 
-  const getHealthColor = (v: number) => v < 60 ? '#22c55e' : v < 80 ? '#f59e0b' : '#ef4444';
-  const overallHealth = Math.round((metrics.reduce((a, m) => a + m.value, 0) / metrics.length));
+  // Sante = l'indice de menace calcule par le Core (disque > RAM > CPU,
+  // + briques degradees). Pas une moyenne des jauges : une moyenne noie
+  // justement le disque plein sous trois valeurs calmes.
+  const level = sys?.threat_level ?? 'nominal';
+  const overallHealth = sys?.threat ?? 0;
+  const healthColor = ready ? THREAT_COLORS[level] : 'rgba(255,255,255,0.25)';
+  const getHealthColor = () => healthColor;
 
   return (
     <div className="flex flex-col h-full gap-3 overflow-hidden">
@@ -148,7 +142,7 @@ export function SystemMonitor() {
         className="rounded-xl p-3 flex items-center gap-4 flex-shrink-0"
         style={{
           background: 'rgba(0,8,20,0.5)',
-          border: `1px solid ${getHealthColor(overallHealth)}25`,
+          border: `1px solid ${getHealthColor()}25`,
         }}
       >
         <div className="relative w-12 h-12 flex-shrink-0">
@@ -157,34 +151,37 @@ export function SystemMonitor() {
             <motion.circle
               cx="24" cy="24" r="20"
               fill="none"
-              stroke={getHealthColor(overallHealth)}
+              stroke={getHealthColor()}
               strokeWidth="4"
               strokeLinecap="round"
               strokeDasharray={`${2 * Math.PI * 20}`}
               animate={{ strokeDashoffset: 2 * Math.PI * 20 * (1 - overallHealth / 100) }}
               transition={{ duration: 1, ease: 'easeOut' }}
-              style={{ filter: `drop-shadow(0 0 4px ${getHealthColor(overallHealth)})` }}
+              style={{ filter: `drop-shadow(0 0 4px ${getHealthColor()})` }}
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span style={{ ...orb, color: getHealthColor(overallHealth), fontSize: '10px' }}>
-              {Math.round(overallHealth)}
+            <span style={{ ...orb, color: getHealthColor(), fontSize: '10px' }}>
+              {ready ? Math.round(overallHealth) : '--'}
             </span>
           </div>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span style={{ ...raj, color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>Santé du système</span>
+          <span style={{ ...raj, color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>Menace système</span>
           <span style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: '10px' }}>
-            ACTIF : {fmtUptime(uptime)}
+            ACTIF : {ready && sys ? formatUptime(sys.uptime_s) : '--'}
           </span>
-          <div className="flex items-center gap-2 mt-0.5">
-            <Thermometer className="w-3 h-3" style={{ color: '#f59e0b' }} />
-            <span style={{ ...mono, color: '#f59e0b', fontSize: '10px' }}>{Math.round(temp)}°C</span>
-          </div>
+          {/* Pas de temperature : psutil ne l'expose pas sous Windows, et le
+              NUC ne la remonte pas partout. Un capteur absent ne s'invente pas. */}
+          {ready && sys && sys.degraded > 0 && (
+            <span style={{ ...mono, color: '#f59e0b', fontSize: '10px' }}>
+              {sys.degraded} brique{sys.degraded > 1 ? 's' : ''} dégradée{sys.degraded > 1 ? 's' : ''}
+            </span>
+          )}
         </div>
         <div className="ml-auto">
-          <span style={{ ...raj, color: getHealthColor(overallHealth), fontSize: '12px' }}>
-            {overallHealth < 60 ? 'OPTIMAL' : overallHealth < 80 ? 'MODÉRÉ' : 'CHARGE ÉLEVÉE'}
+          <span style={{ ...raj, color: getHealthColor(), fontSize: '12px' }}>
+            {ready ? THREAT_LABELS[level] : 'EN ATTENTE'}
           </span>
         </div>
       </div>
@@ -203,21 +200,22 @@ export function SystemMonitor() {
       >
         <div className="flex items-center justify-between mb-2">
           <span style={{ ...mono, color: 'rgba(0,245,255,0.6)', fontSize: '10px' }}>PROCESSUS PRINCIPAUX</span>
+          <span style={{ ...mono, color: 'rgba(255,255,255,0.25)', fontSize: '9px' }}>MÉMOIRE</span>
         </div>
-        {[
-          { name: 'jarvis-core.exe', cpu: 12.4, mem: 842 },
-          { name: 'neural-net.dll', cpu: 8.1, mem: 1240 },
-          { name: 'voice-engine', cpu: 4.2, mem: 256 },
-          { name: 'render-host', cpu: 3.8, mem: 512 },
-        ].map(p => (
+        {/* Vrais processus, classes par memoire (cf. metrics.top_processes).
+            La liste precedente etait inventee — « neural-net.dll a 8,1 % » —
+            et c'est ce genre de detail qui trahit une maquette. */}
+        {(sys?.processes ?? []).map(p => (
           <div key={p.name} className="flex items-center justify-between py-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <span style={{ ...mono, color: 'rgba(255,255,255,0.5)', fontSize: '9px' }}>{p.name}</span>
-            <div className="flex gap-3">
-              <span style={{ ...mono, color: '#00f5ff', fontSize: '9px' }}>{p.cpu}%</span>
-              <span style={{ ...mono, color: '#a855f7', fontSize: '9px' }}>{p.mem}MB</span>
-            </div>
+            <span style={{ ...mono, color: '#a855f7', fontSize: '9px' }}>{p.mem_mb} Mo</span>
           </div>
         ))}
+        {!ready && (
+          <span style={{ ...mono, color: 'rgba(255,255,255,0.25)', fontSize: '9px' }}>
+            en attente du Core…
+          </span>
+        )}
       </div>
     </div>
   );

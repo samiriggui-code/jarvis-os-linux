@@ -39,7 +39,7 @@ apps:
     risque: info
     intention: core.holomat
     execute_par: core
-    declencheurs: [holomat, vision, gestes, caméra]
+    declencheurs: [holomat, vision, gestes, caméra, camera, webcam, visuel, visuels, montre la caméra, montre la camera, ce que tu vois, flux caméra, flux camera, caméra lg, camera lg, thinq, donne-moi un visuel, donne moi un visuel]
   - id: security
     nom: Sécurité
     statut: surface
@@ -49,7 +49,7 @@ apps:
     declencheurs: [sécurité, policy, auth]
   - id: network
     nom: Réseau
-    statut: surface
+    statut: soon
     risque: info
     intention: system.network
     execute_par: core
@@ -81,17 +81,17 @@ apps:
     risque: info
     intention: web.search
     execute_par: hermes
-    declencheurs: [internet, agent-reach, agent reach, recherche web, cherche, github, youtube, reddit, rss, openclaw]
+    declencheurs: [internet, agent-reach, agent reach, recherche web, cherche, trouve, propose, recherche, nouvelles, actualité, actualites, actualités, cherche sur internet, cherche sur le web, cherche sur youtube, cherche sur github, github, youtube, reddit, rss, openclaw]
   - id: docker
     nom: Docker
-    statut: surface
+    statut: soon
     risque: vps
     intention: vps.docker
     execute_par: hermes
     declencheurs: [docker, conteneur, containers]
   - id: code
     nom: VS Code
-    statut: surface
+    statut: soon
     risque: vps
     intention: vps.code
     execute_par: device
@@ -105,7 +105,7 @@ apps:
     declencheurs: [analyse, stats, données]
   - id: storage
     nom: Stockage
-    statut: surface
+    statut: soon
     risque: vps
     intention: vps.storage
     execute_par: hermes
@@ -126,7 +126,7 @@ apps:
     declencheurs: [tokens, quota]
   - id: objectifs
     nom: Objectifs
-    statut: surface
+    statut: soon
     risque: info
     intention: core.missions
     execute_par: core
@@ -140,14 +140,14 @@ apps:
     declencheurs: [skills, compétences]
   - id: connexions
     nom: Connexions
-    statut: surface
+    statut: soon
     risque: info
     intention: devices.list
     execute_par: device
     declencheurs: [connexions, entités]
   - id: reseau
     nom: Topologie
-    statut: surface
+    statut: soon
     risque: info
     intention: devices.topology
     execute_par: device
@@ -180,12 +180,68 @@ apps:
     intention: agent.tools
     execute_par: hermes
     declencheurs: [outils, tools, tool manager]
+  - id: hud-lock
+    nom: Verrouiller
+    statut: live
+    risque: info
+    intention: hud.lock
+    execute_par: core
+    declencheurs: [verrouille, verrouiller, verrouille la session, verrouillage, lock session, verrouille-toi]
+  - id: hud-idle
+    nom: Veille
+    statut: live
+    risque: info
+    intention: hud.idle
+    execute_par: core
+    declencheurs: [mode veille, mets-toi en veille, met toi en veille, veille, repos, standby]
+  - id: hud-close
+    nom: Fermer espace
+    statut: live
+    risque: info
+    intention: hud.close_space
+    execute_par: core
+    declencheurs: ["ferme l'espace", ferme les espaces, ferme la fenêtre, ferme les fenêtres, ferme tout, ferme l espace, close space, "ferme l'application"]
+  - id: hud-mute
+    nom: Mute
+    statut: live
+    risque: info
+    intention: hud.mute
+    execute_par: core
+    declencheurs: [coupe le son, coupe le micro, mute, mets en sourdine, silence, "ne m'écoute plus"]
+  - id: hud-unmute
+    nom: Unmute
+    statut: live
+    risque: info
+    intention: hud.unmute
+    execute_par: core
+    declencheurs: [remets le son, allume le micro, unmute, réactive le micro, écoute-moi, remets le micro]
+  - id: hud-camera-on
+    nom: Caméra on
+    statut: live
+    risque: info
+    intention: hud.camera_on
+    execute_par: core
+    declencheurs: [allume la caméra, allume la camera, ouvre la caméra, active la caméra, réveille la caméra]
+  - id: hud-camera-off
+    nom: Caméra off
+    statut: live
+    risque: info
+    intention: hud.camera_off
+    execute_par: core
+    declencheurs: [coupe la caméra, coupe la camera, éteins la caméra, ferme la caméra, arrête la caméra]
+  - id: hud-enroll
+    nom: Enrôlement
+    statut: live
+    risque: admin
+    intention: hud.enroll
+    execute_par: core
+    declencheurs: [enrôle, enrole, enrôler, enroler, inscris, inscrit, nouvel utilisateur, nouveau profil, ajoute un profil, enrollment, enrôlement, enrolement, family enroll, inscris ma, inscris mon, ajoute ma, ajoute mon]
   - id: home
     nom: Maison
     statut: surface
     risque: home
     intention: home.control
-    execute_par: hermes
+    execute_par: core
     declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant]
   - id: music
     nom: Musique

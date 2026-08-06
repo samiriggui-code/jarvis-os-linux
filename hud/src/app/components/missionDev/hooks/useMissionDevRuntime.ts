@@ -30,7 +30,9 @@ export function useMissionDevRuntime(
   scenario: string | null,
   advanceMissionDevStep: (id: string, status: MissionDevStepStatus) => void,
   addMessage: AddMessage,
-  onHandoffToCursor?: (projectName: string) => void,
+  // Non optionnel : un parametre optionnel ne peut pas preceder un requis.
+  // Les appelants passent deja les deux positionnellement.
+  onHandoffToCursor: ((projectName: string) => void) | undefined,
   /** true une fois la mission ouverte et le start envoyé */
   active: boolean,
 ) {
@@ -97,7 +99,7 @@ export function useMissionDevRuntime(
     }
     client.sendMissionDev('start', {
       scenario: scenario || 'cursor',
-      project_name: projectName || 'HoloControl',
+      project_name: projectName || undefined,
     });
     setCoreDriven(true);
     return () => {
@@ -140,7 +142,7 @@ export function useMissionDevRuntime(
     };
     const onFinished = (data: Record<string, unknown>) => {
       const ok = data.ok !== false;
-      const name = String(data.project_name || projectName || 'HoloControl');
+      const name = String(data.project_name || projectName || 'projet');
       if (!ok) {
         addMsgRef.current({
           type: 'ai',
@@ -201,7 +203,7 @@ export function useMissionDevRuntime(
     const names = steps.filter(s => s.status === 'done').map(s => s.label);
     addMsgRef.current({
       type: 'ai',
-      text: `Mission terminée. Projet ${projectName || 'HoloControl'}. Voici ce qui a été créé.`,
+      text: `Mission terminée. Projet ${projectName || 'projet'}. Voici ce qui a été créé.`,
       source: 'core',
     });
 
@@ -215,7 +217,7 @@ export function useMissionDevRuntime(
           timers.push(window.setTimeout(() => {
             if (handoffDone.current) return;
             handoffDone.current = true;
-            onHandoffRef.current?.(projectName || 'HoloControl');
+            onHandoffRef.current?.(projectName || 'projet');
           }, 1200));
           return;
         }

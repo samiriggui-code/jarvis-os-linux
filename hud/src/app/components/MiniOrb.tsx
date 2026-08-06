@@ -26,16 +26,19 @@ export function MiniOrb({ corner = 'right' }: { corner?: 'left' | 'right' }) {
       animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
       exit={{ opacity: 0, scale: 1.6, x: sign * 120, y: -100 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
-      className={`absolute bottom-2 ${corner === 'left' ? 'left-2' : 'right-2'} flex flex-col items-center select-none`}
-      style={{ zIndex: 90, width: 130, cursor: canDrag ? 'grab' : 'default' }}
+      className={`absolute bottom-3 ${corner === 'left' ? 'left-3' : 'right-3'} flex flex-col items-center select-none overflow-visible`}
+      style={{ zIndex: 90, width: 140, cursor: canDrag ? 'grab' : 'default' }}
       title="JARVIS — dis « Jarvis » pour commander"
     >
-      <div style={{ width: 120, height: 120, filter: `drop-shadow(0 0 18px ${meta.color}50)` }}>
+      <div
+        className="overflow-visible"
+        style={{ width: 112, height: 112, filter: `drop-shadow(0 0 14px ${meta.color}45)` }}
+      >
         <Orb
           state={orbState}
           volume={volume}
           playbackVolume={playbackVolume}
-          size="sm"
+          size={112}
         />
       </div>
       <div

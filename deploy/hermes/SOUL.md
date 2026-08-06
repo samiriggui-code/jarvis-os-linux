@@ -33,7 +33,8 @@ VPS ≠ NUC ≠ Windows ≠ TV/HA. Skill `ecosystem-hosts` : lancer l’app sur 
 
 Skill `agent-reach` : couche fetch (web, GitHub, YouTube, Reddit, X, RSS…).
 Hermes délègue la récupération, filtre, puis synthétise via le LLM.
-Ce n’est **pas** un cerveau — vendor `Agent-Reach-main`, jamais mergé dans Core.
+Ce n’est **pas** un cerveau — paquet amont épinglé dans `core/requirements.txt`,
+appelé en CLI, jamais mergé dans Core.
 
 ## Foyer & profils
 

@@ -37,10 +37,10 @@ Point de départ produit : [eadmin2/jarvis_ai](https://github.com/eadmin2/jarvis
 
 | Conservé du dépôt original | Personnalisé / remplacé |
 |---|---|
-| Hermes Agent, mémoire, skills, tools | **HUD** → React propriétaire (maquette `vendor/figma1`, §3) |
+| Hermes Agent, mémoire, skills, tools | **HUD** → React propriétaire + moteur Agentic UI (`@jarvis/ui`, §3 / §3.6) |
 | Pipeline voix, Whisper, TTS, WebSocket | **Dashboard** → React propriétaire (maquette `vendor/figma2`, §13.7) |
 | Sessions Hermes, contrôle d'actions, idées wizard | Setup Center React déjà amorcé (`setup/`, §5) |
-| Contrat API / événements Core ↔ UI | Holomat Engine, Tool Manager, agents multi-machines, profils & auth multi-facteurs |
+| Contrat API / événements Core ↔ UI | Holomat Engine, Tool Manager, agents multi-machines, profils & auth multi-facteurs ; flux `UIEvent` surface (§3.6) |
 
 Le fonctionnement JARVIS reste le même (micro → STT → Hermes → outils → TTS → UI). Seule la **peau** change : les fronts `jarvis_ai` (HUD vanilla + dashboard embarqué) ne sont **pas** le code produit.
 
@@ -308,19 +308,21 @@ Ce choix apporte ce que le Qt/QML promettait, plus simplement :
 Le HUD est le visage de JARVIS. Responsabilités d'**affichage** :
 
 - Orbe JARVIS personnalisée + animations holographiques
-- Fenêtres flottantes, panneaux multimédias, launcher, widgets
+- Surfaces dynamiques (panneaux, timelines, graphes, terminal) composées via le moteur Agentic UI (§3.6)
 - Conversation temps réel, notifications, affichage des actions Hermes
 - Avatar holographique : texte dialogue, lip-sync, effets (events Voice Manager §3.4)
 - Contrôle gestuel (réception d'événements Holomat, §6.8)
 - Paramètres **expérience** utilisateur (thème, orbe, notifications, calibrage Holomat) — frontière Settings : skill `settings-split`
 
-**Règle** : le HUD ne contient **aucune** logique métier. Il consomme les événements du Core et décide des animations.
+**Règle** : le HUD ne contient **aucune** logique métier. Il consomme le **flux d'événements UI** du Core (§3.6) et décide du rendu / des animations. Il ne reçoit ni JSX, ni pages prédéfinies par agent.
 
-Exemple : Hermes annonce « Je lance Plex » → le Core émet des commandes → le HUD anime l'orbe, ouvre un panneau Plex, affiche une notification.
+Exemple : Hermes annonce « Je lance Plex » → le Core diffuse `COMPONENT_CREATE` / `COMPONENT_STATE` → le Composition Engine matérialise panneau + orbe via `@jarvis/ui`.
+
+> **Interdit** : une page React fixe par agent (`Vision.tsx`, `Mission.tsx`…). Un nouvel agent demande des **composants du registre**, pas une nouvelle route.
 
 ### 3.2 États de l'orbe
 
-L'orbe représente l'état interne de JARVIS. Le Core pousse un état ; le HUD choisit l'animation.
+L'orbe est un **composant du registre** `@jarvis/ui` (`Orb`) — cœur visuel du système. Son état suit le flux Agentic UI (§3.6) ; le HUD choisit l'animation.
 
 | État | Signification |
 |---|---|
@@ -332,13 +334,19 @@ L'orbe représente l'état interne de JARVIS. Le Core pousse un état ; le HUD c
 | `gesture` | Commande gestuelle détectée |
 | `error` | Erreur système |
 
-Exemple d'événement Core → HUD :
+Contrat cible (événement de surface) :
+
+```json
+{ "type": "COMPONENT_STATE", "id": "orb-core", "state": "thinking" }
+```
+
+Alias de transition (tant que le bus WS n'émet pas encore le protocole §3.6) :
 
 ```json
 { "command": "set_orb_state", "state": "thinking", "message": "Analyse en cours" }
 ```
 
-(États historiques `standby` / `analyzing` / `action` restent acceptés en alias vers `idle` / `thinking` / `tool_call` tant que le contrat WS n'est pas figé.)
+(États historiques `standby` / `analyzing` / `action` → alias `idle` / `thinking` / `tool_call`.)
 
 ### 3.3 Dashboard React — module admin du HUD (pas une app séparée)
 
@@ -501,9 +509,75 @@ Classe `ExperienceOrchestrator` (`src/app/engine/experienceOrchestrator.ts`) :
 
 Quand le Core réel sera branché (WebSocket), les `onEnter`/`onComplete` seront remplacés par des handlers d'events WS : `ws.on('face_scan_complete', () => orch.advance())` au lieu du timer.
 
-> **Point ouvert** : protocole exact Core → Orchestrator (push d'event WS vs polling) ; gestion des timeouts (que faire si `face_scan_complete` ne vient jamais ?).
+> **Point ouvert** : protocole exact Core → Orchestrator (push d'event WS vs polling) ; gestion des timeouts (que faire si `face_scan_complete` ne vient jamais ?). Convergence avec le flux `UIEvent` du §3.6 (les steps Auth deviennent des beats sur la surface, pas un second protocole parallèle).
 
-#### Substitution de développement — Windows Speech Synthesis (Cortana FR)
+### 3.6 Agentic UI — Option B (décision tranchée)
+
+**Décision** : adopter la **logique de communication** inspirée d'AG-UI / A2UI (protocole événementiel + surface dynamique), **sans** utiliser leur renderer. Le rendu, les composants, les animations et le moteur d'interface restent **entièrement propriétaires** JARVIS (`hud/src/ui/` — package logique `@jarvis/ui`).
+
+Inspirations retenues **comme concepts** uniquement : AG-UI / A2UI (protocole), CopilotKit (Agent → UI), React Flow (nœuds), shadcn (composabilité), design systems modernes, logique visuelle type Blueprint / Figma Components. **Pas** de dépendance runtime à ces stacks pour le renderer.
+
+#### Chaîne cible
+
+```
+Agent (Hermes / outils)
+        ↓
+Flux d'événements UI  (Protocol Layer)
+        ↓
+Surface Model         (état plat, indexé par id)
+        ↓
+Composition Engine    (régions, priorité, entrée/sortie)
+        ↓
+@jarvis/ui            (registre Zod + composants)
+        ↓
+Renderer JARVIS       (React · Canvas/WebGL · springs · holo)
+        ↓
+HUD kiosque
+```
+
+#### Principes non négociables
+
+| Règle | Conséquence |
+|---|---|
+| Un agent **ne génère pas** de page / JSX / DOM | Il diffuse des intentions sérialisables |
+| Surface **plate** indexée par id | Pas d'arbre React imbriqué côté modèle |
+| Mises à jour **incrémentales** | `STATE_DELTA` / patch JSON Pointer — jamais reconstruire toute l'UI |
+| Catalogue machine-readable | L'IA découvre les composants via le registre, compose sans code |
+| Intent utilisateur → Policy | `UserIntent` porte une gravité (`info` < `media` < `home` < `admin`) ; exécution seulement après Policy (§6.10) |
+
+#### Couches
+
+1. **Agent Layer** — raisonnement, outils, décisions. Ne manipule jamais l'UI directement.
+2. **Protocol Layer** — grammaire AG-UI-like : `RUN_*`, `TEXT_MESSAGE_*`, `TOOL_CALL_*`, `STATE_SNAPSHOT` / `STATE_DELTA`, plus événements **propres JARVIS** : `SURFACE_SNAPSHOT`, `COMPONENT_CREATE` / `UPDATE` / `STATE` / `DELETE`.
+3. **Surface Model** — composants présents, états, relations (enfants par id), données partagées.
+4. **Composition Engine** — transforme les descriptions en placement (régions `top|left|center|right|bottom|overlay|backdrop`), motion d'entrée/sortie, abonnements granulaires.
+5. **Renderer JARVIS** — React + Three/WebGL/shaders/transitions holographiques ; seul propriétaire du pixel.
+
+#### Registre `@jarvis/ui`
+
+Chaque composant déclare : schéma Zod, props, états, profils d'animation, événements. Exemples cibles : `Orb`, `HoloPanel`, `GlassPanel`, `AgentCard`, `AgentNode`, `NeuralGraph`, `VoiceVisualizer`, `DataStream`, `HUDWindow`, `Terminal`, `MissionTimeline`, `CommandPalette`, `NotificationCenter`, `StatusRing`, `ParticleField`, `AmbientField`…
+
+L'agent ne « code » pas une interface ; il demande une composition (`Orb` + `Timeline` + `Graph` + `Terminal` + `VisionPanel`) et le moteur l'assemble.
+
+#### Boot cinematic
+
+Voyage **depuis zéro** — une matière (l'orbe), cinq actes inspirés GetLayers
+([solaris](https://www.getlayers.ai/?layer=solaris) → [sphere](https://www.getlayers.ai/?layer=sphere) → [magic](https://www.getlayers.ai/?layer=magic) → [vesper](https://www.getlayers.ai/?layer=vesper) → [new-era](https://www.getlayers.ai/?layer=new-era)),
+puis AuthScene (checklist + voix). Code : `hud/src/ui/boot/OrbVoyage.tsx`. Skip : clic / `?boot=0`. Lab : `?boot=lab`.
+
+#### État d'implémentation (code)
+
+Présent sous `hud/src/ui/` : protocole, Surface Model, JSON Patch, registry Zod, Composition Engine (`SurfaceView` / `ComponentHost` / `NodeShell`), bibliothèque partielle, `BootGate` / `BootScene`.
+
+Encore à brancher :
+
+- chemin live du HUD (remplacer les panneaux impératifs d'`App.tsx` par la surface)
+- émission Core / Hermes du flux `UIEvent` (plus seulement `set_orb_state`)
+- injection du catalogue registre dans le contexte agent
+- pont Intent → Policy Engine
+- alignement Experience Orchestrator (§3.5) sur les mêmes beats
+
+> **Point ouvert** : transport exact WS (enveloppe unique `ui_event` vs multiplex avec le bus actuel) ; vocabulaire d'états Orb (`tool_call` cahier vs `executing` registre) — figer une table d'alias unique.
 
 En phase de dev (pas de `jarvis-voice` encore câblé), le Voice Manager peut être **stubbé** par un pont vers la synthèse vocale Windows (`SpeechSynthesis` API du navigateur ou `pyttsx3` côté Python — accède aux voix Windows installées, dont la voix FR de Cortana / Hortense).
 
@@ -592,9 +666,11 @@ JARVIS Core démarre (sert le HUD)
         ↓
 Session kiosque : navigateur plein écran → HUD React
         ↓
-Micro actif
+Cinématique galaxie → orbe JARVIS (§3.6)
         ↓
-"Jarvis..."
+Boot AuthScene — orbe mini + checklist + voix (§3.5)
+        ↓
+Auth → HUD
 ```
 
 ### Modèle d'intégration OS — couches systemd (héritage de l'étude KDE)
@@ -2090,7 +2166,9 @@ Modules (une fois autorisé) :
 
 ### 13.8 HUD universel — composants
 
-Le HUD (stack décidée au §3 : webapp React servie par Hermes) se décline sur tout appareil doté d'un écran et d'un navigateur, avec ces composants :
+Le HUD (stack décidée au §3 : webapp React servie par Hermes) se décline sur tout appareil doté d'un écran et d'un navigateur. Les briques UI vivent dans le **registre `@jarvis/ui`** et sont composées par le moteur Agentic UI (§3.6) — pas comme pages React figées par agent.
+
+Catalogue produit (cible) :
 
 - **Orbe JARVIS** — états : `idle`, `listening`, `thinking`, `tool_call`, `speaking`, `gesture`, `error` (§3.2)
 - **App Launcher** — Terminal, Plex, VLC, caméra, fichiers, monitoring, Home Assistant, IA
@@ -2098,7 +2176,8 @@ Le HUD (stack décidée au §3 : webapp React servie par Hermes) se décline sur
 - **Media Center** — Plex, YouTube, TV
 - **Smart Home** — contrôle Home Assistant
 - **Monitoring** — CPU, RAM, services, réseau
-- **Widgets / panneaux multimédias** — portés depuis l'idée des plugins HUD de `jarvis_ai` (`hud_display`), réimplémentés en React
+- **Widgets / panneaux multimédias** — portés depuis l'idée des plugins HUD de `jarvis_ai` (`hud_display`), réimplémentés en composants registre
+- **Surfaces agentiques** — `HoloPanel`, `AgentCard`, `MissionTimeline`, `NeuralGraph`, `DataStream`, `CommandPalette`, `NotificationCenter`, `StatusRing`… (liste évolutive via le registre)
 
 Le passage au HUD web (§3) règle la question des appareils secondaires : tablette Android, PC Windows ou TV affichent la même webapp React dans leur navigateur (ou une WebView plein écran fournie par l'agent local) — aucune déclinaison native par plateforme à maintenir.
 
@@ -2123,11 +2202,13 @@ Le passage au HUD web (§3) règle la question des appareils secondaires : table
 
 ### 13.9 Communication
 
-Tout passe par l'API WebSocket/REST de Hermes (`api/`, §13.1). Format de commande :
+Tout passe par l'API WebSocket/REST de Hermes (`api/`, §13.1). Format de commande (routage multi-appareils) :
 
 ```json
 { "source": "tablette_fille", "target": "tv_salon", "action": "launch", "service": "youtube" }
 ```
+
+Le flux **Agentic UI** (§3.6) emprunte le même canal : événements `UIEvent` sérialisables (`COMPONENT_*`, `STATE_DELTA`, `RUN_*`…). Le HUD n'interprète que ce protocole pour composer la surface — jamais du markup généré par l'agent.
 
 Réponse :
 

@@ -7,7 +7,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCoreClient } from '../../bridge/coreClient';
-import { ensureCamera, getCameraStream } from '../../bridge/mediaDevices';
+import { acquireCamera, getCameraStream, releaseCamera } from '../../bridge/mediaDevices';
 
 const FRAME_MS = 280;
 const JPEG_Q = 0.7;
@@ -70,18 +70,23 @@ export function FaceCamPanel({
   /* ── Caméra ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
     let cancelled = false;
+    /** Ce panneau détient-il la caméra ? Rendue au démontage, jamais avant. */
+    let held = false;
     setCamError('');
     setCamLive(false);
     setStatus('Demande accès caméra…');
 
     (async () => {
       try {
+        held = true;
         let stream = getCameraStream();
         const live = stream?.getVideoTracks().some(t => t.readyState === 'live');
-        if (!live) stream = (await ensureCamera()) || null;
-        if (!stream) {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        }
+        // ⚠ Plus de `getUserMedia` brut en dernier recours ici. Il produisait
+        // un flux INCONNU de `mediaDevices` : ni `stopCamera` ni l'arbitrage
+        // ne pouvaient l'éteindre, et la webcam restait allumée sans qu'aucun
+        // compteur ne le sache. `acquireCamera` a déjà son propre repli
+        // permissif quand les contraintes idéales sont refusées.
+        if (!live) stream = (await acquireCamera('auth')) || null;
         if (cancelled || !stream) return;
         const v = videoRef.current;
         if (!v) return;
@@ -109,6 +114,10 @@ export function FaceCamPanel({
 
     return () => {
       cancelled = true;
+      if (held) {
+        held = false;
+        releaseCamera('auth');
+      }
     };
   }, [retry, active]);
 

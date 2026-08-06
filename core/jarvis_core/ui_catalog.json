@@ -1,0 +1,1037 @@
+{
+  "version": 1,
+  "generated_from": "hud/src/agentic/registry/definitions.ts",
+  "components": [
+    {
+      "name": "SystemMonitor",
+      "description": "Moniteur système temps réel : processeur, mémoire, disque et réseau avec leurs courbes. À utiliser pour toute question sur la charge, les performances ou la santé de la machine.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "normal",
+      "priority": 50,
+      "tags": [
+        "cpu",
+        "mémoire",
+        "disque",
+        "réseau",
+        "performance",
+        "charge"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "MemoryPanel",
+      "description": "Mémoire de JARVIS : ce qu'il a retenu du foyer, consultable et effaçable. À utiliser quand la question porte sur ce que JARVIS sait ou a mémorisé.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "memory.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "normal",
+      "priority": 40,
+      "tags": [
+        "mémoire",
+        "souvenir",
+        "historique",
+        "appris"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "CommandConsole",
+      "description": "Console de commandes — la conversation texte avec l'orchestrateur, et le flux des actions en cours. À utiliser pour montrer ce que le système est en train de faire.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "console.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "right",
+      "preferredSize": "normal",
+      "priority": 45,
+      "tags": [
+        "console",
+        "commande",
+        "journal",
+        "conversation"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "CameraPreview",
+      "description": "Aperçu vidéo de la caméra, en direct. À utiliser quand la question porte sur ce que JARVIS voit, sur le cadrage, ou pour diagnostiquer la reconnaissance du visage et des gestes.",
+      "category": "media",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "camera.read"
+      ],
+      "requiredContext": [
+        "camera"
+      ],
+      "supportedActions": {},
+      "preferredRegion": "right",
+      "preferredSize": "normal",
+      "priority": 55,
+      "tags": [
+        "caméra",
+        "vidéo",
+        "image",
+        "visage",
+        "voir",
+        "cadrage"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "mirrored": {
+            "default": true,
+            "description": "Image en miroir, comme un rétroviseur",
+            "type": "boolean"
+          },
+          "opacity": {
+            "default": 1,
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "mirrored",
+          "opacity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "GesturePanel",
+      "description": "État de la reconnaissance des gestes : main détectée, geste courant, confiance. À utiliser pour toute question sur les gestes qui ne passent pas ou qui se déclenchent tout seuls.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "camera.read"
+      ],
+      "requiredContext": [
+        "camera"
+      ],
+      "supportedActions": {},
+      "preferredRegion": "right",
+      "preferredSize": "normal",
+      "priority": 50,
+      "tags": [
+        "geste",
+        "gestes",
+        "main",
+        "détection",
+        "reconnaissance"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "VoiceBar",
+      "description": "Barre vocale : mot de réveil, écoute en cours, transcription. À utiliser quand la question porte sur ce que JARVIS a entendu ou sur le micro.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "voice.read"
+      ],
+      "requiredContext": [
+        "microphone"
+      ],
+      "supportedActions": {},
+      "preferredRegion": "bottom",
+      "preferredSize": "wide",
+      "priority": 60,
+      "tags": [
+        "voix",
+        "micro",
+        "écoute",
+        "transcription",
+        "mot de réveil",
+        "entendu"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ScanningPanel",
+      "description": "Panneau d'analyse en cours — ce que le système est en train d'examiner, avec sa progression. À utiliser pour montrer un travail long plutôt que de laisser l'écran muet.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 35,
+      "tags": [
+        "analyse",
+        "scan",
+        "progression",
+        "en cours",
+        "balayage"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "SettingsPanel",
+      "description": "Réglages du système : voix, mot de réveil, préférences. À utiliser quand la demande porte sur une configuration à consulter ou à changer.",
+      "category": "control",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "settings.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 30,
+      "tags": [
+        "réglages",
+        "paramètres",
+        "configuration",
+        "préférences"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ActionRequest",
+      "description": "Propose une action à l'utilisateur, sous forme de bouton. N'exécute rien : émet une intention que la Policy arbitre. À utiliser pour toute action que l'agent suggère plutôt qu'il n'effectue.",
+      "category": "control",
+      "states": [
+        "idle",
+        "pending",
+        "done",
+        "refused"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {
+        "*": "admin"
+      },
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 70,
+      "tags": [
+        "action",
+        "bouton",
+        "proposition",
+        "exécuter"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Ce que l'action fait, en une phrase"
+          },
+          "action": {
+            "type": "string",
+            "description": "Nom de l'action émise, ex. « service.restart »"
+          },
+          "detail": {
+            "description": "Précision facultative",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "action"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ApprovalCard",
+      "description": "Demande d'autorisation en attente. Affichée automatiquement par le Core quand la Policy exige une confirmation — un agent n'a pas à la composer lui-même.",
+      "category": "control",
+      "states": [
+        "pending",
+        "granted",
+        "denied"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {
+        "approval.grant": "info",
+        "approval.deny": "info"
+      },
+      "preferredRegion": "top",
+      "preferredSize": "wide",
+      "priority": 100,
+      "tags": [
+        "autorisation",
+        "approbation",
+        "policy",
+        "confirmation"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "approvalId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "gravity": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalId",
+          "action",
+          "gravity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ResultPanel",
+      "description": "Panneau de résultat textuel : titre, corps, liste optionnelle. À utiliser pour afficher une recherche web, un résumé d'actualité, la liste des outils disponibles, ou toute réponse structurée que l'utilisateur doit LIRE — pas seulement entendre.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 70,
+      "tags": [
+        "résultat",
+        "recherche",
+        "web",
+        "actualité",
+        "nouvelles",
+        "outils",
+        "capacités",
+        "résumé",
+        "texte",
+        "internet"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "Résultat",
+            "description": "Titre du panneau",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "description": "Texte principal (résumé, réponse)",
+            "type": "string"
+          },
+          "source": {
+            "default": "",
+            "description": "Source courte, ex. web.search",
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "description": "Puces optionnelles",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "body",
+          "source",
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "SectionHeader",
+      "description": "Titre de section + sous-titre. Structure une surface sans carte lourde.",
+      "category": "layout",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "top",
+      "preferredSize": "wide",
+      "priority": 90,
+      "tags": [
+        "section",
+        "titre",
+        "layout",
+        "hub"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "SECTION",
+            "type": "string"
+          },
+          "subtitle": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "subtitle"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "StatCard",
+      "description": "Indicateur chiffré (CPU, tokens, uptime). Une valeur, une unité, un ton.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "compact",
+      "priority": 60,
+      "tags": [
+        "stat",
+        "métrique",
+        "kpi",
+        "nombre",
+        "card"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "default": "STAT",
+            "type": "string"
+          },
+          "value": {
+            "default": "—",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "unit": {
+            "default": "",
+            "type": "string"
+          },
+          "tone": {
+            "default": "cyan",
+            "type": "string"
+          },
+          "hint": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value",
+          "unit",
+          "tone",
+          "hint"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "InfoCard",
+      "description": "Carte texte courte (titre + corps). Pour expliquer un état sans monologue TTS.",
+      "category": "layout",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 55,
+      "tags": [
+        "card",
+        "info",
+        "explication"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "Info",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "body"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "StatusBadge",
+      "description": "Pastille d’état (ok / warn / down). À coller près d’un service ou d’un hôte.",
+      "category": "feedback",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "top",
+      "preferredSize": "compact",
+      "priority": 80,
+      "tags": [
+        "badge",
+        "status",
+        "état",
+        "pill"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "default": "",
+            "type": "string"
+          },
+          "status": {
+            "default": "unknown",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "AvatarChip",
+      "description": "Avatar initiales + nom + rôle (foyer, agent, hôte).",
+      "category": "identity",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "compact",
+      "priority": 50,
+      "tags": [
+        "avatar",
+        "identité",
+        "user",
+        "profil"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "default": "?",
+            "type": "string"
+          },
+          "initials": {
+            "default": "",
+            "type": "string"
+          },
+          "role": {
+            "default": "",
+            "type": "string"
+          },
+          "tone": {
+            "default": "cyan",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "initials",
+          "role",
+          "tone"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "LinkList",
+      "description": "Liste de liens cliquables (Google, docs, dashboards).",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "web.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {
+        "link.open": "info"
+      },
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 65,
+      "tags": [
+        "liens",
+        "url",
+        "liste",
+        "web"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "Liens",
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "KeyValueList",
+      "description": "Paires clé/valeur (config, diagnostic).",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "right",
+      "preferredSize": "normal",
+      "priority": 55,
+      "tags": [
+        "keyvalue",
+        "détails",
+        "config",
+        "tableau"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "Détails",
+            "type": "string"
+          },
+          "rows": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "title",
+          "rows"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "DataTable",
+      "description": "Tableau colonnes × lignes (services, projets, inventaire). Pas un data-grid Excel.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 70,
+      "tags": [
+        "table",
+        "datatable",
+        "grille",
+        "liste"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "Table",
+            "type": "string"
+          },
+          "columns": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "title",
+          "columns",
+          "rows"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "MetricChart",
+      "description": "Mini courbe (série numérique). Charge CPU, tokens, latence.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "right",
+      "preferredSize": "normal",
+      "priority": 60,
+      "tags": [
+        "chart",
+        "graphique",
+        "courbe",
+        "sparkline"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "default": "MÉTRIQUE",
+            "type": "string"
+          },
+          "series": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "tone": {
+            "default": "cyan",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "series",
+          "tone"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "DialogCard",
+      "description": "Dialogue confirm/cancel (hors Policy admin stricte — sinon ApprovalCard).",
+      "category": "control",
+      "states": [
+        "idle",
+        "resolved"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {
+        "dialog.confirm": "info",
+        "dialog.cancel": "info"
+      },
+      "preferredRegion": "overlay",
+      "preferredSize": "normal",
+      "priority": 95,
+      "tags": [
+        "dialog",
+        "modal",
+        "confirm",
+        "annuler"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "dialogId": {
+            "default": "",
+            "type": "string"
+          },
+          "title": {
+            "default": "Confirmer",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "type": "string"
+          },
+          "confirmLabel": {
+            "default": "Confirmer",
+            "type": "string"
+          },
+          "cancelLabel": {
+            "default": "Annuler",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dialogId",
+          "title",
+          "body",
+          "confirmLabel",
+          "cancelLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ToastStack",
+      "description": "Pile de toasts / sonner-like (messages courts empilés).",
+      "category": "feedback",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "overlay",
+      "preferredSize": "compact",
+      "priority": 85,
+      "tags": [
+        "toast",
+        "sonner",
+        "notification",
+        "feedback"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "tone": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ServiceHub",
+      "description": "HUB domaine : liste de services/hôtes avec statut (Core, Hermes, voicebox, Ollama…). Une brique = un tableau de bord local, pas 20 cartes.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 75,
+      "tags": [
+        "hub",
+        "services",
+        "statut",
+        "nuc",
+        "vps",
+        "superviseur"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "HUB SERVICES",
+            "type": "string"
+          },
+          "subtitle": {
+            "default": "",
+            "type": "string"
+          },
+          "services": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "title",
+          "subtitle",
+          "services"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@
  *
  * Le Core envoie :
  *   tts_audio     WAV base64 synthétisé par voicebox → on le joue ici
- *   tts_fallback  voicebox indisponible → SpeechSynthesis navigateur (ttsDev)
+ *   tts_fallback  voicebox indisponible → texte HUD seul (pas de voix OS)
  *   tts_skipped   rien à dire (TTS coupé, phrase vide, barge-in)
  *
  * On rend compte au Core avec `voice/playback` : c'est ce retour qui fait
@@ -13,7 +13,7 @@
  * sortie et synchro de l'orbe restent côté client, et le comportement est
  * identique en dev (Windows) et sur le NUC.
  */
-import { speakDev, stopDev, unlockAudio } from './ttsDev';
+import { stopDev, unlockAudio } from './ttsDev';
 
 type Send = (payload: Record<string, unknown>) => unknown;
 
@@ -118,37 +118,36 @@ async function playWav(payload: Record<string, unknown>, send: Send): Promise<vo
 
   audio.onended = finish;
   audio.onerror = () => {
-    console.warn('[tts-core] lecture WAV impossible — fallback navigateur');
+    console.warn('[tts-core] lecture WAV impossible — pas de fallback OS');
     if (current === audio) releaseCurrent();
-    void speakFallback(payload, send);
+    send({ type: 'voice', action: 'playback', phase: 'end', utterance_id: utteranceId });
   };
 
+  // Autoplay refusé : rejouer au 1er geste plutôt que basculer sur la voix OS.
   try {
     await audio.play();
     send({ type: 'voice', action: 'playback', phase: 'start', utterance_id: utteranceId });
   } catch (err) {
-    // Autoplay refusé : rejouer au 1er geste plutôt que perdre la phrase.
     if (!unlocked) {
       console.warn('[tts-core] audio verrouillé — lecture au 1er clic');
       pending = () => { void playWav(payload, send); };
       return;
     }
-    console.warn('[tts-core] play() refusé', err);
+    console.warn('[tts-core] play() refusé — pas de fallback SpeechSynthesis', err);
     if (current === audio) releaseCurrent();
-    await speakFallback(payload, send);
+    send({ type: 'voice', action: 'playback', phase: 'end', utterance_id: utteranceId });
   }
 }
 
 async function speakFallback(payload: Record<string, unknown>, send: Send): Promise<void> {
   const text = String(payload.text || '');
   const utteranceId = payload.utterance_id ? String(payload.utterance_id) : null;
-  if (!text.trim()) {
-    send({ type: 'voice', action: 'playback', phase: 'end', utterance_id: utteranceId });
-    return;
-  }
-  const lang = String(payload.language || 'fr') === 'en' ? 'en-US' : 'fr-FR';
-  send({ type: 'voice', action: 'playback', phase: 'start', utterance_id: utteranceId });
-  await speakDev(text, { lang, rate: 0.92, pitch: 0.85 });
+  // Pas de SpeechSynthesis navigateur : sur Windows/téléphone ça mélange une
+  // voix OS avec le cache voicebox JARVIS. Le texte reste à l'écran via le HUD.
+  console.warn(
+    '[tts-core] fallback navigateur ignoré (voix OS désactivée) ·',
+    text.slice(0, 80),
+  );
   send({ type: 'voice', action: 'playback', phase: 'end', utterance_id: utteranceId });
 }
 

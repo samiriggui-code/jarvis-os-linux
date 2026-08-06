@@ -26,7 +26,7 @@ Ollama écoute sur `127.0.0.1` uniquement, atteint par le tunnel.
 | Composant | Port | Service | État |
 |-----------|------|---------|------|
 | **jarvis-core** | 8765 | `jarvis-core.service` | ✅ existe |
-| **hermes-agent** | 8642 | `hermes-agent.service` | ❌ **service manquant** |
+| **hermes-agent** | 8642 | `jarvis-hermes.service` (`hermes-agent` alias) | ✅ unit + wrapper |
 | **PostgreSQL** | 5432 | `postgresql` | migration `001` prête |
 | **Home Assistant** | 8123 | conteneur / paquet | à installer |
 | **voicebox** (Whisper + TTS) | 17600 | `jarvis-voicebox.service` | ✅ existe |
@@ -231,16 +231,17 @@ répond toujours.
 | Le Core surveille tous les modules | ⚠ `supervisor.py` existe — sondes `hermes`, `voice`, `face` ; il manque HA, Postgres, Ollama |
 | Redémarrage auto | ✅ systemd `Restart=on-failure` — **ne pas doubler avec un Guardian** |
 | Safe Mode après 3 crashs | ❌ à faire — `StartLimitBurst=3` + `OnFailure=` le fait nativement |
-| Console Linux en dernier recours | ⚠ `jarvis.target` existe, mais **`hermes-agent.service` manque** |
+| Console Linux en dernier recours | ✅ `jarvis.target` + `jarvis-hermes` (alias `hermes-agent`) |
 | Notification téléphone | ❌ à faire |
 
-### Les cinq trous réels
+### Les trous réels restants
 
-1. **`hermes-agent.service`** — Hermes n'est pas un service systemd, donc au niveau −1 tu ne peux pas le redémarrer
-2. **`jarvis-dashboard.service`** — `dashboard/dist` arrive sur le NUC, rien ne le sert
-3. **`elevate_admin(recovery_pin)`** — caméra morte = PIN refusé, le niveau 0 est inaccessible
-4. **`DASHBOARD_ORIGIN` en dur** (`http://127.0.0.1:5174`) — en prod le `postMessage` sera rejeté **sans aucune erreur visible**
-5. **Registre d'outils** — la liste des URLs directes n'existe nulle part hors de Hermes
+1. **`jarvis-dashboard.service`** — `dashboard/dist` arrive sur le NUC, rien ne le sert
+2. **`elevate_admin(recovery_pin)`** — caméra morte = PIN refusé, le niveau 0 est inaccessible
+3. **`DASHBOARD_ORIGIN` en dur** (`http://127.0.0.1:5174`) — en prod le `postMessage` sera rejeté **sans aucune erreur visible**
+4. **Registre d'outils** — la liste des URLs directes n'existe nulle part hors de Hermes
 
-Le 3 est le plus urgent : sans lui, toute la hiérarchie de secours s'arrête au
+~~`hermes-agent.service`~~ — comblé : `deploy/systemd/jarvis-hermes.service` (alias `hermes-agent`).
+
+Le 2 est le plus urgent : sans lui, toute la hiérarchie de secours s'arrête au
 niveau 1.

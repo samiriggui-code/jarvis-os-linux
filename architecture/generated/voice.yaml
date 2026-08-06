@@ -7,9 +7,9 @@ version: 1
 voix_cache: jarvis
 domaines:
   - domaine: auth
-    evenements: 34
+    evenements: 35
     en_cache: 34
-    synthese_live: []
+    synthese_live: [face_no_profile]
   - domaine: boot
     evenements: 15
     en_cache: 15
@@ -35,9 +35,9 @@ domaines:
     en_cache: 46
     synthese_live: []
   - domaine: peripheriques
-    evenements: 16
+    evenements: 17
     en_cache: 16
-    synthese_live: []
+    synthese_live: [peripheral_audio_out_denied]
   - domaine: quotidien
     evenements: 40
     en_cache: 40
@@ -55,9 +55,9 @@ domaines:
     en_cache: 4
     synthese_live: []
   - domaine: session
-    evenements: 17
+    evenements: 19
     en_cache: 17
-    synthese_live: []
+    synthese_live: [session_goodbye, session_welcome_back]
   - domaine: systeme
     evenements: 18
     en_cache: 18

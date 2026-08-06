@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Layers, ShieldAlert } from 'lucide-react';
-import { useApp, OpenApp } from '../context/AppContext';
+import { useApp, type OpenApp } from '../context/AppContext';
 import { MiniOrb } from './MiniOrb';
 import { NeuralMap } from './hermes/NeuralMap';
 import { NodeDetailPanel } from './hermes/NodeDetailPanel';
@@ -9,6 +9,7 @@ import { HERMES_NODES, type NodeId } from './hermes/hermesNodes';
 import { getAppById, VPS_ALLOWLIST, riskLabel } from '../apps/catalog';
 import { MissionControlDev, CursorSurface } from './missionDev';
 import { SystemMonitor } from './SystemMonitor';
+import { AgentSurface } from '../../agentic/AgentSurface';
 
 const orbFont = { fontFamily: 'Orbitron, sans-serif' };
 const mono = { fontFamily: 'Share Tech Mono, monospace' };
@@ -18,11 +19,13 @@ function isHermesNodeId(id: string): id is Exclude<NodeId, 'hermes'> {
   return id !== 'hermes' && id in HERMES_NODES;
 }
 
-/** Surface Hermes / VPS — pas de faux shell root */
+/** Fenêtre d'attente d'une surface — pas de faux shell root */
 function HermesSurface({ app }: { app: OpenApp }) {
   const meta = getAppById(app.id);
   const vps = Boolean(meta?.vpsLimited);
-  const tool = meta?.hermesTool;
+  // L'intention, pas l'outil : le nom de l'exécutant n'a jamais sa place à l'écran.
+  const tool = meta?.intent;
+  const soon = meta?.status === 'soon';
 
   return (
     <div className="h-full flex flex-col p-5 gap-4 overflow-auto">
@@ -36,16 +39,31 @@ function HermesSurface({ app }: { app: OpenApp }) {
         <div className="min-w-0">
           <p style={{ ...raj, color: 'rgba(255,255,255,0.9)', fontSize: 18, margin: 0 }}>{app.name}</p>
           <p style={{ ...mono, color: `${app.color}cc`, fontSize: 10, marginTop: 4 }}>
-            {meta?.blurb || 'Piloté par Hermes'}
+            {soon
+              ? 'Intention déclarée — exécutant pas encore câblé'
+              : (meta?.blurb || 'En attente du Core')}
             {meta?.risk ? ` · ${riskLabel(meta.risk)}` : ''}
           </p>
           {tool && (
             <p style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: 9, marginTop: 6 }}>
-              outil Hermes · {tool}
+              intention · {tool}{soon ? ' · SOON' : ''}
             </p>
           )}
         </div>
       </div>
+
+      {soon && (
+        <div
+          className="rounded-xl p-3"
+          style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)' }}
+        >
+          <p style={{ ...mono, color: '#f59e0b', fontSize: 10 }}>CAPACITÉ NON EXÉCUTABLE</p>
+          <p style={{ ...mono, color: 'rgba(255,255,255,0.45)', fontSize: 9, lineHeight: 1.5, marginTop: 4 }}>
+            Tuile visible exprès. Le Core refuse avec une raison plutôt que de
+            faire semblant. Dashboard → Applications pour LIVE / SURFACE / SOON.
+          </p>
+        </div>
+      )}
 
       {vps && (
         <div
@@ -72,15 +90,20 @@ function HermesSurface({ app }: { app: OpenApp }) {
       >
         {app.id === 'reach' ? (
           <>
-            <p style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.65 }}>
-              Agent-Reach = fetch Internet pour Hermes (pas un LLM). Dis « Jarvis cherche … »,
-              « résume cette vidéo YouTube », « repo GitHub … ».
+            <p style={{ ...mono, color: 'rgba(255,255,255,0.55)', fontSize: 11, lineHeight: 1.65 }}>
+              En attente du résultat de recherche…
             </p>
             <p style={{ ...mono, color: `${app.color}99`, fontSize: 9, marginTop: 12, lineHeight: 1.5 }}>
-              Paramétrage admin : Dashboard → Agent-Reach (doctor, cookies ~/.agent-reach).
-              Install : pip install -e vendor/Agent-Reach-main && agent-reach install --env=auto --safe
+              Dites « Jarvis cherche … ». Le Core pousse un ResultPanel ici
+              (pas une page d’aide). Si ça reste vide : Hermes timeout — Google
+              s’ouvre en secours.
             </p>
           </>
+        ) : soon ? (
+          <p style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: 10, lineHeight: 1.65 }}>
+            Surface agentic non générée pour cette intention. Les capacités câblées
+            (maison, médias, sécurité…) composent une vraie surface.
+          </p>
         ) : (
           <>
             <p style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.65 }}>
@@ -134,7 +157,23 @@ function MockAppContent({ app }: { app: OpenApp }) {
   }
 
   // hub n’ouvre plus DashboardStage ici — openHudApp → requestDashboard
-  return <HermesSurface app={app} />;
+  //
+  // Si JARVIS a composé une surface pour cette app, elle en devient le contenu
+  // de la fenêtre. Sinon : exactement ce qui s'affichait avant. Le repli rend
+  // le branchement non destructif — cf. docs/architecture/JARVIS-Agentic-UI.md
+  //
+  // `composeQuestion` est la question posée au composeur si l'utilisateur
+  // demande une composition. Elle vient du nom de l'app — celui que
+  // l'utilisateur a lui-même cliqué — et non d'un gabarit générique : le
+  // composeur choisit sur les descriptions du catalogue, il lui faut donc un
+  // sujet, pas un identifiant.
+  return (
+    <AgentSurface
+      surfaceId={app.id}
+      composeQuestion={`Compose l'interface de « ${app.name} ».`}
+      fallback={<HermesSurface app={app} />}
+    />
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -287,7 +326,7 @@ export function AppStage() {
   };
 
   return (
-    <div className="relative w-full h-full min-h-0 min-w-0 overflow-hidden" style={{ perspective: 1400 }} onWheel={handleWheel}>
+    <div className="relative w-full h-full min-h-0 min-w-0 overflow-visible" style={{ perspective: 1400 }} onWheel={handleWheel}>
       {/* Indicateur de pile */}
       {ordered.length > 1 && (
         <div
@@ -318,7 +357,7 @@ export function AppStage() {
         </AnimatePresence>
       </div>
 
-      {/* Orbe bas-droite de la colonne centre (panneau chat reste à droite du HUD) */}
+      {/* Hors du clip des fenêtres — sinon orbe coupée (3/4 visibles). */}
       <MiniOrb corner="right" />
     </div>
   );

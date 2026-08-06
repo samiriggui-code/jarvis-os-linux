@@ -22,7 +22,7 @@
  * identiques : le dernier état émis est mémorisé ici.
  */
 import { getCoreClient } from './coreClient';
-import { subscribeMedia, type MediaDevicesState } from './mediaDevices';
+import { ensureMic, subscribeMedia, withCamera, type MediaDevicesState } from './mediaDevices';
 
 export type PeripheralId = 'camera' | 'mic' | 'audio_out';
 
@@ -71,6 +71,89 @@ function resolve(present: boolean, permission: MediaDevicesState['camera']): Rep
   return { ok: true, reason: 'present' };
 }
 
+/**
+ * Sortie audio — la présence n'y est PAS un fait observable directement.
+ *
+ * Le navigateur n'énumère les sorties qu'une fois le MICRO autorisé : Chrome
+ * les masque tant que la permission manque, Firefox ne les expose jamais par
+ * défaut. Une liste vide ne veut donc dire « rien n'est branché » que si la
+ * permission est accordée ; sinon elle ne veut rien dire du tout.
+ *
+ * `resolve()` ne convient pas ici : il teste la présence EN PREMIER, et
+ * rendrait `absent` sur une liste vide alors que personne n'a encore demandé
+ * le micro. C'est ce qui faisait annoncer « Vérifiez le raccordement HDMI »
+ * sur une machine dont rien n'était débranché, et envoyait chercher un câble
+ * quand il fallait cliquer sur une autorisation — précisément ce que
+ * l'en-tête de ce fichier interdit.
+ *
+ * L'ordre est donc inversé : la permission d'abord, la présence ensuite.
+ */
+function resolveAudioOut(present: boolean, mic: MediaDevicesState['mic']): Report {
+  if (mic === 'denied') return { ok: false, reason: 'denied' };
+  // Tant que le micro n'a pas été demandé, on ne sait rien — et on se tait.
+  // Annoncer une panne qui n'existe que parce que personne n'a encore ouvert
+  // le flux est le mode de panne que ce fichier combat.
+  if (mic !== 'granted') return { ok: true, reason: 'present' };
+  return present ? { ok: true, reason: '' } : { ok: false, reason: 'absent' };
+}
+
+/**
+ * Demande d'autorisation quand un capteur semble ABSENT — une fois par type.
+ *
+ * ─── LE SERPENT QUI SE MORD LA QUEUE ────────────────────────────────────
+ *
+ * `enumerateDevices()` ne révèle pas un périphérique tant qu'aucune
+ * autorisation n'a été accordée sur l'origine : la liste revient vide, ou
+ * peuplée d'entrées anonymes. La sonde en concluait « absent », et comme rien
+ * n'ouvrait jamais de flux, aucune invite n'apparaissait — donc l'énumération
+ * restait muette. Rien ne sortait de cette boucle.
+ *
+ * C'est ce qui donne « pas de caméra détectée, uniquement l'audio » sur une
+ * machine dont la webcam est parfaitement branchée : le micro avait été
+ * autorisé à un moment, la caméra jamais.
+ *
+ * Seul `getUserMedia()` déclenche l'invite du navigateur. On la demande donc
+ * AVANT de conclure à une absence.
+ *
+ * ─── TROIS PRÉCAUTIONS ──────────────────────────────────────────────────
+ *
+ * · UNE SEULE FOIS par type. Chrome bloque définitivement une origine après
+ *   trois demandes congédiées : redemander à chaque `devicechange`
+ *   condamnerait l'origine en quelques secondes, sans que personne comprenne.
+ *
+ * · On ne demande QUE si la permission est `idle`. Un `denied` explicite est
+ *   une décision de l'utilisateur, pas un état à forcer.
+ *
+ * · La caméra passe par `withCamera()`, qui la REND. Une sonde de permission
+ *   ne doit pas laisser la webcam allumée derrière elle, diode comprise.
+ *   Le micro, lui, suit son propre contrat (cf. bas de `mediaDevices.ts`).
+ */
+const probed = { camera: false, mic: false };
+
+async function probeIfSilent(
+  kinds: Record<string, number>,
+  media: MediaDevicesState,
+): Promise<void> {
+  const tasks: Promise<unknown>[] = [];
+
+  if (!probed.camera && (kinds.videoinput ?? 0) === 0 && media.camera === 'idle') {
+    probed.camera = true;
+    console.info('[peripheral] aucune caméra listée — demande d’autorisation');
+    tasks.push(withCamera('preview', async () => { /* la demande suffit */ }));
+  }
+
+  if (!probed.mic && (kinds.audioinput ?? 0) === 0 && media.mic === 'idle') {
+    probed.mic = true;
+    console.info('[peripheral] aucun micro listé — demande d’autorisation');
+    tasks.push(ensureMic());
+  }
+
+  // `allSettled` : un refus sur l'un ne doit pas empêcher l'autre d'aboutir.
+  // `ensureMic` et `ensureCamera` avalent déjà leurs erreurs, mais la
+  // garantie est ici, à l'endroit où on l'attend en lisant.
+  if (tasks.length) await Promise.allSettled(tasks);
+}
+
 let started = false;
 
 export function startPeripheralWatch(): () => void {
@@ -81,14 +164,20 @@ export function startPeripheralWatch(): () => void {
 
   const report = async () => {
     const kinds = await listKinds();
-    send('camera', resolve((kinds.videoinput ?? 0) > 0, media.camera));
-    send('mic', resolve((kinds.audioinput ?? 0) > 0, media.mic));
-    // Pas de permission à demander pour une SORTIE : sa seule question est
-    // « existe-t-elle ». Sur un NUC en HDMI, la liste se vide quand l'écran
-    // s'éteint — c'est exactement le cas qu'on veut entendre annoncer.
-    send('audio_out', (kinds.audiooutput ?? 0) > 0
-      ? { ok: true, reason: '' }
-      : { ok: false, reason: 'absent' });
+
+    // ⚠ Avant de conclure à une absence, DEMANDER. Voir `probeIfSilent`.
+    await probeIfSilent(kinds, media);
+
+    // La sonde a pu débloquer l'énumération : on relit plutôt que de
+    // rapporter la photo d'avant, sinon le premier verdict serait toujours
+    // « absent » et il faudrait attendre un `devicechange` pour le corriger.
+    const after = (kinds.videoinput ?? 0) > 0 && (kinds.audioinput ?? 0) > 0
+      ? kinds
+      : await listKinds();
+
+    send('camera', resolve((after.videoinput ?? 0) > 0, media.camera));
+    send('mic', resolve((after.audioinput ?? 0) > 0, media.mic));
+    send('audio_out', resolveAudioOut((after.audiooutput ?? 0) > 0, media.mic));
   };
 
   const unsubMedia = subscribeMedia(s => {
@@ -105,5 +194,9 @@ export function startPeripheralWatch(): () => void {
     unsubMedia();
     navigator.mediaDevices?.removeEventListener?.('devicechange', onDeviceChange);
     lastSent.clear();
+    // Le drapeau de sonde se relâche avec la surveillance : un remontage
+    // complet (rechargement de scène) a le droit de redemander une fois.
+    probed.camera = false;
+    probed.mic = false;
   };
 }

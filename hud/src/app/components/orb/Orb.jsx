@@ -15,6 +15,7 @@ export default function Orb({
   onClick,
   analyser = null,
   tempo = 0.5,
+  size = null,
 }) {
   const hudRef = useRef({ state, volume, playbackVolume });
   hudRef.current = { state, volume, playbackVolume };
@@ -53,9 +54,15 @@ export default function Orb({
         width: "100%",
         height: "100%",
         cursor: onClick ? "pointer" : "default",
+        overflow: "visible",
       }}
     >
-      <OrbView analyser={analyser || hudAnalyser} tempo={tempo} background="transparent" />
+      <OrbView
+        analyser={analyser || hudAnalyser}
+        tempo={tempo}
+        background="transparent"
+        size={size}
+      />
     </div>
   );
 }

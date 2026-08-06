@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Unlock, SkipForward, Mic } from 'lucide-react';
+import { Unlock, SkipForward, UserPlus } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { FaceCamView } from './FaceCamView';
 import { EmmaHologram3D } from './EmmaHologram3D';
@@ -19,11 +19,12 @@ import {
   type OrchestratorState,
   type SceneStep,
 } from '../../engine/experienceOrchestrator';
-import { authLogin, getEnrollPin, getLastUsername } from '../../bridge/authClient';
+import { authLogin, authRecoveryLogin, getEnrollPin, getLastUsername } from '../../bridge/authClient';
 import { getCoreClient } from '../../bridge/coreClient';
 import { ensureCameraAndMic, ensureMic, getMediaState, withCamera } from '../../bridge/mediaDevices';
 import { isCoreOnline } from '../CoreBridge';
 import { DEV_BUILD, isAuthBypassEnabled } from '../../bridge/devAuthBypass';
+import { isBootAlreadyOk, markBootOk } from './SystemBootGate';
 
 /* ─── Fonts ─────────────────────────────────────────────────────────────────── */
 const orbF = { fontFamily: 'Orbitron, sans-serif' };
@@ -79,8 +80,12 @@ const BOOT_CHECKS_INIT: BootCheck[] = [
 const CORE_HANDSHAKE_MS = 90_000;
 
 /* ─── Composant ─────────────────────────────────────────────────────────────── */
-export function AuthScene() {
-  const { unlockSession } = useApp();
+interface Props {
+  onRequestEnroll?: () => void;
+}
+
+export function AuthScene({ onRequestEnroll }: Props) {
+  const { unlockSession, coreAuth } = useApp();
 
   /* — States UI — */
   const [checks, setChecks]         = useState<BootCheck[]>(BOOT_CHECKS_INIT.map(c => ({ ...c })));
@@ -114,6 +119,12 @@ export function AuthScene() {
   /** Permissions caméra + micro obtenues (gesture utilisateur ou auto). */
   const [mediaArmed, setMediaArmed] = useState(false);
   const [mediaHint, setMediaHint] = useState('');
+  const [offerEnroll, setOfferEnroll] = useState(false);
+  const [enrollHint, setEnrollHint] = useState('');
+  const [enrollGateOpen, setEnrollGateOpen] = useState(false);
+  const [enrollAdminPin, setEnrollAdminPin] = useState('');
+  const [enrollGateBusy, setEnrollGateBusy] = useState(false);
+  const [enrollGateError, setEnrollGateError] = useState('');
 
   /* — Refs pour accès dans callbacks onEnter/onComplete — */
   const orchRef          = useRef<ExperienceOrchestrator | null>(null);
@@ -123,7 +134,9 @@ export function AuthScene() {
   const factorsRef       = useRef({ face: false, voice: false });
   const faceUserRef      = useRef<{ user_id?: string; username?: string; confidence: number } | null>(null);
   const unlockRef        = useRef(unlockSession);
+  const coreAuthRef      = useRef(coreAuth);
   unlockRef.current      = unlockSession;
+  coreAuthRef.current    = coreAuth;
 
   /** Login User Manager puis unlock HUD — plus de unlock local seul. */
   const armMedia = useCallback(async () => {
@@ -141,6 +154,11 @@ export function AuthScene() {
 
   const coreUnlock = useCallback(async (meta: { method: string; confidence?: number; pin?: string; user_id?: string; username?: string }) => {
     try {
+      // Coupe le monologue AVANT le round-trip login — sinon WAV continue.
+      try {
+        getCoreClient().send({ type: 'auth', action: 'sequence_stop' });
+        getCoreClient().send({ type: 'voice', action: 'cancel' });
+      } catch { /* */ }
       const res = await authLogin({
         username: meta.username || getLastUsername() || undefined,
         user_id: meta.user_id,
@@ -167,6 +185,27 @@ export function AuthScene() {
       return false;
     }
   }, []);
+
+  const requestEnroll = useCallback(async () => {
+    const pin = enrollAdminPin.trim();
+    if (!pin || enrollGateBusy) return;
+    setEnrollGateBusy(true);
+    setEnrollGateError('');
+    try {
+      const res = await authRecoveryLogin({ pin });
+      if (!res.ok) {
+        setEnrollGateError(res.error || 'Autorisation admin refusée');
+        return;
+      }
+      setEnrollGateOpen(false);
+      setEnrollAdminPin('');
+      onRequestEnroll?.();
+    } catch (e) {
+      setEnrollGateError(e instanceof Error ? e.message : 'Core offline');
+    } finally {
+      setEnrollGateBusy(false);
+    }
+  }, [enrollAdminPin, enrollGateBusy, onRequestEnroll]);
 
 
   /* — Skip dev — */
@@ -224,6 +263,12 @@ export function AuthScene() {
      *   boot terminé      → on enchaîne sur l'identification
      */
     const runBootGate = () => new Promise<void>(resolve => {
+      // Soft-lock → LockScene ; si on retombe ici, ne pas refiger le boot.
+      if (isBootAlreadyOk()) {
+        setChecks(prev => prev.map(c => ({ ...c, status: 'ok' as const })));
+        resolve();
+        return;
+      }
       const client = getCoreClient();
       let settled = false;
       const finish = (blocked: string | null) => {
@@ -233,21 +278,38 @@ export function AuthScene() {
         unsubscribe();
         if (blocked) {
           setBootBlocked(blocked);
-          // Coupe la suite du scénario. Sans ça l'orchestrateur enchaînerait
-          // sur « Authentification biométrique en cours » au-dessus d'un
-          // démarrage qui vient d'échouer — la contradiction d'origine.
           orchRef.current?.stop();
+        } else {
+          markBootOk();
         }
         resolve();
       };
 
-      // Core absent ou trop lent : on ne devine pas, on le dit. Les lignes
-      // jamais reçues restent grises — « pas de nouvelle » n'est pas « ok ».
+      // Core absent ou trop lent. Si le WS est UP mais boot_state perdu
+      // (reconnect 1001 pendant le boot), on NE bloque PAS la caméra.
       const handshake = setTimeout(() => {
+        if (client.connected) {
+          console.warn('[boot] timeout mais Core connecté — skip checklist → face');
+          checksRef.current.forEach(c => {
+            if (c.status === 'pending' || c.status === 'loading') {
+              setCheckStatus(c.component, 'skipped');
+            }
+          });
+          try { client.send({ type: 'boot', action: 'skip' }); } catch { /* */ }
+          finish(null);
+          return;
+        }
         console.warn('[boot] aucun boot_state — Core injoignable');
         setCheckStatus('hermes', 'failed');
         finish('NOYAU COGNITIF INJOIGNABLE');
-      }, CORE_HANDSHAKE_MS);
+      }, 15_000);
+
+      // La cinématique ne précède plus le check : c'est AuthScene qui
+      // demande l'annonce boot (comme SystemBootGate / FirstSetup).
+      try {
+        client.connect();
+        client.send({ type: 'boot', action: 'announce' });
+      } catch { /* */ }
 
       const unsubscribe = client.subscribe(data => {
         if (data.type === 'component_state') {
@@ -336,24 +398,22 @@ export function AuthScene() {
         pauseAfter: 400,
       },
 
-      /* ── IDENTIFICATION ───────────────────────────────────────────────────── */
+      /* ── IDENTIFICATION — pas de voiceLine HUD : le Core parle via sequences ─ */
       {
         id: 'identification_0',
         hudText: 'AUTHENTIFICATION BIOMÉTRIQUE',
-        hudSubtext: '',
-        voiceLine: 'Authentification biométrique en cours.',
+        hudSubtext: 'Restez face à la caméra',
         orbState: 'listening' as const,
         avatarMode: 'idle' as const,
-        pauseAfter: 180,
+        pauseAfter: 80,
       },
       {
         id: 'identification_1',
         hudText: 'IDENTIFICATION BIOMÉTRIQUE',
         hudSubtext: 'Veuillez rester immobile',
-        voiceLine: "Veuillez rester immobile pour l'identification biométrique.",
         orbState: 'processing' as const,
         avatarMode: 'idle' as const,
-        pauseAfter: 220,
+        pauseAfter: 80,
       },
 
       /* ── FACE AUTH (events + jauge — §10.1) ───────────────────────────────── */
@@ -369,11 +429,18 @@ export function AuthScene() {
         waitForAsync: async () => {
           const orch = orchRef.current;
           if (!orch) return;
+          setOfferEnroll(false);
+          setEnrollHint('');
+          setEnrollGateOpen(false);
+          setEnrollGateError('');
+          setEnrollAdminPin('');
 
           await armMedia();
 
           const useLive = isCoreOnline() && !faceFailDemo;
           let ok = false;
+          let failReason = '';
+          let failHudSubtext = '';
 
           if (useLive) {
             const result = await runFaceVerifyLive({
@@ -402,6 +469,9 @@ export function AuthScene() {
                 username: result.username,
                 confidence: result.confidence,
               };
+            } else {
+              failReason = result.reason || '';
+              failHudSubtext = result.hudSubtext || '';
             }
           } else {
             ok = await runFaceAuthFlow({
@@ -435,10 +505,17 @@ export function AuthScene() {
           }
 
           if (!ok) {
+            const canOfferEnroll = failReason === 'no_profile' && coreAuthRef.current.userCount > 0;
+            if (canOfferEnroll) {
+              setOfferEnroll(true);
+              setEnrollHint('Profil absent sur ce Core. Validation admin requise avant enrôlement.');
+            }
             // Pas de throw : l'orchestrateur reste vivant, le PIN reste utilisable.
             orch.patchHud({
-              hudText: 'AUTH LOCK TEMPORARY',
-              hudSubtext: 'Visage inconnu — PIN ou réessayez',
+              hudText: canOfferEnroll ? 'PROFIL INCONNU' : 'AUTH LOCK TEMPORARY',
+              hudSubtext: canOfferEnroll
+                ? (failHudSubtext || 'Profil absent sur ce Core — enrôlement proposé')
+                : 'Visage inconnu — PIN ou réessayez',
               avatarMode: 'denied',
             });
             setFaceHologram(prev => ({ ...prev, phase: 'locked' }));
@@ -457,83 +534,46 @@ export function AuthScene() {
           setFactors(f => ({ ...f, face: true }));
           setScanProgress(100);
           setFaceHologram(prev => ({ ...prev, phase: 'success', progress: 100, confidence: faceUserRef.current?.confidence ?? 1 }));
+          // Unlock IMMÉDIAT — ne pas attendre profile_load / complete ni
+          // laisser le Core réciter systems_ready pendant 30 s.
+          const fu = faceUserRef.current;
+          void coreUnlock({
+            method: fu?.user_id ? 'face' : 'face',
+            confidence: fu?.confidence ?? 0.98,
+            user_id: fu?.user_id,
+            username: fu?.username,
+          });
+          orch.stop();
         },
       },
 
-      /* ── VOICE AUTH ───────────────────────────────────────────────────────── */
+      /* ── ACCESS GRANTED (filet si unlock async encore en cours) ───────────── */
       {
-        id: 'voice_prompt',
-        hudText: 'CANAL VOCAL SÉCURISÉ',
-        hudSubtext: 'Activation du protocole vocal',
-        voiceLine: "Activation du canal vocal sécurisé. Veuillez dire votre mot d'activation.",
-        orbState: 'listening' as const,
-        avatarMode: 'listening' as const,
-        pauseAfter: 300,
-        waitForUser: true,
+        id: 'access_granted',
+        hudText: 'IDENTITÉ RECONNUE',
+        hudSubtext: 'Empreinte faciale confirmée',
+        orbState: 'responding' as const,
+        avatarMode: 'ok' as const,
+        minDuration: 200,
+        pauseAfter: 0,
         onEnter: () => {
           void ensureMic().then((stream) => {
             if (stream) setMediaArmed(true);
-            else setMediaHint('Micro requis pour la voix — autorisez ou utilisez le PIN');
           });
         },
       },
       {
-        id: 'voice_scan',
-        hudText: 'ANALYSE VOCALE',
-        hudSubtext: 'Analyse spectrale en cours',
-        voiceLine: 'Analyse spectrale de votre empreinte sonore.',
-        orbState: 'processing' as const,
-        avatarMode: 'scanning' as const,
-        minDuration: 2000,
-        pauseAfter: 300,
-      },
-      {
-        id: 'voice_ok',
-        hudText: 'SIGNATURE VALIDÉE',
-        hudSubtext: 'Authentification multimodale confirmée',
-        voiceLine: 'Signature vocale validée. Authentification confirmée.',
-        orbState: 'responding' as const,
-        avatarMode: 'ok' as const,
-        pauseAfter: 400,
-        onEnter: () => {
-          factorsRef.current = { ...factorsRef.current, voice: true };
-          setFactors(f => ({ ...f, voice: true }));
-        },
-      },
-
-      /* ── ACCESS GRANTED ───────────────────────────────────────────────────── */
-      {
-        id: 'access_granted',
-        hudText: 'IDENTITÉ RECONNUE',
-        hudSubtext: 'Profil existant confirmé',
-        voiceLine: 'Identité reconnue.',
-        orbState: 'responding' as const,
-        avatarMode: 'ok' as const,
-        minDuration: 700,
-        pauseAfter: 180,
-      },
-      {
-        id: 'profile_load',
-        hudText: 'PROFIL DÉVERROUILLÉ',
-        hudSubtext: 'Chargement de votre environnement',
-        voiceLine: 'Profil déverrouillé. Chargement de votre environnement JARVIS.',
-        orbState: 'processing' as const,
-        avatarMode: 'idle' as const,
-        minDuration: 1000,
-        pauseAfter: 220,
-      },
-      {
         id: 'complete',
         hudText: 'ACCÈS HUD AUTORISÉ',
-        hudSubtext: 'Chargement terminé',
-        voiceLine: 'Chargement terminé. Accès au HUD autorisé.',
+        hudSubtext: '',
         orbState: 'idle' as const,
         avatarMode: 'ok' as const,
-        pauseAfter: 260,
+        pauseAfter: 0,
         onComplete: () => {
+          if (!faceUserRef.current) return;
           const fu = faceUserRef.current;
           void coreUnlock({
-            method: fu?.user_id ? 'face' : 'face_voice_stub',
+            method: fu?.user_id ? 'face' : 'face',
             confidence: fu?.confidence ?? 0.98,
             user_id: fu?.user_id,
             username: fu?.username,
@@ -587,7 +627,7 @@ export function AuthScene() {
     || (!!orchState.currentStep?.id.startsWith('boot_') && orchState.isRunning);
   const isAuth      = !isBoot && orchState.isRunning;
   const isComplete  = !isBoot && (orchState.hudText === 'SYSTÈME PRÊT' || !orchState.isRunning);
-  const isVoiceScan = orchState.currentStep?.id === 'voice_scan';
+  const isVoiceScan = false;
 
   const accentColor = denied || bootBlocked
     ? '#ef4444'
@@ -697,14 +737,8 @@ export function AuthScene() {
               </p>
             </div>
 
-            {/* Facteurs MFA */}
             <div className="flex gap-3">
-              {[
-                { k: 'face' as const, label: 'VISAGE' },
-                { k: 'voice' as const, label: 'VOIX' },
-              ].map(f => (
-                <FactorChip key={f.k} label={f.label} ok={factors[f.k]} />
-              ))}
+              <FactorChip label="VISAGE" ok={factors.face} />
             </div>
 
             {/* Caméra Holomat + reconstruction holographique par-dessus.
@@ -765,6 +799,75 @@ export function AuthScene() {
                 {mediaHint}
               </p>
             )}
+            {offerEnroll && (
+              <div className="w-full max-w-sm flex flex-col items-center gap-2 shrink-0">
+                <p style={{ ...mono, color: 'rgba(255,255,255,0.72)', fontSize: 10, letterSpacing: '0.08em', textAlign: 'center' }}>
+                  {enrollHint}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEnrollGateOpen(true);
+                    setEnrollGateError('');
+                  }}
+                  className="flex items-center gap-2 rounded-xl px-4 py-2 cursor-pointer"
+                  style={{
+                    background: 'rgba(25,240,216,0.1)',
+                    border: '1px solid rgba(25,240,216,0.45)',
+                  }}
+                >
+                  <UserPlus className="w-4 h-4" style={{ color: '#19f0d8' }} />
+                  <span style={{ ...orbF, color: '#19f0d8', fontSize: 10, letterSpacing: '0.12em' }}>
+                    LANCER L&apos;ENRÔLEMENT
+                  </span>
+                </button>
+                {enrollGateOpen && (
+                  <div
+                    className="w-full rounded-xl p-3 flex flex-col gap-2"
+                    style={{
+                      background: 'rgba(2,5,9,0.92)',
+                      border: '1px solid rgba(25,240,216,0.2)',
+                    }}
+                  >
+                    <p style={{ ...mono, color: 'rgba(255,255,255,0.72)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
+                      Autorisation admin requise pour créer un nouveau profil.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={enrollAdminPin}
+                        onChange={(e) => setEnrollAdminPin(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && void requestEnroll()}
+                        placeholder="PIN admin"
+                        className="flex-1 rounded-xl px-3 py-2 outline-none text-center"
+                        style={{
+                          ...orbF,
+                          fontSize: 11,
+                          letterSpacing: '0.12em',
+                          color: '#cfeefb',
+                          background: '#06101c',
+                          border: '1px solid rgba(25,240,216,0.25)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void requestEnroll()}
+                        disabled={!enrollAdminPin.trim() || enrollGateBusy}
+                        className="rounded-xl px-4 cursor-pointer"
+                        style={{ background: 'rgba(25,240,216,0.08)', border: '1px solid rgba(25,240,216,0.25)' }}
+                      >
+                        <Unlock className="w-4 h-4" style={{ color: '#19f0d8' }} />
+                      </button>
+                    </div>
+                    {enrollGateError && (
+                      <p style={{ ...mono, color: 'rgba(239,68,68,0.85)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
+                        {enrollGateError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Message HUD courant */}
             <AnimatePresence mode="wait">
@@ -785,48 +888,6 @@ export function AuthScene() {
                   </p>
                 )}
               </motion.div>
-            </AnimatePresence>
-
-            {/* Bouton micro — voice_prompt waitForUser */}
-            <AnimatePresence>
-              {orchState.isWaitingForUser && (
-                <motion.div
-                  key="voice-trigger"
-                  className="flex flex-col items-center gap-3 shrink-0"
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.85 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <motion.button
-                    type="button"
-                    onClick={() => {
-                      void armMedia().then(() => orchRef.current?.userConfirm());
-                    }}
-                    className="flex items-center gap-3 px-6 py-3 rounded-2xl cursor-pointer"
-                    style={{
-                      background: 'rgba(25,240,216,0.1)',
-                      border: '2px solid rgba(25,240,216,0.6)',
-                      boxShadow: '0 0 24px rgba(25,240,216,0.25)',
-                    }}
-                    animate={{ boxShadow: ['0 0 16px rgba(25,240,216,0.2)', '0 0 32px rgba(25,240,216,0.5)', '0 0 16px rgba(25,240,216,0.2)'] }}
-                    transition={{ duration: 1.6, repeat: Infinity }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Mic className="w-5 h-5" style={{ color: '#19f0d8' }} />
-                    <span style={{ ...orbF, color: '#19f0d8', fontSize: 11, letterSpacing: '0.15em' }}>
-                      DIRE MON MOT D'ACTIVATION
-                    </span>
-                  </motion.button>
-                  {/* « hey Jarvis » et non « Jarvis » : c'est le modèle
-                      hey_jarvis d'openWakeWord qui écoute (core/data/voice/
-                      wake.yaml). Le prénom seul ne déclenche pas — afficher
-                      la mauvaise formule fait rater une détection valide. */}
-                  <p style={{ ...mono, color: 'rgba(25,240,216,0.55)', fontSize: 10, letterSpacing: '0.12em' }}>
-                    Dites : « Hey Jarvis »
-                  </p>
-                </motion.div>
-              )}
             </AnimatePresence>
 
             {/* Overlay scan barre */}
@@ -906,8 +967,8 @@ export function AuthScene() {
               playbackVolume={0}
             />
           </div>
-          <span style={{ ...mono, color: isVoiceScan ? '#19f0d8' : 'rgba(0,229,255,0.4)', fontSize: 7, letterSpacing: '0.1em' }}>
-            {isVoiceScan ? 'ANALYSE...' : 'VOIX'}
+          <span style={{ ...mono, color: 'rgba(0,229,255,0.4)', fontSize: 7, letterSpacing: '0.1em' }}>
+            IDLE
           </span>
         </motion.div>
       )}
@@ -933,13 +994,13 @@ function BootOverlay(
   const accent = blocked ? '#ef4444' : '#00e5ff';
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-start sm:justify-center gap-4 sm:gap-6 px-4 sm:px-8 py-6 overflow-y-auto"
-      style={{ background: '#020509' }}
+      className="absolute inset-0 flex flex-col items-center justify-start gap-3 sm:gap-4 px-4 sm:px-8 overflow-y-auto"
+      style={{ background: '#020509', paddingTop: 'min(10vh, 72px)' }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6 }}
     >
-      {/* Orbe — fixe, vibre selon la voix */}
-      <div className="shrink-0" style={{ width: 72, height: 72, marginBottom: 4 }}>
+      {/* Orbe haute — tiers supérieur, pas centrée avec la checklist */}
+      <div className="shrink-0" style={{ width: 88, height: 88, marginBottom: 8 }}>
         <Orb state={blocked ? 'idle' : 'thinking'} volume={blocked ? 0.05 : 0.4} playbackVolume={0} />
       </div>
 

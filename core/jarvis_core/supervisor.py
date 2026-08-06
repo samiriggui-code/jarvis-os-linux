@@ -32,7 +32,9 @@ from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger("jarvis.supervisor")
 
-CheckFn = Callable[[], Awaitable[bool]]
+#: Une sonde répond `True` (en service), `False` (en panne) ou `None`
+#: (« je n'ai pas d'avis » — état laissé inchangé, cf. `_check_one`).
+CheckFn = Callable[[], Awaitable[bool | None]]
 
 UNKNOWN = "unknown"
 LOADING = "loading"
@@ -187,6 +189,21 @@ class Supervisor:
         except Exception as exc:  # noqa: BLE001 — un check cassé = composant KO
             ok, error = False, str(exc)
 
+        # `None` = la sonde n'a PAS d'avis, ce qui n'est pas « en panne ».
+        #
+        # Le cas type est HOLOMAT VISION : le flux caméra vit dans le
+        # navigateur, le Core ne peut que relire ce que le HUD lui rapporte.
+        # Tant que rien n'a été rapporté — Core lancé sans navigateur, page pas
+        # encore ouverte — il n'y a aucune raison d'annoncer une avarie. La
+        # brique reste simplement « inconnue », et la checklist le montre en
+        # gris plutôt qu'en rouge.
+        #
+        # Sans ce troisième cas, l'arbitrage caméra rendait la ligne
+        # définitivement rouge : une caméra volontairement éteinte entre deux
+        # usages devenait une panne permanente.
+        if ok is None:
+            return
+
         if ok:
             comp.failures = 0
             comp.last_ok = now
@@ -219,6 +236,63 @@ class Supervisor:
                 "previous": previous,
                 **comp.status(),
             })
+
+    def emit_one(self, name: str, state: str | None = None) -> None:
+        """Diffuse l'état d'UNE brique, à la demande.
+
+        Sert au cadencement du démarrage parlé : la séquence révèle chaque
+        ligne au moment de sa phrase plutôt que de recevoir les six d'un bloc
+        (cf. `replay(exclude=…)`). `state` force la valeur annoncée — « loading »
+        pendant qu'on parle de la brique — sans toucher à l'état réel tenu par
+        les sondes, qui reste la seule vérité.
+        """
+        comp = self.components.get(name)
+        if comp is None or self._emit is None:
+            return
+        self._emit("component_state", {
+            "component": comp.name,
+            "state": state or comp.state,
+            "previous": comp.state,
+            "revealed": True,
+            **{k: v for k, v in comp.status().items() if k != "state"},
+        })
+
+    def replay(self, exclude: set[str] | None = None) -> None:
+        """Réémet l'état de chaque brique, même inchangé.
+
+        ⚠ Sans ceci, un HUD qui se connecte APRÈS le démarrage du Core ne voit
+        jamais les briques déjà prêtes : `_transition` ne parle que sur
+        changement, et un composant passé `unknown → ready` il y a dix minutes
+        ne rebasculera plus. La checklist restait donc grise pour tout ce qui
+        fonctionnait, et seule une brique ayant la malchance de changer d'état
+        pendant qu'on regardait s'allumait.
+
+        Avec la cinématique de démarrage, le HUD arrive presque une minute
+        après le Core : le cas n'est pas un détail, c'est le cas NOMINAL.
+
+        On rejoue l'état, on ne resonde pas : une resonde synchrone ferait
+        attendre le HUD au pire moment, juste quand la checklist doit se
+        remplir. Les sondes suivent leur propre rythme, elles corrigeront.
+
+        `exclude` retient les briques que quelqu'un d'autre va révéler à son
+        rythme — le démarrage parlé, qui allume chaque ligne sur sa phrase.
+        Sans cette réserve, le rejeu en bloc les allumait toutes avant que la
+        première phrase ne soit prononcée.
+        """
+        if self._emit is None:
+            return
+        held = exclude or set()
+        for comp in self.components.values():
+            if comp.name in held:
+                continue
+            self._emit("component_state", {
+                "component": comp.name,
+                "state": comp.state,
+                "previous": comp.state,
+                "replayed": True,
+                **comp.status(),
+            })
+        logger.info("état rejoué pour %d brique(s) — nouveau client", len(self.components))
 
     # -- observabilité -------------------------------------------------------
 

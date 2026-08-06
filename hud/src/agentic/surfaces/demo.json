@@ -1,0 +1,22 @@
+{
+  "_comment": "Document de surface écrit à la main — artefact de test de P0. Aucun LLM, aucun Hermes, aucun Planner. La clé de `surfaces` est l'id de l'app : la composition s'affiche DANS la fenêtre de cette app, jamais par-dessus le HUD.",
+  "surfaces": {
+    "terminal": {
+      "root": ["c1"],
+      "components": {
+        "c1": {
+          "name": "SystemMonitor",
+          "props": {},
+          "state": "idle",
+          "region": "left",
+          "size": "normal",
+          "children": []
+        }
+      }
+    }
+  },
+  "data": {},
+  "pending": {
+    "approvals": {}
+  }
+}

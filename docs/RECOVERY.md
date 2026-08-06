@@ -125,8 +125,8 @@ tous morts. Il ne reste que Ubuntu, systemd, SSH et la console locale.
 | `jarvis-core.service` | ✅ `Restart=on-failure` + `WatchdogSec=30` |
 | `jarvis-hud.service` | ✅ |
 | `jarvis-voicebox.service` | ✅ `Wants` et non `Requires` — sa mort n'emporte pas JARVIS |
-| `jarvis.target` | ✅ regroupe les trois |
-| `hermes-agent.service` | ❌ **manquant** |
+| `jarvis.target` | ✅ regroupe core / hud / voicebox / hermes |
+| `jarvis-hermes.service` | ✅ alias `hermes-agent.service` — `Wants`, pas `Requires` |
 | `jarvis-dashboard.service` | ❌ manquant (cf. conflit §3.3) |
 | `postgresql`, `mosquitto`, `home-assistant` | fournis par leurs paquets |
 
@@ -135,11 +135,13 @@ tous morts. Il ne reste que Ubuntu, systemd, SSH et la console locale.
 
 ```bash
 systemctl status jarvis-core
-systemctl restart hermes-agent
-systemctl restart jarvis.target        # toute la pile
+systemctl restart hermes-agent          # alias de jarvis-hermes
+systemctl restart jarvis-hermes         # même unité
+systemctl restart jarvis.target         # toute la pile
 
+journalctl -u jarvis-hermes -n 100 --no-pager
 journalctl -u jarvis-core -n 100 --no-pager
-df -h                                  # cause n°1 des pannes mystérieuses
+df -h                                   # cause n°1 des pannes mystérieuses
 ```
 
 **Garder un getty actif sur `tty2`.** La tentation en kiosque est de tout
@@ -335,8 +337,8 @@ aggravant le problème.
 - [ ] **Trancher le conflit §3.3** — Dashboard indépendant du HUD, ou page Recovery séparée
 - [ ] `elevate_admin(method="recovery_pin")` — ouvrir une session sans caméra
 - [ ] Page Recovery servie hors du HUD
-- [ ] `hermes-agent.service` — Hermes n'est pas encore un service systemd
-- [ ] `StartLimitBurst=3` + `OnFailure=` sur Hermes → Safe Mode natif
+- [x] `jarvis-hermes.service` — alias `hermes-agent` (`deploy/systemd/jarvis-hermes.service`)
+- [ ] `OnFailure=` Hermes → Safe Mode natif (StartLimitBurst déjà sur l’unité)
 - [ ] Sonde `hermes-agent` dans `supervisor.py` + notification téléphone
 - [ ] Registre d'outils avec URLs directes, lisible hors JARVIS
 - [ ] Script `jarvis-rescue`

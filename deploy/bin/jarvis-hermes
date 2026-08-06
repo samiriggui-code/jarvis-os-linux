@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Lance Hermes gateway en foreground (systemd Type=simple).
+# API locale : 127.0.0.1:8642 — Core via JARVIS_HERMES_URL.
+set -euo pipefail
+
+export JARVIS_CONFIG_DIR="${JARVIS_CONFIG_DIR:-/etc/jarvis}"
+export HERMES_HOME="${HERMES_HOME:-/var/lib/jarvis/hermes}"
+export API_SERVER_ENABLED="${API_SERVER_ENABLED:-true}"
+export API_SERVER_HOST="${API_SERVER_HOST:-127.0.0.1}"
+export API_SERVER_PORT="${API_SERVER_PORT:-8642}"
+
+# EnvironmentFile=systemd charge déjà secrets ; rechargement utile hors unit.
+for f in "${JARVIS_CONFIG_DIR}/secrets.env" "${JARVIS_CONFIG_DIR}/hermes.env"; do
+  if [[ -f "$f" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$f"
+    set +a
+  fi
+done
+
+mkdir -p "$HERMES_HOME"
+
+HERMES_BIN="${HERMES_BIN:-}"
+if [[ -z "$HERMES_BIN" ]]; then
+  for c in \
+    /opt/jarvis/hermes-agent/.venv/bin/hermes \
+    /opt/jarvis/hermes-agent/venv/bin/hermes; do
+    if [[ -x "$c" ]]; then
+      HERMES_BIN="$c"
+      break
+    fi
+  done
+fi
+if [[ -z "$HERMES_BIN" ]] && command -v hermes >/dev/null 2>&1; then
+  HERMES_BIN="$(command -v hermes)"
+fi
+if [[ -z "${HERMES_BIN:-}" ]]; then
+  echo "jarvis-hermes: binaire 'hermes' introuvable." >&2
+  echo "  git clone https://github.com/NousResearch/hermes-agent /opt/jarvis/hermes-agent" >&2
+  echo "  puis : cd /opt/jarvis/hermes-agent && python3 -m venv .venv && .venv/bin/pip install -e ." >&2
+  exit 1
+fi
+
+WORKDIR="${HERMES_WORKDIR:-/opt/jarvis/hermes-agent}"
+if [[ -d "$WORKDIR" ]]; then
+  cd "$WORKDIR"
+fi
+
+# --replace : une seule instance (évite les doublons au Restart=)
+exec "$HERMES_BIN" gateway run --replace "$@"

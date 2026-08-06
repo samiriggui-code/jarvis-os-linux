@@ -26,7 +26,11 @@ import { FirstSetupScene } from './components/auth/FirstSetupScene';
 import { LockScene } from './components/auth/LockScene';
 import { AdminAuthScene } from './components/auth/AdminAuthScene';
 import { CoreBridge } from './components/CoreBridge';
+import { GestureBridge } from './components/GestureBridge';
 import { VoiceChatBridge } from './components/VoiceChatBridge';
+import { SessionLifecycle } from './components/SessionLifecycle';
+import { KioskMediaWarmup } from './components/KioskMediaWarmup';
+import { BootScene } from '../ui/boot/BootScene';
 
 /** Panneaux / boutons démo — visibles uniquement en Vite DEV */
 const IS_DEV = import.meta.env.DEV;
@@ -117,7 +121,18 @@ function PanelTab({
 }
 
 function MainLayout() {
-  const { leftPanel, setLeftPanel, rightPanel, setRightPanel, openApps, dashboardOpen, sessionUnlocked, micTestActive } = useApp();
+  const {
+    leftPanel, setLeftPanel, rightPanel, setRightPanel,
+    openApps, dashboardOpen, sessionUnlocked, micTestActive,
+    welcomeCinematic, completeWelcomeCinematic,
+  } = useApp();
+  // Admin distant → overlay enrôlement sur kiosk déjà déverrouillé.
+  const [remoteEnroll, setRemoteEnroll] = useState(false);
+  useEffect(() => {
+    const onEnroll = () => setRemoteEnroll(true);
+    window.addEventListener('jarvis:start-enrollment', onEnroll as EventListener);
+    return () => window.removeEventListener('jarvis:start-enrollment', onEnroll as EventListener);
+  }, []);
   // Deux états du HUD normal : « veille » (orbe centrale) / « apps » (scène time capsule
   // + mini-orbe). En mode apps : panneau gauche + barre voix s'effacent —
   // le panneau droit (console / chat) reste. Fenêtre dans la colonne centre,
@@ -129,10 +144,41 @@ function MainLayout() {
   // à gauche — voir Figma2Stage. Accès via AdminAuthScene (auth intermédiaire SF).
   const hudMode: 'veille' | 'apps' = openApps.some(a => !a.minimized) ? 'apps' : 'veille';
 
+  // Post-auth / post-enrôlement uniquement — pas au verrouillage ni au refresh.
+  if (welcomeCinematic) {
+    return (
+      <>
+        <CoreBridge />
+        <SessionLifecycle />
+        <BootScene
+          onReady={() => completeWelcomeCinematic()}
+          captions
+        />
+        {IS_DEV && <TtsTestButton />}
+        <NotificationSystem />
+      </>
+    );
+  }
+
+  if (remoteEnroll && sessionUnlocked) {
+    return (
+      <>
+        <CoreBridge />
+        <SessionLifecycle />
+        <FirstSetupScene
+          mode="add_profile"
+          onComplete={() => setRemoteEnroll(false)}
+        />
+        <NotificationSystem />
+      </>
+    );
+  }
+
   if (!sessionUnlocked) {
     return (
       <>
         <CoreBridge />
+        <SessionLifecycle />
         <HudAuthGate />
         {IS_DEV && <TtsTestButton />}
         <NotificationSystem />
@@ -255,7 +301,7 @@ function MainLayout() {
             )}
           </AnimatePresence>
 
-          <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+          <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-visible px-2 py-2">
             <AnimatePresence mode="wait">
               {hudMode === 'veille' ? (
                 <motion.div
@@ -360,6 +406,9 @@ function MainLayout() {
       {IS_DEV && <GesturePanel />}
       <AdminAuthScene />
       <CoreBridge />
+      <SessionLifecycle />
+      <KioskMediaWarmup />
+      <GestureBridge />
       <VoiceChatBridge />
       {IS_DEV && <TtsTestButton />}
       <NotificationSystem />

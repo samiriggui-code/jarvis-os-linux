@@ -1,0 +1,46 @@
+---
+description: Mémoire de session — lire l'état projet dans docs/ avant tout travail substantiel
+alwaysApply: true
+---
+
+# Mémoire de session (docs/, pas le chat)
+
+L'état courant et les décisions validées vivent dans **`docs/`**, pas dans l'historique de conversation.
+
+## Au début d'une session substantielle
+
+1. Lire **`docs/claude/JARVIS_SESSION_STATE.md`** — état courant, prochaine action.
+2. Si besoin de contexte stable : **`docs/JARVIS_CONTEXT.md`**.
+3. **Ne pas réinterpréter** les décisions de **`docs/DECISIONS.md`** — elles sont figées jusqu'à arbitrage explicite de Samir.
+
+Détail opérationnel (tunnels, pièges, preuves) : **`docs/REPRISE-2026-08-06.md`**.
+
+## Une thématique par conversation
+
+| Session | Sujet | Docs |
+|---------|--------|------|
+| 1 | Architecture | `docs/ARCHITECTURE.md`, `docs/architecture/` |
+| 2 | Home Assistant | `docs/architecture/JARVIS-Satellites.md` |
+| 3 | HUD / Agentic UI | `docs/architecture/JARVIS-Agentic-UI.md`, `hud/src/agentic/` |
+| 4 | Code ciblé | module demandé + `DECISIONS.md` + contraintes explicites |
+
+Ne pas mélanger architecture + HA + HUD + Core dans la même session si évitable.
+
+## Avant la limite de contexte
+
+Produire un **résumé de transfert** et mettre à jour :
+
+- `docs/claude/JARVIS_SESSION_STATE.md`
+- `docs/TODO.md` (priorités)
+- `docs/CHANGELOG.md` (jalons)
+- `docs/DECISIONS.md` (si décision validée)
+
+## Prompt type (tâche ciblée)
+
+```
+Objectif : [une seule tâche]
+Contexte : docs/claude/JARVIS_SESSION_STATE.md
+Contraintes : [fichiers/couches à ne pas toucher]
+```
+
+Mode d'emploi complet : **`docs/claude/README.md`**.

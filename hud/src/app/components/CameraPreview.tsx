@@ -3,7 +3,7 @@
  * Un seul MediaStream partagé — ne coupe jamais les tracks au unmount.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { ensureCamera, getCameraStream, subscribeMedia } from '../bridge/mediaDevices';
+import { acquireCamera, getCameraStream, releaseCamera, subscribeMedia } from '../bridge/mediaDevices';
 
 interface CameraPreviewProps {
   active?: boolean;
@@ -68,8 +68,13 @@ export function CameraPreview({
       }
     };
 
+    // Un aperçu VISIBLE justifie de filmer ; un aperçu démonté, non. Le
+    // relâchement est dans le nettoyage ci-dessous, symétrique de cette prise.
+    let held = false;
+
     const attach = async () => {
-      const stream = await ensureCamera();
+      held = true;
+      const stream = await acquireCamera('preview');
       if (cancelled) return;
       if (!stream) {
         setOk(false);
@@ -96,6 +101,10 @@ export function CameraPreview({
       cancelled = true;
       unsub();
       // Ne PAS nullifier srcObject : Holomat réutilise le même stream
+      if (held) {
+        held = false;
+        releaseCamera('preview');
+      }
     };
   }, [active]);
 

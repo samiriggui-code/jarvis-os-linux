@@ -13,6 +13,22 @@ body,
   width: 100%;
 }
 
+/* Chrome Translate — barre EN⇄FR inutile sur le kiosk FR */
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+#goog-gt-tt,
+.goog-tooltip,
+.goog-te-spinner-pos,
+iframe.goog-te-banner-frame,
+body > .skiptranslate,
+.VIpgJd-ZVi9od-ORHb-OEVmcd {
+  display: none !important;
+  visibility: hidden !important;
+}
+body {
+  top: 0 !important;
+}
+
 /* Scrollbar styling */
 * {
   scrollbar-width: thin;
@@ -106,6 +122,35 @@ body.jarvis-voice-only [role="button"]:not([data-jarvis-always-interactive] *),
 body.jarvis-voice-only .cursor-pointer:not([data-jarvis-always-interactive]):not([data-jarvis-always-interactive] *) {
   pointer-events: none !important;
   cursor: default !important;
+}
+
+/* —— TV kiosk 40″ (Full HD, vue canapé) ——
+ * Chromium ajoute déjà --force-device-scale-factor≈1.35.
+ * Ici : typo de base + panneaux un peu plus larges / respirés. */
+html[data-persona='kiosk'] {
+  --font-size: 18px;
+  --hud-gap: 0.65rem;
+  --hud-panel-pad: 0.85rem;
+}
+
+html[data-persona='kiosk'] body {
+  letter-spacing: 0.01em;
+}
+
+html[data-persona='kiosk'] .hud-chrome-row {
+  gap: var(--hud-gap, 0.5rem) !important;
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+html[data-persona='kiosk'] .hud-side-left > div,
+html[data-persona='kiosk'] .hud-side-right {
+  width: 17.5rem !important;
+  max-width: 20vw;
+}
+
+html[data-persona='kiosk'] .hud-voice-wrap {
+  max-width: min(52rem, 72vw) !important;
 }
 
 /* —— Responsive HUD (desktop / tablette / téléphone) —— */

@@ -3,8 +3,9 @@ name: agent-reach
 description: >-
   Couche Internet pour Hermes (PAS un cerveau). Recherche web, GitHub, YouTube
   (sous-titres), Reddit, X/Twitter, RSS, etc. via CLI agent-reach + outils
-  amont. Déléguer fetch → filtrer → synthétiser avec LLM. Vendor =
-  vendor/Agent-Reach-main (MIT). Ne jamais merger dans core/.
+  amont. Déléguer fetch → filtrer → synthétiser avec LLM. Amont =
+  github.com/Panniantong/agent-reach (MIT), épinglé dans core/requirements.txt.
+  Ne jamais merger dans core/.
 ---
 
 # Skill — Agent-Reach (capability layer)
@@ -39,9 +40,12 @@ Données externes → **filtre anti prompt-injection** avant LLM (§ sécurité 
 
 1. `agent-reach doctor --json` — quel backend actif ?
 2. Annoncer : « Agent-Reach · plateforme Y · backend Z »
-3. Exécuter les commandes du skill upstream (réfs vendor) :
-   - `vendor/Agent-Reach-main/agent_reach/skill/SKILL_en.md`
-   - `references/{search,web,video,dev,social}.md`
+3. Exécuter les commandes du skill upstream — livré **dans le paquet installé**,
+   pas dans un dossier du dépôt :
+   - `<site-packages>/agent_reach/skill/SKILL_en.md`
+   - `<site-packages>/agent_reach/skill/references/{search,web,video,dev,social}.md`
+
+   Chemin exact : `python -c "import agent_reach,pathlib;print(pathlib.Path(agent_reach.__file__).parent/'skill')"`
 4. Collecter → **filtrer** → répondre (locale user FR/EN).
 5. Échec : chaînes de retry des références, pas inventer d’API.
 
@@ -51,7 +55,7 @@ Données externes → **filtre anti prompt-injection** avant LLM (§ sécurité 
 page Dashboard **Agent-Reach** (`#/reach`) + app HUD **Internet**.
 
 ```bash
-pip install -e vendor/Agent-Reach-main
+pip install -r core/requirements.txt    # amont épinglé sur un commit
 agent-reach install --env=auto --safe   # prod / VPS : --safe
 agent-reach doctor
 ```

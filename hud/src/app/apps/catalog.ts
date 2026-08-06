@@ -1,13 +1,27 @@
 /**
- * Catalogue unique lanceur HUD / dock / voix / Hermes.
+ * Catalogue du lanceur HUD — dock, grille, voix.
  *
- * status:
- *   live   = UI HUD réelle locale
- *   hermes = contenu / actions via Hermes (fenêtre HUD = surface)
- *   soon   = pas encore
+ * ⚠ Une entrée n'est PAS une application : c'est une **intention**. Qui l'exécute
+ * derrière — le Core, Hermes, un agent d'appareil — ne remonte jamais à
+ * l'utilisateur, et peut changer sans que la tuile bouge.
+ *
+ * status — comment le résultat atteint l'écran :
+ *   live    = une page produit React existe déjà (aucune surface composée)
+ *   surface = le résultat s'affiche dans une surface (préfabriquée ou composée)
+ *   soon    = pas encore
+ *
+ * `status: 'hermes'` a disparu : il faisait croire que la tuile connaissait son
+ * exécutant. Elle ne le connaît pas, et c'est voulu.
+ *
+ * `intent` est la clé de `core/jarvis_core/capabilities.py` — **source de vérité**
+ * du couple intention → exécutant. Ce fichier ne décide de rien : il déclare ce
+ * que l'utilisateur peut demander. L'ancien champ `hermesTool` nommait des outils
+ * (`home_assistant`, `node_cerveau`, `agent_reach`) dont AUCUN n'existait chez
+ * Hermes ; il est remplacé.
+ *
+ * `owner` n'est là que pour le diagnostic et les libellés — jamais pour router.
  *
  * risk → Policy Engine (info < media < home < admin < vps)
- * VPS limité : terminal / docker / code / storage / deploy — jamais root libre.
  */
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -15,11 +29,14 @@ import {
   BarChart3, Code, HardDrive, Globe, Music, Video, Home, Mail,
   FolderOpen, Box, Calendar, Sparkles, Radar, Link2,
   BrainCog, Coins, Target, Network, Timer, Wrench,
+  Lock, Moon, XCircle, MicOff, Mic, CameraOff, UserPlus,
 } from 'lucide-react';
 
-export type AppStatus = 'live' | 'hermes' | 'soon';
-export type AppCat = 'Système' | 'Hermes' | 'Maison' | 'Médias' | 'Outils';
+export type AppStatus = 'live' | 'surface' | 'soon';
+export type AppCat = 'Système' | 'Agent' | 'Maison' | 'Médias' | 'Outils';
 export type AppRisk = 'info' | 'media' | 'home' | 'admin' | 'vps';
+/** Diagnostic seulement. Le routage se fait côté Core, par `intent`. */
+export type AppOwner = 'core' | 'hermes' | 'device';
 
 export interface HudApp {
   id: string;
@@ -33,8 +50,10 @@ export interface HudApp {
   blurb?: string;
   /** Mots-clés voix / chat pour ouvrir (sans préfixe Jarvis — filtré ailleurs) */
   voice?: string[];
-  /** Outil / skill Hermes à invoquer (commande agent) */
-  hermesTool?: string;
+  /** Clé dans `core/jarvis_core/capabilities.py`. Absente = tuile purement locale. */
+  intent?: string;
+  /** Qui exécute, pour le diagnostic. Jamais montré tel quel à l'utilisateur. */
+  owner?: AppOwner;
   /** Réservé ADMIN (dashboard_access) */
   adminOnly?: boolean;
   /** Accès VPS bridé — allowlist + Policy, pas shell root */
@@ -59,152 +78,174 @@ export const HUD_APPS: HudApp[] = [
   // —— Système (HUD local) ——
   {
     id: 'settings', name: 'Paramètres', icon: Settings, color: C.blue, cat: 'Système',
-    status: 'live', risk: 'info', pinned: true,
+    status: 'live', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Expérience HUD (voix, vision, foyer)',
     voice: ['paramètres', 'settings', 'réglages'],
+    intent: 'core.preferences',
   },
   {
     id: 'jarvis', name: 'Noyau', icon: Brain, color: C.violet, cat: 'Système',
-    status: 'live', risk: 'info', pinned: true,
-    blurb: 'Carte Hermes (NeuralMap)',
+    status: 'live', risk: 'info', pinned: true, owner: 'core',
+    blurb: 'Carte du système (NeuralMap)',
     voice: ['noyau', 'carte hermes', 'neural'],
-    hermesTool: 'neural_map',
+    intent: 'core.neural_map',
   },
   {
     id: 'hub', name: 'Dashboard', icon: Boxes, color: C.cyan, cat: 'Système',
-    status: 'live', risk: 'admin', pinned: true, adminOnly: true,
+    status: 'live', risk: 'admin', pinned: true, adminOnly: true, owner: 'core',
     blurb: 'Admin Core / VPS — ADMIN seul',
     voice: ['dashboard', 'admin', 'cockpit'],
-    hermesTool: 'dashboard_open',
+    intent: 'core.dashboard',
   },
   {
     id: 'monitor', name: 'Moniteur', icon: Cpu, color: C.green, cat: 'Système',
-    status: 'live', risk: 'info', pinned: true,
+    status: 'live', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Charge locale HUD',
     voice: ['moniteur', 'cpu', 'ressources'],
+    intent: 'core.monitor',
   },
   {
     id: 'vision', name: 'Holomat', icon: Camera, color: C.violet, cat: 'Système',
-    status: 'live', risk: 'info', pinned: true,
+    status: 'live', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Caméra / gestes / calib',
-    voice: ['holomat', 'vision', 'gestes', 'caméra'],
+    voice: [
+      'holomat', 'vision', 'gestes',
+      'caméra', 'camera', 'webcam', 'visuel', 'visuels',
+      'montre la caméra', 'montre la camera',
+      'ce que tu vois', 'flux caméra', 'flux camera',
+      'caméra lg', 'camera lg', 'thinq',
+      'donne-moi un visuel', 'donne moi un visuel',
+    ],
+    intent: 'core.holomat',
   },
+  // Policy et auth sont des organes du CORE. Cette tuile était marquée « hermes » :
+  // demander à l'agent de rapporter ce qu'il a le droit de faire n'a pas de sens.
   {
     id: 'security', name: 'Sécurité', icon: Shield, color: C.rose, cat: 'Système',
-    status: 'hermes', risk: 'admin',
-    blurb: 'Policy / auth — via Hermes',
+    status: 'surface', risk: 'admin', owner: 'core',
+    blurb: 'Policy / auth',
     voice: ['sécurité', 'policy', 'auth'],
-    hermesTool: 'security_status',
+    intent: 'core.security',
   },
   {
     id: 'network', name: 'Réseau', icon: Wifi, color: C.blue, cat: 'Système',
-    status: 'hermes', risk: 'info',
-    blurb: 'LAN / agents — via Hermes',
+    status: 'soon', risk: 'info', owner: 'core',
+    blurb: 'LAN / agents — BindingResolver pas encore',
     voice: ['réseau', 'wifi', 'lan'],
-    hermesTool: 'network_status',
+    intent: 'system.network',
   },
 
-  // —— Surfaces Hermes (outils agent) ——
+  // —— Agent (délégué) ——
   {
-    id: 'terminal', name: 'Terminal', icon: Terminal, color: C.cyan, cat: 'Hermes',
-    status: 'hermes', risk: 'vps', pinned: true, vpsLimited: true,
-    blurb: 'Shell VPS allowlist — pas root libre',
+    id: 'terminal', name: 'Terminal', icon: Terminal, color: C.cyan, cat: 'Agent',
+    status: 'surface', risk: 'vps', pinned: true, vpsLimited: true, owner: 'hermes',
+    blurb: 'Shell allowlist — pas root libre',
     voice: ['terminal', 'shell', 'console ssh'],
-    hermesTool: 'vps_shell_limited',
+    intent: 'system.shell',
   },
   {
-    id: 'files', name: 'Fichiers', icon: FolderOpen, color: C.amber, cat: 'Hermes',
-    status: 'hermes', risk: 'admin', pinned: true,
-    blurb: 'FS via agent (chemins autorisés)',
+    id: 'files', name: 'Fichiers', icon: FolderOpen, color: C.amber, cat: 'Agent',
+    status: 'surface', risk: 'admin', pinned: true, owner: 'hermes',
+    blurb: 'Fichiers — chemins autorisés',
     voice: ['fichiers', 'dossier', 'explorer'],
-    hermesTool: 'files_browse',
+    intent: 'files.browse',
   },
   {
-    id: 'browser', name: 'Navigateur', icon: Globe, color: C.blue, cat: 'Hermes',
-    status: 'hermes', risk: 'info', pinned: true,
-    blurb: 'Browsing agent Hermes',
+    id: 'browser', name: 'Navigateur', icon: Globe, color: C.blue, cat: 'Agent',
+    status: 'surface', risk: 'info', pinned: true, owner: 'hermes',
+    blurb: 'Navigation pilotée',
     voice: ['navigateur', 'browser', 'holoweb'],
-    hermesTool: 'browser',
+    intent: 'web.browse',
   },
   {
-    id: 'reach', name: 'Internet', icon: Globe, color: C.cyan, cat: 'Hermes',
-    status: 'hermes', risk: 'info', pinned: true,
-    blurb: 'Agent-Reach — web / GitHub / YouTube / RSS',
+    id: 'reach', name: 'Internet', icon: Globe, color: C.cyan, cat: 'Agent',
+    status: 'surface', risk: 'info', pinned: true, owner: 'hermes',
+    blurb: 'Recherche et extraction web',
     voice: [
-      'internet', 'agent-reach', 'agent reach', 'recherche web', 'cherche',
-      'github', 'youtube', 'reddit', 'rss', 'openclaw',
+      'internet', 'agent-reach', 'agent reach', 'recherche web',
+      'cherche', 'trouve', 'propose', 'recherche',
+      'nouvelles', 'actualité', 'actualites', 'actualités',
+      'cherche sur internet', 'cherche sur le web', 'cherche sur youtube',
+      'cherche sur github', 'github', 'youtube', 'reddit', 'rss', 'openclaw',
     ],
-    hermesTool: 'agent_reach',
+    intent: 'web.search',
   },
+  // Aucun toolset docker/stockage chez Hermes : ces deux-là passeraient par
+  // `terminal`. Déclarées sans exécutant — l'ouverture le dira, plutôt que d'échouer
+  // sans raison. Cf. `capabilities.py`.
   {
-    id: 'docker', name: 'Docker', icon: Box, color: C.blue, cat: 'Hermes',
-    status: 'hermes', risk: 'vps', vpsLimited: true,
-    blurb: 'Conteneurs VPS — status/logs/restart allowlist',
+    id: 'docker', name: 'Docker', icon: Box, color: C.blue, cat: 'Agent',
+    status: 'soon', risk: 'vps', vpsLimited: true, owner: 'hermes',
+    blurb: 'Conteneurs — pas de toolset Hermes encore',
     voice: ['docker', 'conteneur', 'containers'],
-    hermesTool: 'vps_docker_limited',
+    intent: 'vps.docker',
   },
   {
-    id: 'code', name: 'VS Code', icon: Code, color: C.green, cat: 'Hermes',
-    status: 'hermes', risk: 'vps', vpsLimited: true,
-    blurb: 'Éditeur distant — projets allowlist',
+    id: 'code', name: 'VS Code', icon: Code, color: C.green, cat: 'Agent',
+    status: 'soon', risk: 'vps', vpsLimited: true, owner: 'device',
+    blurb: 'Éditeur distant — besoin d’un agent PC (pas encore). Utilisez Cursor HUD.',
     voice: ['code', 'vscode', 'éditeur'],
-    hermesTool: 'vps_code_limited',
+    intent: 'vps.code',
   },
   {
-    id: 'analyze', name: 'Analyse', icon: BarChart3, color: C.cyan, cat: 'Hermes',
-    status: 'hermes', risk: 'info',
-    blurb: 'Outils data Hermes',
+    id: 'analyze', name: 'Analyse', icon: BarChart3, color: C.cyan, cat: 'Agent',
+    status: 'surface', risk: 'admin', owner: 'hermes',
+    blurb: 'Exécution de code — analyse de données',
     voice: ['analyse', 'stats', 'données'],
-    hermesTool: 'analyze',
+    intent: 'data.analyze',
   },
   {
-    id: 'storage', name: 'Stockage', icon: HardDrive, color: C.amber, cat: 'Hermes',
-    status: 'hermes', risk: 'vps', vpsLimited: true,
-    blurb: 'Volumes VPS — lecture / quota',
+    id: 'storage', name: 'Stockage', icon: HardDrive, color: C.amber, cat: 'Agent',
+    status: 'soon', risk: 'vps', vpsLimited: true, owner: 'hermes',
+    blurb: 'Volumes — pas de toolset encore',
     voice: ['stockage', 'disque', 'volume'],
-    hermesTool: 'vps_storage_limited',
+    intent: 'vps.storage',
   },
 
   // —— Nœuds NeuralMap (même ids) ——
+  //
+  // Le routeur de modèles et les quotas sont dans le Core (`providers.py`, route
+  // `usage`). Ces deux tuiles étaient marquées « hermes » — mauvais propriétaire.
   {
-    id: 'cerveau', name: 'Cerveau', icon: BrainCog, color: C.violet, cat: 'Hermes',
-    status: 'hermes', risk: 'info', blurb: 'LLM router',
-    voice: ['cerveau', 'llm'], hermesTool: 'node_cerveau',
+    id: 'cerveau', name: 'Cerveau', icon: BrainCog, color: C.violet, cat: 'Système',
+    status: 'surface', risk: 'info', blurb: 'Routeur de modèles',
+    voice: ['cerveau', 'llm'], intent: 'core.providers', owner: 'core',
   },
   {
-    id: 'tokens', name: 'Tokens', icon: Coins, color: C.amber, cat: 'Hermes',
-    status: 'hermes', risk: 'info', blurb: 'Quotas IA',
-    voice: ['tokens', 'quota'], hermesTool: 'node_tokens',
+    id: 'tokens', name: 'Tokens', icon: Coins, color: C.amber, cat: 'Système',
+    status: 'surface', risk: 'info', blurb: 'Quotas IA',
+    voice: ['tokens', 'quota'], intent: 'core.usage', owner: 'core',
   },
   {
-    id: 'objectifs', name: 'Objectifs', icon: Target, color: C.green, cat: 'Hermes',
-    status: 'hermes', risk: 'info', blurb: 'Objectifs',
-    voice: ['objectifs', 'buts'], hermesTool: 'node_missions',
+    id: 'objectifs', name: 'Objectifs', icon: Target, color: C.green, cat: 'Agent',
+    status: 'soon', risk: 'info', blurb: 'Magasin d’objectifs absent',
+    voice: ['objectifs', 'buts'], intent: 'core.missions', owner: 'core',
   },
   {
-    id: 'skills', name: 'Skills', icon: Sparkles, color: C.violet, cat: 'Hermes',
-    status: 'hermes', risk: 'info', blurb: 'Compétences + outils à ajouter',
-    voice: ['skills', 'compétences'], hermesTool: 'node_skills',
+    id: 'skills', name: 'Skills', icon: Sparkles, color: C.violet, cat: 'Agent',
+    status: 'surface', risk: 'info', blurb: 'Compétences de l’agent',
+    voice: ['skills', 'compétences'], intent: 'agent.skills', owner: 'hermes',
   },
   {
-    id: 'connexions', name: 'Connexions', icon: Link2, color: C.blue, cat: 'Hermes',
-    status: 'hermes', risk: 'info', blurb: 'Entités jumelées',
-    voice: ['connexions', 'entités'], hermesTool: 'node_connexions',
+    id: 'connexions', name: 'Connexions', icon: Link2, color: C.blue, cat: 'Agent',
+    status: 'soon', risk: 'info', blurb: 'Device Manager absent',
+    voice: ['connexions', 'entités'], intent: 'devices.list', owner: 'device',
   },
   {
-    id: 'reseau', name: 'Topologie', icon: Network, color: C.cyan, cat: 'Hermes',
-    status: 'hermes', risk: 'info', blurb: 'Mesh agents',
-    voice: ['topologie', 'mesh'], hermesTool: 'node_reseau',
+    id: 'reseau', name: 'Topologie', icon: Network, color: C.cyan, cat: 'Agent',
+    status: 'soon', risk: 'info', blurb: 'Device Manager absent',
+    voice: ['topologie', 'mesh'], intent: 'devices.topology', owner: 'device',
   },
   {
-    id: 'cursor', name: 'Cursor', icon: Code, color: C.green, cat: 'Hermes',
-    status: 'live', risk: 'info', pinned: true,
+    id: 'cursor', name: 'Cursor', icon: Code, color: C.green, cat: 'Agent',
+    status: 'live', risk: 'info', pinned: true, owner: 'core',
     blurb: 'IDE projet — simulation post Mission Control DEV (§15)',
     voice: ['cursor', 'éditeur cursor', 'ouvre cursor'],
+    intent: 'core.cursor',
   },
   {
-    id: 'mission-control-dev', name: 'Mission Ctrl DEV', icon: Radar, color: C.rose, cat: 'Hermes',
-    status: 'live', risk: 'info', pinned: true,
+    id: 'mission-control-dev', name: 'Mission Ctrl DEV', icon: Radar, color: C.rose, cat: 'Agent',
+    status: 'live', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Orchestration projet logiciel (ex. scénario Cursor)',
     // « alertes » a été retiré : c'est un mot de la maison, il ouvrait le
     // cockpit de développement. Les alertes relèvent de Mission Control HOME.
@@ -212,40 +253,125 @@ export const HUD_APPS: HudApp[] = [
     // n'existe pas — le jour où il arrive, ce déclencheur devient ambigu et
     // doit disparaître au profit de « mission control dev ».
     voice: ['mission control dev', 'mission-control-dev', 'mission control'],
-    hermesTool: 'node_mission_control_dev',
+    intent: 'core.mission_dev',
   },
   {
-    id: 'crons', name: 'Crons', icon: Timer, color: C.slate, cat: 'Hermes',
-    status: 'hermes', risk: 'admin', blurb: 'Planifié',
-    voice: ['cron', 'planifié', 'schedule'], hermesTool: 'node_crons',
+    id: 'crons', name: 'Crons', icon: Timer, color: C.slate, cat: 'Agent',
+    status: 'surface', risk: 'admin', blurb: 'Planifié',
+    voice: ['cron', 'planifié', 'schedule'], intent: 'agent.cron', owner: 'hermes',
   },
   {
-    id: 'outils', name: 'Outils', icon: Wrench, color: C.amber, cat: 'Hermes',
-    status: 'hermes', risk: 'info', blurb: 'Tool Manager — Hermes ajoute des tools',
-    voice: ['outils', 'tools', 'tool manager'], hermesTool: 'tool_manager',
+    id: 'outils', name: 'Outils', icon: Wrench, color: C.amber, cat: 'Agent',
+    status: 'surface', risk: 'admin', blurb: 'Compétences — création et édition',
+    voice: ['outils', 'tools', 'tool manager'], intent: 'agent.tools', owner: 'hermes',
+  },
+
+  // —— Session HUD (voix → Core `hud_*`, pas de tuile dock) ——
+  {
+    id: 'hud-lock', name: 'Verrouiller', icon: Lock, color: C.rose, cat: 'Système',
+    status: 'live', risk: 'info', owner: 'core',
+    blurb: 'Verrouille la session HUD',
+    voice: [
+      'verrouille', 'verrouiller', 'verrouille la session',
+      'verrouillage', 'lock session', 'verrouille-toi',
+    ],
+    intent: 'hud.lock',
+  },
+  {
+    id: 'hud-idle', name: 'Veille', icon: Moon, color: C.slate, cat: 'Système',
+    status: 'live', risk: 'info', owner: 'core',
+    blurb: 'Mode veille HUD',
+    voice: [
+      'mode veille', 'mets-toi en veille', 'met toi en veille',
+      'veille', 'repos', 'standby',
+    ],
+    intent: 'hud.idle',
+  },
+  {
+    id: 'hud-close', name: 'Fermer espace', icon: XCircle, color: C.amber, cat: 'Système',
+    status: 'live', risk: 'info', owner: 'core',
+    blurb: 'Ferme l’espace actif',
+    voice: [
+      'ferme l\'espace', 'ferme les espaces', 'ferme la fenêtre',
+      'ferme les fenêtres', 'ferme tout', 'ferme l espace',
+      'close space', 'ferme l\'application',
+    ],
+    intent: 'hud.close_space',
+  },
+  {
+    id: 'hud-mute', name: 'Mute', icon: MicOff, color: C.slate, cat: 'Système',
+    status: 'live', risk: 'info', owner: 'core',
+    blurb: 'Coupe micro + wake',
+    voice: [
+      'coupe le son', 'coupe le micro', 'mute', 'mets en sourdine',
+      'silence', 'ne m\'écoute plus',
+    ],
+    intent: 'hud.mute',
+  },
+  {
+    id: 'hud-unmute', name: 'Unmute', icon: Mic, color: C.green, cat: 'Système',
+    status: 'live', risk: 'info', owner: 'core',
+    blurb: 'Réactive micro + wake',
+    voice: [
+      'remets le son', 'allume le micro', 'unmute', 'réactive le micro',
+      'écoute-moi', 'remets le micro',
+    ],
+    intent: 'hud.unmute',
+  },
+  {
+    id: 'hud-camera-on', name: 'Caméra on', icon: Camera, color: C.violet, cat: 'Système',
+    status: 'live', risk: 'info', owner: 'core',
+    blurb: 'Réveille la caméra navigateur',
+    voice: [
+      'allume la caméra', 'allume la camera', 'ouvre la caméra',
+      'active la caméra', 'réveille la caméra',
+    ],
+    intent: 'hud.camera_on',
+  },
+  {
+    id: 'hud-camera-off', name: 'Caméra off', icon: CameraOff, color: C.slate, cat: 'Système',
+    status: 'live', risk: 'info', owner: 'core',
+    blurb: 'Coupe la caméra navigateur',
+    voice: [
+      'coupe la caméra', 'coupe la camera', 'éteins la caméra',
+      'ferme la caméra', 'arrête la caméra',
+    ],
+    intent: 'hud.camera_off',
+  },
+  {
+    id: 'hud-enroll', name: 'Enrôlement', icon: UserPlus, color: C.cyan, cat: 'Système',
+    status: 'live', risk: 'admin', adminOnly: true, owner: 'core',
+    blurb: 'Ouvre l’enrôlement sur le kiosk maison',
+    voice: [
+      'enrôle', 'enrole', 'enrôler', 'enroler', 'inscris', 'inscrit',
+      'nouvel utilisateur', 'nouveau profil', 'ajoute un profil',
+      'enrollment', 'enrôlement', 'enrolement', 'family enroll',
+      'inscris ma', 'inscris mon', 'ajoute ma', 'ajoute mon',
+    ],
+    intent: 'hud.enroll',
   },
 
   // —— Maison / médias ——
   {
     id: 'home', name: 'Maison', icon: Home, color: C.green, cat: 'Maison',
-    status: 'hermes', risk: 'home',
-    blurb: 'Home Assistant via Hermes',
-    voice: ['maison', 'domotique', 'lumières', 'home assistant'],
-    hermesTool: 'home_assistant',
+    status: 'surface', risk: 'home', owner: 'core',
+    blurb: 'Lumières, capteurs, ouvrants',
+    voice: ['maison', 'domotique', 'lumière', 'lumières', 'lampe', 'home assistant'],
+    intent: 'home.control',
   },
   {
     id: 'music', name: 'Musique', icon: Music, color: C.green, cat: 'Médias',
-    status: 'hermes', risk: 'media', pinned: true,
-    blurb: 'Audio / Plex — Hermes',
+    status: 'surface', risk: 'media', pinned: true, owner: 'hermes',
+    blurb: 'Audio',
     voice: ['musique', 'spotify', 'plex audio'],
-    hermesTool: 'media_music',
+    intent: 'media.music',
   },
   {
     id: 'video', name: 'Vidéo', icon: Video, color: C.amber, cat: 'Médias',
-    status: 'hermes', risk: 'media',
-    blurb: 'VLC / stream — Hermes',
-    voice: ['vidéo', 'video', 'film', 'plex'],
-    hermesTool: 'media_video',
+    status: 'surface', risk: 'media', owner: 'core',
+    blurb: 'Plex — sans LLM',
+    voice: ['vidéo', 'video', 'film', 'plex', 'série', 'serie', 'épisode', 'episode', 'regarde'],
+    intent: 'media.video',
   },
 
   // —— Futures ——
@@ -259,13 +385,24 @@ export const HUD_APPS: HudApp[] = [
   },
 ];
 
-export const APP_CATEGORIES: Array<'Tout' | AppCat> = ['Tout', 'Système', 'Hermes', 'Maison', 'Médias', 'Outils'];
+export const APP_CATEGORIES: Array<'Tout' | AppCat> = ['Tout', 'Système', 'Agent', 'Maison', 'Médias', 'Outils'];
 
-/** Allowlist VPS — seules ces actions sont proposables (Hermes + Policy). */
+/**
+ * Allowlist VPS — seules ces actions sont proposables (Hermes propose, Policy tranche).
+ *
+ * ⚠ `dockerServices` nommait `homeassistant` et `plex`. Aucun des deux ne tourne sur le
+ * VPS : Home Assistant va sur le **Pi du salon**, Plex sur le **ProLiant sous Windows**
+ * (donc ni Docker ni SSH). Une allowlist « VPS » qui autorise des services d'autres
+ * machines n'autorise rien de réel — et donne l'illusion inverse.
+ *
+ * Une allowlist par hôte demanderait un Device Manager, qui n'existe pas. En attendant,
+ * celle-ci ne parle que du VPS, et le dit.
+ */
 export const VPS_ALLOWLIST = {
   shell: ['systemctl status jarvis-*', 'journalctl -u jarvis-* -n 50', 'df -h', 'docker ps', 'docker logs --tail 100'],
   docker: ['ps', 'logs', 'restart:allowlist', 'stats'],
-  dockerServices: ['jarvis-core', 'jarvis-hud', 'ollama', 'homeassistant', 'plex'],
+  /** Services réellement hébergés sur le VPS. Pas d'autre hôte ici. */
+  dockerServices: ['ollama', 'voicebox', 'caddy'],
   paths: ['/opt/jarvis', '/storage/jarvis', '/etc/jarvis'],
   denied: ['rm -rf /', 'mkfs', 'shutdown', 'reboot', 'passwd', 'useradd', 'iptables -F', 'curl|bash'],
 } as const;
@@ -285,7 +422,7 @@ export function findAppByVoice(text: string): HudApp | undefined {
 
 export function statusLabel(s: AppStatus): string {
   if (s === 'live') return 'Prêt';
-  if (s === 'hermes') return 'Hermes';
+  if (s === 'surface') return 'Surface';
   return 'Bientôt';
 }
 
@@ -297,18 +434,11 @@ export function riskLabel(r: AppRisk): string {
   return 'Info';
 }
 
-/** Manifeste pour Hermes (skill / mémoire) — sans icônes React. */
-export function hermesAppsManifest(): Array<Record<string, unknown>> {
-  return HUD_APPS.map(a => ({
-    id: a.id,
-    name: a.name,
-    cat: a.cat,
-    status: a.status,
-    risk: a.risk,
-    hermesTool: a.hermesTool ?? null,
-    adminOnly: Boolean(a.adminOnly),
-    vpsLimited: Boolean(a.vpsLimited),
-    voice: a.voice ?? [],
-    blurb: a.blurb ?? '',
-  }));
-}
+// `hermesAppsManifest()` a été retiré. Il sérialisait ce catalogue « pour Hermes »
+// et **personne ne l'appelait** — le manifeste n'a jamais quitté le HUD. C'était
+// exactement le mode de panne du dépôt : déclaré, jamais appelé, rien ne le signale.
+//
+// Il n'a plus lieu d'être : la correspondance intention → exécutant appartient
+// désormais au Core (`core/jarvis_core/capabilities.py`), qui est le seul à pouvoir
+// la faire respecter. Le HUD déclare ce qu'on peut demander ; il n'annonce pas à
+// l'agent ce qu'il a le droit de faire.

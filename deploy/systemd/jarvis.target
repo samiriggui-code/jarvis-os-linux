@@ -1,6 +1,8 @@
 [Unit]
 Description=JARVIS OS stack
-Wants=jarvis-core.service jarvis-hud.service jarvis-voicebox.service
+# Hermes en Wants (pas Requires) : sa mort n'arrête pas Core / HUD / voicebox.
+# Tunnels sortants NUC→VPS : Ollama (11435) + voicebox (17600), Wants pas Requires.
+Wants=jarvis-core.service jarvis-hud.service jarvis-voicebox.service jarvis-hermes.service jarvis-tunnel-ollama.service jarvis-tunnel-voicebox.service jarvis-tunnel-hud-reverse.service
 
 [Install]
 WantedBy=multi-user.target

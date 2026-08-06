@@ -1,0 +1,171 @@
+# Présence réseau des équipements du foyer — relevé du 2026-08-05.
+#
+# Pourquoi `command_line` et pas l'intégration `ping` : depuis HA 2024.6 `ping`
+# est passé en config flow et sa plateforme YAML a disparu. `command_line` reste
+# déclaratif, donc versionnable — ce fichier est la source de vérité, pas un état
+# cliqué dans une interface.
+#
+# Ce que ça donne : chaque appareil devient un `binary_sensor` de classe
+# `connectivity`. Ça ne le PILOTE pas — ça dit s'il est là. C'est la première
+# marche : un tableau de bord honnête avant les intégrations, plutôt qu'une page
+# vide en attendant.
+#
+# ⚠ Les téléphones et tablettes s'endorment et disparaissent du réseau. Leur
+# état oscillera, et c'est normal : ce n'est pas de la présence de personne,
+# c'est de la présence d'appareil. Ne pas bâtir d'automatisation dessus.
+
+command_line:
+  # ── Réseau / box ────────────────────────────────────────────────────────
+  - binary_sensor:
+      name: Freebox Server
+      unique_id: jarvis_net_freebox_server
+      command: 'ping -c 1 -W 1 192.168.1.254 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 60
+
+  - binary_sensor:
+      name: Répéteur Wi-Fi
+      unique_id: jarvis_net_repeteur
+      command: 'ping -c 1 -W 1 192.168.1.56 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 120
+
+  # ── Média ───────────────────────────────────────────────────────────────
+  - binary_sensor:
+      name: Freebox Player
+      unique_id: jarvis_net_freebox_player
+      command: 'ping -c 1 -W 1 192.168.1.49 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 60
+
+  - binary_sensor:
+      name: TV Sony Bravia
+      unique_id: jarvis_net_bravia
+      command: 'ping -c 1 -W 1 192.168.1.79 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 60
+
+  # Répond au ping même en veille, mais n'ouvre aucun port : « allumée » ici
+  # signifie « raccordée », pas « écran actif ». Le CEC dira le reste.
+  - binary_sensor:
+      name: TV Samsung
+      unique_id: jarvis_net_samsung
+      command: 'ping -c 1 -W 1 192.168.1.78 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 60
+
+  - binary_sensor:
+      name: Apple TV Chambre
+      unique_id: jarvis_net_appletv
+      command: 'ping -c 1 -W 1 192.168.1.172 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 60
+
+  # ── Maison ──────────────────────────────────────────────────────────────
+  - binary_sensor:
+      name: Lave-linge Samsung
+      unique_id: jarvis_net_lave_linge
+      command: 'ping -c 1 -W 1 192.168.1.119 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 120
+
+  # ── Infrastructure JARVIS ───────────────────────────────────────────────
+  - binary_sensor:
+      name: NUC
+      unique_id: jarvis_net_nuc
+      command: 'ping -c 1 -W 1 192.168.1.37 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 60
+
+  # ⚠ PAS de ping ici : Windows bloque l'ICMP par défaut, et le ProLiant
+  # apparaissait donc « absent » alors qu'il sert Plex depuis des heures. Un
+  # capteur qui se trompe dans ce sens est le pire : il déclare morte une machine
+  # vivante, et on va la redémarrer pour rien.
+  #
+  # On sonde le PORT PLEX : c'est à la fois la preuve que la machine est là ET
+  # que le service qu'on lui demande fonctionne. Une machine allumée dont Plex
+  # est planté n'est pas « disponible » pour l'usage qu'on en a.
+  - binary_sensor:
+      name: ProLiant Plex
+      unique_id: jarvis_net_proliant
+      command: 'nc -z -w 2 192.168.1.44 32400 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 60
+
+  # L'iLO reste joignable serveur ÉTEINT — c'est tout son intérêt : il permettra
+  # d'allumer le ProLiant à distance. Un iLO absent alors que le ProLiant répond
+  # est donc plus inquiétant que l'inverse.
+  - binary_sensor:
+      name: ProLiant iLO
+      unique_id: jarvis_net_ilo
+      command: 'ping -c 1 -W 1 192.168.1.43 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 120
+
+  - binary_sensor:
+      name: HP Mini Salon
+      unique_id: jarvis_net_hpmini
+      command: 'ping -c 1 -W 1 192.168.1.187 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 120
+
+  # ── Appareils de la famille ─────────────────────────────────────────────
+  # États instables par nature (veille Wi-Fi, MAC aléatoires). Affichés pour
+  # information, jamais comme déclencheur.
+  - binary_sensor:
+      name: iPad 1
+      unique_id: jarvis_net_ipad1
+      command: 'ping -c 1 -W 1 192.168.1.11 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 180
+
+  - binary_sensor:
+      name: iPad 2
+      unique_id: jarvis_net_ipad2
+      command: 'ping -c 1 -W 1 192.168.1.84 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 180
+
+  - binary_sensor:
+      name: Galaxy A26
+      unique_id: jarvis_net_a26
+      command: 'ping -c 1 -W 1 192.168.1.12 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 180
+
+  - binary_sensor:
+      name: Galaxy Tab S9 FE
+      unique_id: jarvis_net_tabs9
+      command: 'ping -c 1 -W 1 192.168.1.64 >/dev/null 2>&1 && echo ON || echo OFF'
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      scan_interval: 180

@@ -142,6 +142,134 @@ export function stopAllMedia(): void {
   stopCamera();
 }
 
+/* ------------------------------------------------------------------ */
+/* Arbitrage caméra — allumée sur besoin, éteinte sinon                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Raisons légitimes d'allumer la caméra. La liste est fermée exprès : une
+ * caméra qui s'allume doit toujours pouvoir être expliquée à la personne
+ * filmée, et un nom libre laisserait passer n'importe quoi.
+ */
+export type CameraReason =
+  | 'auth'          // identification faciale au démarrage
+  | 'unlock'        // déverrouillage de session
+  | 'enrollment'    // création d'un profil
+  | 'holomat'       // analyse d'un objet, à la demande
+  | 'gesture'       // calibrage / pilotage gestuel
+  | 'preview'       // aperçu dans les réglages
+  | 'kiosk';        // TV salon : présence / face / gestes en continu
+
+/**
+ * Détenteurs actuels. Un compteur global ne suffit pas : deux composants
+ * peuvent demander la caméra pour la MÊME raison (l'aperçu des réglages monté
+ * deux fois), et un `Set` de raisons perdrait l'un des deux relâchements.
+ */
+const cameraHolders = new Map<CameraReason, number>();
+
+/**
+ * Extinction différée.
+ *
+ * ⚠ Sans ce délai, la caméra s'éteint puis se rallume entre deux étapes qui
+ * se passent le relais — l'écran d'authentification qui cède la main au
+ * panneau de scan, par exemple. Rallumer coûte une à deux secondes sur un
+ * portable, fait clignoter la diode de confidentialité, et donne l'impression
+ * que le HUD hésite. On laisse donc un battement avant de couper vraiment.
+ */
+const RELEASE_GRACE_MS = 1_500;
+let releaseTimer: number | null = null;
+
+const cancelPendingRelease = () => {
+  if (releaseTimer !== null) {
+    window.clearTimeout(releaseTimer);
+    releaseTimer = null;
+  }
+};
+
+/** Qui tient la caméra en ce moment — pour l'affichage et le diagnostic. */
+export function cameraHoldersList(): CameraReason[] {
+  return [...cameraHolders.entries()].filter(([, n]) => n > 0).map(([r]) => r);
+}
+
+/**
+ * Demande la caméra pour une raison précise.
+ *
+ * ⚠ Tout `acquireCamera` doit avoir son `releaseCamera` — de préférence dans
+ * le nettoyage d'un `useEffect`. C'est ce qui manquait : neuf endroits du HUD
+ * appelaient `ensureCamera()` et **aucun** n'appelait `stopCamera()`. La
+ * webcam restait donc allumée en permanence dès le premier démarrage, diode
+ * comprise, y compris pendant qu'on ne faisait rien d'autre que discuter.
+ */
+export async function acquireCamera(reason: CameraReason): Promise<MediaStream | null> {
+  cancelPendingRelease();
+  cameraHolders.set(reason, (cameraHolders.get(reason) ?? 0) + 1);
+  // On reste inscrit même si l'accès est refusé : le contrat est symétrique,
+  // un `acquire` égale toujours un `release`. Une exception au refus obligerait
+  // chaque appelant à distinguer deux cas — et c'est exactement le genre
+  // d'asymétrie qui finit par laisser une caméra allumée.
+  return ensureCamera();
+}
+
+/** Rend la caméra. Elle s'éteint quand le dernier détenteur l'a relâchée. */
+export function releaseCamera(reason: CameraReason): void {
+  const n = (cameraHolders.get(reason) ?? 0) - 1;
+  if (n > 0) cameraHolders.set(reason, n);
+  else cameraHolders.delete(reason);
+
+  if (cameraHolders.size > 0) return;
+
+  cancelPendingRelease();
+  releaseTimer = window.setTimeout(() => {
+    releaseTimer = null;
+    // Une demande a pu arriver pendant le battement.
+    if (cameraHolders.size === 0) {
+      console.info('[media] caméra éteinte — plus aucun besoin');
+      stopCamera();
+    }
+  }, RELEASE_GRACE_MS);
+}
+
+/**
+ * Tient la caméra le temps d'une opération, et la rend quoi qu'il arrive.
+ *
+ * À préférer au couple `acquireCamera` / `releaseCamera` dès qu'il y a
+ * plusieurs sorties possibles : le `finally` couvre le retour normal, le
+ * retour anticipé ET l'exception. Un scan facial qui échoue ne doit pas
+ * laisser la webcam allumée derrière lui.
+ */
+export async function withCamera<T>(
+  reason: CameraReason,
+  fn: (stream: MediaStream | null) => Promise<T>,
+): Promise<T> {
+  const stream = await acquireCamera(reason);
+  try {
+    return await fn(stream);
+  } finally {
+    releaseCamera(reason);
+  }
+}
+
+/**
+ * Coupe la caméra sans condition, détenteurs compris.
+ *
+ * Réservé au verrouillage de session et au bouton de confidentialité : là,
+ * couper est un ordre, pas une optimisation.
+ */
+export function forceReleaseCamera(): void {
+  cancelPendingRelease();
+  cameraHolders.clear();
+  stopCamera();
+}
+
+/*
+ * Le MICRO ne suit pas cette discipline, et c'est voulu : JARVIS doit pouvoir
+ * être appelé à la voix à tout moment, ce qui suppose d'écouter en
+ * permanence. La caméra, elle, n'a aucune raison de filmer entre deux
+ * demandes. Les deux périphériques n'ont pas le même contrat, ils n'ont donc
+ * pas la même gestion.
+ */
+
+
 /** Liste caméras après permission (labels vides sinon). */
 export async function listVideoInputs(): Promise<{ id: string; name: string }[]> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return [];

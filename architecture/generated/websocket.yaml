@@ -35,6 +35,9 @@ evenements_emis:
   - type: auth_enroll_signal
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
+  - type: auth_enrollment_started
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
   - type: auth_error
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
@@ -46,10 +49,13 @@ evenements_emis:
     ecoute_par_le_hud: true
   - type: auth_recovery_result
     sources: [core/jarvis_core/__init__.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: auth_revoke_result
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
+  - type: auth_sequence_stop
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
   - type: auth_status
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
@@ -61,7 +67,7 @@ evenements_emis:
     ecoute_par_le_hud: true
   - type: chat_reply
     sources: [core/jarvis_core/__init__.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: core_error
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
@@ -77,6 +83,9 @@ evenements_emis:
   - type: holomat_status
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
+  - type: hud_command
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
   - type: locale_resolved
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false

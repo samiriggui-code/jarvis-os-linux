@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
@@ -106,6 +107,7 @@ class Step:
     #:   « Présence humaine détectée. » ne doit sortir qu'une fois la présence
     #:   réellement détectée. L'annoncer avant, c'est mentir — et c'est
     #:   exactement ce qui trahit une séquence scriptée.
+    #: `"never"` — silence : étape technique / préparation sans voix.
     announce: str = "before"
 
 
@@ -191,32 +193,24 @@ BOOT = Sequence(
 AUTH = Sequence(
     "auth",
     [
-        # -- Préparation des capteurs. Purement narratif : rien à attendre.
-        Step("auth_started", min_hold_s=0.4),
-        # Ni caméra ni micro : la biométrie est hors de portée. Le dire tout
-        # de suite et orienter vers le code, au lieu de laisser l'écran sur
-        # « Veuillez rester immobile » devant un port USB vide. Les phrases
-        # qui demandent de rebrancher, elles, sont déjà parties — c'est
-        # `handle_peripheral` qui les envoie, au moment du débranchement.
+        # Préparation silencieuse : pas de monologue cinéma si personne n'est
+        # devant la caméra. La voix ne démarre QU'après `face.presence`.
+        Step("auth_started", min_hold_s=0.15, announce="never"),
         Step("peripheral_auth_degraded", when="no_biometrics", min_hold_s=0.6),
-        Step("biometric_modules_sync"),
-        Step("perception_ready", when="face_ready"),
-        Step("sensors_calibrated"),
-        # -- Caméra. C'est ici que la règle « événement réel » compte le plus.
-        Step("environment_scan", when="face_ready", branch="face"),
-        # `on_timeout` ne duplique PLUS l'étape suivante : personne devant la
-        # caméra → on invite à se présenter, et la branche s'arrête là.
-        # « Présence humaine détectée » n'est dite QU'APRÈS la détection.
-        Step("presence_detected", awaits="face.presence", timeout_s=15.0,
+        Step("biometric_modules_sync", announce="never"),
+        Step("perception_ready", when="face_ready", announce="never"),
+        Step("sensors_calibrated", announce="never"),
+        Step("environment_scan", when="face_ready", branch="face", announce="never"),
+        # « Présence humaine détectée » n'est dite QU'APRÈS la détection réelle.
+        Step("presence_detected", awaits="face.presence", timeout_s=45.0,
              on_timeout="face_scan_prompt", when="face_ready", branch="face",
              announce="after"),
-        # « Extraction des vecteurs » n'est dite qu'une fois le scan confirmé.
         Step("face_scan_active", awaits="face.scanning", timeout_s=10.0,
              when="face_ready", branch="face", announce="after"),
         Step("face_embedding", when="face_ready", branch="face"),
         Step("face_match_search", awaits="face.matched", timeout_s=12.0,
              on_timeout="face_denied", when="face_ready", branch="face"),
-        Step("face_authenticated", min_hold_s=0.5, when="face_ready", branch="face"),
+        Step("face_authenticated", min_hold_s=0.3, when="face_ready", branch="face"),
         # -- Voix. BRANCHE DÉSACTIVÉE tant que la vérification du locuteur
         # n'existe pas.
         #
@@ -244,13 +238,9 @@ AUTH = Sequence(
              when="speaker_verified", branch="voice"),
         Step("voice_analyzing", when="speaker_verified", branch="voice"),
         Step("voice_validated", min_hold_s=0.4, when="speaker_verified", branch="voice"),
-        # -- Fusion et salutation : UNIQUEMENT si quelqu'un est identifié.
-        # Saluer sans session, c'est dire « Ravi de vous revoir » à un inconnu
-        # et tirer un titre au hasard entre monsieur, madame et mademoiselle.
-        Step("auth_fusion", min_hold_s=0.5, when="identified"),
-        Step("systems_ready", min_hold_s=0.5, when="identified"),
-        Step("greeting", min_hold_s=0.6, when="identified"),
-        Step("awaiting_instructions", when="identified"),
+        # Plus de greeting / awaiting ici : dès face OK le HUD unlock et
+        # coupe via sequence_stop. Une salutation Core doublait le chat et
+        # donnait l'impression que JARVIS « continue son monologue ».
     ],
 )
 
@@ -267,23 +257,45 @@ AUTH = Sequence(
 ENROLLMENT = Sequence(
     "enrollment",
     [
+        # ⚠ RELANCES D'ATTENTE — ajoutées le 2026-08-06.
+        #
+        # Cinq étapes de cette séquence attendent un signal, pour un total de
+        # 105 s de délai possible. Aucune n'avait de `wait_event` : pendant ces
+        # attentes JARVIS se taisait, puis reprenait son texte comme si de rien
+        # n'était. Vu de l'écran, il récitait sans jamais regarder ce qui s'y
+        # passait — c'est le défaut rapporté, et ce n'était pas du réseau.
+        #
+        # Les événements choisis sont DÉJÀ dans le cache vocal (`ack_working`
+        # 6 clips, `voice_prompt_wait` 1). C'est délibéré : une phrase inédite
+        # serait muette jusqu'à régénération du cache, et chaque clip est un
+        # appel ElevenLabs facturé. On réutilise donc l'existant, ça parle tout
+        # de suite et ça ne coûte rien.
+        #
+        # `WAIT_RELANCES_S = (8, 30)` : deux relances maximum, puis silence.
+        # Le majordome ne commente pas son attente.
         Step("enrollment_start", min_hold_s=0.5),
-        Step("enrollment_ask_name", awaits="enroll.name", timeout_s=30.0),
+        Step("enrollment_ask_name", awaits="enroll.name", timeout_s=30.0,
+             wait_event="ack_working"),
         Step("enrollment_name_saved"),
-        Step("enrollment_ask_profile_type", awaits="enroll.profile", timeout_s=30.0),
+        Step("enrollment_ask_profile_type", awaits="enroll.profile", timeout_s=30.0,
+             wait_event="ack_working"),
         # -- Empreinte vocale
         Step("voice_enroll_start", when="voice_ready"),
-        Step("voice_enroll_repeat", awaits="enroll.voice", timeout_s=25.0, when="voice_ready"),
+        # `voice_prompt_wait` plutôt que `ack_working` : ici la personne est
+        # censée PARLER. Si rien ne vient, « Rapprochez-vous du microphone »
+        # est un diagnostic, pas une politesse d'attente.
+        Step("voice_enroll_repeat", awaits="enroll.voice", timeout_s=25.0, when="voice_ready",
+             wait_event="voice_prompt_wait"),
         Step("voice_sample_saved", when="voice_ready"),
         Step("voice_analysis_done", when="voice_ready"),
         # -- Profil facial. Séquence chorégraphiée avec le scan à l'écran :
         # l'ordre des étapes suit l'animation, ne pas le réordonner.
         Step("face_scan_init", when="face_ready"),
         Step("face_scan_landmarks", awaits="face.landmarks", timeout_s=15.0,
-             when="face_ready", announce="after"),
+             when="face_ready", announce="after", wait_event="ack_working"),
         Step("face_scan_features", when="face_ready"),
         Step("face_scan_model", awaits="face.model", timeout_s=20.0,
-             when="face_ready", announce="after"),
+             when="face_ready", announce="after", wait_event="ack_working"),
         Step("face_scan_done", min_hold_s=0.4, when="face_ready"),
         # -- Clôture
         Step("enrollment_configuring"),
@@ -297,23 +309,27 @@ ENROLLMENT = Sequence(
 UNLOCK = Sequence(
     "unlock",
     [
-        Step("session_opened", min_hold_s=0.3),
-        Step("profile_loaded"),
-        Step("greeting", min_hold_s=0.5),
+        # Pas de profile_loaded ici : sans binding user fiable ça tirait
+        # « Inès » au hasard. Le welcome_back porte le titre (monsieur…).
+        Step("session_opened", min_hold_s=0.25),
+        Step("session_welcome_back", min_hold_s=0.6),
     ],
 )
 
 LOCK = Sequence(
     "lock",
     [
-        Step("session_locked_manual"),
-        Step("session_closed", min_hold_s=0.4),
+        Step("session_locked_manual", min_hold_s=0.5),
+        Step("session_closed", min_hold_s=0.3),
     ],
 )
 
 LOCK_AUTO = Sequence(
     "lock_auto",
-    [Step("session_locked_auto", min_hold_s=0.4)],
+    [
+        Step("session_locked_auto", min_hold_s=0.5),
+        Step("session_goodbye", min_hold_s=0.3),
+    ],
 )
 
 # ═══ ACCÈS ADMIN ═════════════════════════════════════════════════════════
@@ -337,6 +353,20 @@ SEQUENCES = {
 }
 
 
+def watched_components(name: str) -> set[str]:
+    """Briques dont une séquence révèle la ligne elle-même, à son rythme.
+
+    Déduit des `awaits` plutôt qu'écrit à la main : ajouter une vérification au
+    démarrage ne doit pas obliger à penser à une seconde liste ailleurs, sous
+    peine de voir cette ligne-là s'allumer d'avance pendant que les autres
+    attendent leur phrase.
+    """
+    seq = SEQUENCES.get(name)
+    if seq is None:
+        return set()
+    return {s.awaits.split(".", 1)[0] for s in seq.steps if s.awaits}
+
+
 class SequenceRunner:
     """Exécute une séquence : parle, attend, enchaîne.
 
@@ -352,9 +382,20 @@ class SequenceRunner:
         conditions: dict[str, Callable[[], bool]] | None = None,
         prime: Callable[[Callable[[str], None]], None] | None = None,
         recover: Callable[[str], Awaitable[bool]] | None = None,
+        # `state=None` → laisser le superviseur donner l'état réel.
+        reveal: Callable[[str, str | None], None] | None = None,
     ) -> None:
         self._say = say
         self._conditions = conditions or {}
+        #: Allume la ligne d'une brique au HUD — `(composant, état)`.
+        #:
+        #: Le superviseur connaît la vérité bien avant qu'on la prononce : au
+        #: démarrage nominal, tout est prêt depuis longtemps quand le
+        #: navigateur arrive. Diffuser cet état en bloc allumait les six lignes
+        #: d'un coup, puis JARVIS les énumérait pendant vingt secondes dans le
+        #: vide. On révèle donc chaque ligne AU MOMENT de sa phrase : une
+        #: action, un chargement, une voix.
+        self._reveal = reveal
         #: Tentative de remise en service, appelée avant de déclarer un échec.
         #: Renvoie `True` si la brique répond enfin. Absent = pas de seconde
         #: chance, comportement d'avant.
@@ -371,6 +412,7 @@ class SequenceRunner:
         self._prime = prime
         self._waiters: dict[str, asyncio.Event] = {}
         self._running: str | None = None
+        self._abort = False
         #: Branches dont une étape a échoué pendant la séquence en cours.
         self._failed: set[str] = set()
         #: Étapes ayant échoué, branche ou pas. C'est ce qui permet de choisir
@@ -389,6 +431,33 @@ class SequenceRunner:
         """
         self._waiters.setdefault(name, asyncio.Event()).set()
         logger.debug("signal %s", name)
+
+    def abort(self) -> None:
+        """Coupe la séquence en cours (login réussi, refresh session, etc.).
+
+        Arme aussi un signal interne pour débloquer une éventuelle attente.
+        """
+        if not self._running:
+            self._abort = True
+            return
+        logger.info("séquence « %s » annulée", self._running)
+        self._abort = True
+        # Débloque toute attente en cours.
+        for ev in self._waiters.values():
+            ev.set()
+        self._waiters.setdefault("__abort__", asyncio.Event()).set()
+
+    async def _sleep(self, seconds: float) -> None:
+        """Sleep interruptible par `abort()` — sinon un WAV coupe mais la
+        séquence attend encore toute la durée estimée avant de s'arrêter."""
+        if seconds <= 0 or self._abort:
+            return
+        end = time.monotonic() + seconds
+        while not self._abort:
+            remaining = end - time.monotonic()
+            if remaining <= 0:
+                return
+            await asyncio.sleep(min(0.15, remaining))
 
     def reset_signals(self) -> None:
         self._waiters.clear()
@@ -418,20 +487,31 @@ class SequenceRunner:
     async def _wait_outcome(
         self, ok_name: str, fail_name: str | None, timeout: float
     ) -> str:
-        """Attend le succès OU l'échec. Renvoie `ok` / `failed` / `timeout`.
+        """Attend le succès OU l'échec. Renvoie `ok` / `failed` / `timeout` / `abort`.
 
         Sans `fail_name`, une brique qui se déclare morte tout de suite ferait
         quand même patienter jusqu'au timeout — quinze secondes de silence pour
         une réponse déjà connue.
+
+        ⚠ `abort()` arme TOUS les waiters pour débloquer. Sans test `_abort`
+        ici, l'annulation était lue comme un succès → greeting / systems_ready
+        continuaient après un login réussi.
         """
+        if self._abort:
+            return "abort"
         ok_ev = self._waiters.setdefault(ok_name, asyncio.Event())
         if fail_name is None:
-            return "ok" if await self._wait(ok_name, timeout) else "timeout"
+            got = await self._wait(ok_name, timeout)
+            if self._abort:
+                return "abort"
+            return "ok" if got else "timeout"
 
         fail_ev = self._waiters.setdefault(fail_name, asyncio.Event())
+        abort_ev = self._waiters.setdefault("__abort__", asyncio.Event())
         tasks = {
             asyncio.create_task(ok_ev.wait()): "ok",
             asyncio.create_task(fail_ev.wait()): "failed",
+            asyncio.create_task(abort_ev.wait()): "abort",
         }
         try:
             done, _ = await asyncio.wait(
@@ -440,11 +520,15 @@ class SequenceRunner:
         finally:
             for task in tasks:
                 task.cancel()
+        if self._abort:
+            return "abort"
         if not done:
             logger.info("étape en attente de « %s » — délai dépassé", ok_name)
             return "timeout"
-        # Les deux d'un coup (transition immédiate) : le succès l'emporte.
         outcomes = {tasks[t] for t in done}
+        if "abort" in outcomes:
+            return "abort"
+        # Les deux d'un coup (transition immédiate) : le succès l'emporte.
         return "ok" if "ok" in outcomes else "failed"
 
     async def _relances(self, event: str, say_kwargs: dict[str, Any]) -> None:
@@ -494,6 +578,7 @@ class SequenceRunner:
             return False
 
         self._running = name
+        self._abort = False
         self._failed.clear()
         self._degraded.clear()
         self.reset_signals()
@@ -507,6 +592,9 @@ class SequenceRunner:
         logger.info("Séquence « %s » — %d étapes", name, len(seq.steps))
         try:
             for step in seq.steps:
+                if self._abort:
+                    logger.info("séquence « %s » stoppée (abort)", name)
+                    return False
                 if step.branch and step.branch in self._failed:
                     # La branche a déjà échoué : annoncer « analyse terminée »
                     # après « utilisateur non reconnu » serait absurde.
@@ -516,6 +604,9 @@ class SequenceRunner:
                     logger.debug("étape %s sautée (%s indisponible)", step.event, step.when)
                     continue
                 ok = await self._play(step, say_kwargs)
+                if self._abort:
+                    logger.info("séquence « %s » stoppée après étape (abort)", name)
+                    return False
                 if not ok and step.fatal:
                     # Rien à annoncer au-dessus d'une brique dont tout le reste
                     # dépend. On s'arrête ici, la ligne d'échec a été dite.
@@ -527,6 +618,7 @@ class SequenceRunner:
             return True
         finally:
             self._running = None
+            self._abort = False
 
     @property
     def degraded(self) -> set[str]:
@@ -534,10 +626,22 @@ class SequenceRunner:
         return set(self._degraded)
 
     async def _play(self, step: Step, say_kwargs: dict[str, Any]) -> bool:
+        if self._abort:
+            return False
         # `announce="after"` : la phrase affirme un fait, elle attend donc que
         # le fait soit établi. On ne joue rien maintenant.
+        # `announce="never"` : étape muette (préparation technique).
         deferred = step.awaits is not None and step.announce == "after"
-        payload = None if deferred else await self._say(step.event, **say_kwargs)
+        silent = step.announce == "never"
+
+        # `awaits="hermes.ready"` → la brique surveillée est « hermes ». La
+        # ligne passe en attente au moment où la phrase la nomme, et ne
+        # tranchera qu'une fois la phrase finie.
+        watched = step.awaits.split(".", 1)[0] if step.awaits else None
+        if watched and self._reveal is not None:
+            self._reveal(watched, "loading")
+
+        payload = None if (deferred or silent) else await self._say(step.event, **say_kwargs)
 
         # Durée de l'audio : le Core ne sait pas quand le HUD a fini de jouer
         # tant que le retour `voice/playback end` n'est pas câblé. On estime
@@ -548,6 +652,7 @@ class SequenceRunner:
         if step.awaits:
             # On attend le fait réel PENDANT que l'audio joue : la caméra n'a
             # aucune raison de patienter que JARVIS ait fini sa phrase.
+            started = time.monotonic()
             relances = (
                 asyncio.create_task(self._relances(step.wait_event, say_kwargs))
                 if step.wait_event and step.timeout_s > WAIT_RELANCES_S[0]
@@ -567,6 +672,9 @@ class SequenceRunner:
                     except asyncio.CancelledError:
                         pass
 
+            if outcome == "abort" or self._abort:
+                return False
+
             ok = outcome == "ok"
 
             # ── Seconde chance ──────────────────────────────────────────
@@ -583,18 +691,53 @@ class SequenceRunner:
                     outcome = await self._wait_outcome(
                         step.awaits, step.fails_on, step.retry_timeout_s
                     )
+                    if outcome == "abort" or self._abort:
+                        return False
                     ok = outcome == "ok"
 
             if ok and step.announce == "after":
                 # Le fait est confirmé : on peut enfin l'affirmer.
+                if self._abort:
+                    return False
                 payload = await self._say(step.event, **say_kwargs)
                 audio_s = (payload.get("bytes", 0) / BYTES_PER_SECOND) if payload else 0.0
                 pause_s = ((payload or {}).get("pause_ms") or 0) / 1000
-                await asyncio.sleep(max(audio_s + pause_s, step.min_hold_s))
+                await self._sleep(max(audio_s + pause_s, step.min_hold_s))
+            elif silent:
+                await self._sleep(step.min_hold_s)
             else:
-                remaining = max(0.0, audio_s + pause_s - step.timeout_s)
-                if remaining:
-                    await asyncio.sleep(remaining)
+                # Laisser la phrase se terminer avant d'enchaîner.
+                #
+                # ⚠ On retranche le temps RÉELLEMENT passé à attendre, pas
+                # `timeout_s`. L'ancien calcul (`- step.timeout_s`) partait du
+                # principe que l'attente durait toujours son maximum. Or c'est
+                # l'inverse au démarrage nominal : le superviseur a réarmé les
+                # signaux (`_prime`), l'attente se résout en quelques
+                # microsecondes, et `remaining` tombait donc à zéro pour un
+                # `timeout_s` de 12 à 45 secondes.
+                #
+                # Conséquence observée : les six annonces de boot partaient
+                # collées, chacune coupant la précédente. Ce qu'on entendait ne
+                # correspondait plus à ce que l'écran cochait — « une action,
+                # un chargement, une voix » n'était plus tenu.
+                elapsed = time.monotonic() - started
+                remaining = max(audio_s + pause_s, step.min_hold_s) - elapsed
+                if remaining > 0:
+                    await self._sleep(remaining)
+                if self._abort:
+                    return False
+            # Verdict de la ligne, une fois la phrase terminée : l'écran
+            # tranche au moment où la voix a fini de le dire.
+            #
+            # ⚠ En cas d'échec on NE force PAS « dégradé » : on demande son
+            # état réel au superviseur (`state=None`). Une étape peut expirer
+            # sans qu'il y ait panne — HOLOMAT VISION attend un flux caméra que
+            # le Core ne tient pas, et qu'aucun navigateur n'a encore rapporté.
+            # Forcer le rouge ici revenait à contredire la seule brique qui
+            # sache, et à afficher une avarie là où il n'y a qu'un silence.
+            if watched and self._reveal is not None:
+                self._reveal(watched, "ready" if ok else None)
+
             if not ok:
                 self._degraded.add(step.event)
                 if step.branch:
@@ -602,9 +745,9 @@ class SequenceRunner:
                     # empêche la suite de la branche de contredire l'annonce.
                     self._failed.add(step.branch)
                     logger.info("branche « %s » en échec sur %s", step.branch, step.event)
-                if step.on_timeout:
+                if step.on_timeout and not self._abort:
                     await self._say(step.on_timeout, **say_kwargs)
             return ok
 
-        await asyncio.sleep(max(audio_s + pause_s, step.min_hold_s))
-        return True
+        await self._sleep(max(audio_s + pause_s, step.min_hold_s))
+        return not self._abort

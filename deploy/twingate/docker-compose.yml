@@ -1,0 +1,9 @@
+# Connector Twingate sur le NUC (sortie internet only, pas de port Freebox).
+# Tokens dans connector.env (à côté de ce fichier).
+services:
+  twingate_connector:
+    container_name: jarvis-nuc
+    restart: always
+    image: twingate/connector:latest
+    env_file: ./connector.env
+    network_mode: host

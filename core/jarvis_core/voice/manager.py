@@ -139,7 +139,9 @@ class VoiceManager:
         self._active = utterance_id
 
         if not self._should_retry():
-            return self._fallback(utterance_id, clean, "voicebox_unavailable", selection)
+            return await self._elevenlabs_or_fallback(
+                utterance_id, clean, "voicebox_unavailable", selection
+            )
 
         try:
             return await self._synthesize(utterance_id, clean, selection, user_id)
@@ -148,19 +150,27 @@ class VoiceManager:
             self.last_error = str(exc)
             self._last_probe = time.monotonic()
             logger.warning("voicebox tombé pendant la synthèse : %s", exc)
-            return self._fallback(utterance_id, clean, "voicebox_unavailable", selection)
+            return await self._elevenlabs_or_fallback(
+                utterance_id, clean, "voicebox_unavailable", selection
+            )
         except VoiceboxModelDownloading as exc:
             self.last_error = str(exc)
             logger.info("voicebox télécharge « %s » — fallback HUD en attendant", exc.model)
-            return self._fallback(utterance_id, clean, "model_downloading", selection)
+            return await self._elevenlabs_or_fallback(
+                utterance_id, clean, "model_downloading", selection
+            )
         except VoiceboxError as exc:
             self.last_error = str(exc)
             logger.warning("synthèse refusée : %s", exc)
-            return self._fallback(utterance_id, clean, "voicebox_error", selection)
+            return await self._elevenlabs_or_fallback(
+                utterance_id, clean, "voicebox_error", selection
+            )
         except Exception as exc:  # noqa: BLE001 — jamais muet à cause d'un bug ici
             self.last_error = str(exc)
             logger.exception("synthèse : erreur inattendue")
-            return self._fallback(utterance_id, clean, "internal_error", selection)
+            return await self._elevenlabs_or_fallback(
+                utterance_id, clean, "internal_error", selection
+            )
 
     async def _synthesize(
         self,
@@ -170,16 +180,18 @@ class VoiceManager:
         user_id: str,
     ) -> dict[str, Any]:
         if selection is None:
-            return self._fallback(utterance_id, text, "no_voice_selection", None)
+            return await self._elevenlabs_or_fallback(
+                utterance_id, text, "no_voice_selection", None
+            )
 
         profile_id = await self.client.resolve_profile_id(selection.profile)
         if not profile_id:
             self.last_error = "aucun profil de voix dans voicebox"
             logger.warning(
-                "voicebox n'expose aucun profil — créer « %s » puis relancer",
+                "voicebox n'expose aucun profil — créer « %s » puis repli ElevenLabs",
                 selection.profile,
             )
-            return self._fallback(utterance_id, text, "no_profile", selection)
+            return await self._elevenlabs_or_fallback(utterance_id, text, "no_profile", selection)
 
         started = time.monotonic()
         wav = await self.client.synthesize(
@@ -226,6 +238,54 @@ class VoiceManager:
             "estimated_ms": _estimated_ms(text),
             "interruptible": True,
         }
+
+    async def _elevenlabs_or_fallback(
+        self,
+        utterance_id: str,
+        text: str,
+        reason: str,
+        selection: VoiceSelection | None,
+    ) -> dict[str, Any]:
+        """Voicebox absent / sans profil → ElevenLabs (même voix que le cache).
+
+        Le HUD ignore SpeechSynthesis : sans ce repli, JARVIS est muet dès que
+        `/profiles` est vide — cas observé sur le tunnel VPS.
+        """
+        try:
+            from .elevenlabs import ElevenLabsLive
+
+            live = ElevenLabsLive()
+            if not live.available:
+                return self._fallback(utterance_id, text, reason, selection)
+            wav = await live.synthesize(text)
+            if utterance_id in self._cancelled:
+                self._cancelled.discard(utterance_id)
+                return {
+                    "type": "tts_skipped",
+                    "utterance_id": utterance_id,
+                    "reason": "cancelled",
+                }
+            logger.info(
+                "TTS %s · ElevenLabs fallback · %d o · cause=%s",
+                utterance_id,
+                len(wav),
+                reason,
+            )
+            return {
+                "type": "tts_audio",
+                "utterance_id": utterance_id,
+                "format": "wav",
+                "audio_b64": base64.b64encode(wav).decode("ascii"),
+                "bytes": len(wav),
+                "text": text,
+                "voice": selection.to_dict() if selection else {},
+                "estimated_ms": _estimated_ms(text),
+                "interruptible": True,
+                "via": "elevenlabs_fallback",
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ElevenLabs fallback échoué (%s) : %s", reason, exc)
+            return self._fallback(utterance_id, text, reason, selection)
 
     def _fallback(
         self,

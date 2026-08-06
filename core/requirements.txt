@@ -4,9 +4,21 @@ PyYAML>=6.0
 numpy>=2.0
 Pillow>=10.0
 opencv-python-headless>=4.8
+psutil>=6.0
 SQLAlchemy>=2.0.36
 alembic>=1.14.0
 psycopg[binary]>=3.2.0
+
+# Agent-Reach — capability Internet d'Hermes. Le Core ne l'importe jamais : il
+# appelle la CLI `agent-reach` (cf. jarvis_core/agent_reach_status.py). La
+# dépendance est ici pour que le binaire existe dans le venv.
+#
+# ⚠ Épinglé sur un commit, pas sur PyPI : le nom `agent-reach` y est occupé par
+# un paquet sans rapport bloqué en 0.1.0. L'amont ne publie que sur GitHub, et
+# `main` est en avance sur le tag v1.5.0 (canaux facebook/instagram/mcporter,
+# tests de sécurité) — c'est cette version-là qui est validée ici.
+# Relever le commit à la main après avoir relu le CHANGELOG amont.
+agent-reach @ git+https://github.com/Panniantong/agent-reach@c1eecd61bf42646cf7b0223bb6c10711bbe8164b
 
 # Wake word — NUC uniquement (micro physique). Optionnel : absentes, le Core
 # démarre sans réveil mains libres et le push-to-talk du HUD suffit.

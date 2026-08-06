@@ -1,0 +1,44 @@
+[Unit]
+Description=JARVIS — tunnel sortant NUC → VPS pour Ollama (127.0.0.1:11435)
+Documentation=file:///opt/jarvis/seed/docs/architecture/JARVIS-Outils.md
+After=network-online.target
+Wants=network-online.target
+# Hermes a besoin du tunnel pour raisonner, mais un tunnel mort ne doit pas
+# empêcher Hermes de démarrer : il refusera proprement, et le Core le verra
+# par /health. `Before` sans `Requires` — l'ordre, pas la dépendance.
+Before=jarvis-hermes.service
+PartOf=jarvis.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+# Clé DÉDIÉE, sans passphrase (un service ne peut pas en saisir une), et
+# restreinte côté VPS à ce seul usage :
+#   restrict,port-forwarding,permitopen="127.0.0.1:11435",command="/bin/false"
+# `restrict` coupe pty, agent, X11 et tout forwarding ; on rouvre le seul
+# forwarding utile et on le borne à la destination Ollama. Cette clé volée ne
+# donne donc ni shell ni accès à un autre port du VPS.
+#
+# ExitOnForwardFailure : sans lui, ssh reste connecté alors que le bind local a
+# échoué. Le service serait « actif » et le port muet — la panne la plus
+# pénible, parce que systemd la déclare saine.
+#
+# ServerAliveInterval/CountMax : une connexion coupée par la box ou le FAI reste
+# ouverte côté client pendant des heures. Trois échecs à 30 s font tomber le
+# processus, et Restart le relance.
+ExecStart=/usr/bin/ssh -N \
+    -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=30 \
+    -o ServerAliveCountMax=3 \
+    -o ConnectTimeout=15 \
+    -o StrictHostKeyChecking=yes \
+    -o BatchMode=yes \
+    -i /root/.ssh/jarvis_vps_ollama_ed25519 \
+    -L 127.0.0.1:11435:127.0.0.1:11435 \
+    root@187.77.166.124
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=jarvis.target

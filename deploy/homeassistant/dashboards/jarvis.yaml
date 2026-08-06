@@ -1,0 +1,207 @@
+# Tableau de bord JARVIS — le foyer de Samir, relevé du 2026-08-05.
+#
+# En mode YAML : ce fichier est la vérité, l'interface ne peut pas le réécrire.
+# C'est voulu — un tableau de bord cliqué dans le navigateur n'existe que dans
+# `.storage`, et disparaît avec la carte SD du Pi.
+#
+# Organisation par PIÈCE puis par rôle, pas par intégration : on cherche « la
+# télé du salon », jamais « les entités du composant cast ».
+
+title: Maison
+views:
+  # ── Vue 1 — l'essentiel ─────────────────────────────────────────────────
+  - title: Maison
+    path: maison
+    icon: mdi:home
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Salon
+            heading_style: title
+            icon: mdi:sofa
+
+          - type: tile
+            entity: binary_sensor.tv_sony_bravia
+            name: TV Sony Bravia
+            icon: mdi:television
+            color: blue
+
+          - type: tile
+            entity: binary_sensor.tv_samsung
+            name: TV Samsung
+            icon: mdi:television-classic
+            color: purple
+
+          - type: tile
+            entity: binary_sensor.freebox_player
+            name: Freebox Player
+            icon: mdi:play-box
+            color: cyan
+
+          - type: tile
+            entity: binary_sensor.hp_mini_salon
+            name: HP Mini
+            icon: mdi:desktop-tower
+            color: grey
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Chambre
+            heading_style: title
+            icon: mdi:bed
+
+          - type: tile
+            entity: binary_sensor.apple_tv_chambre
+            name: Apple TV
+            icon: mdi:apple
+            color: light-grey
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Buanderie
+            heading_style: title
+            icon: mdi:washing-machine
+
+          # Cloud-only : il ne répond au ping que réveillé. Un état « absent »
+          # ne veut pas dire « en panne », seulement « endormi ».
+          - type: tile
+            entity: binary_sensor.lave_linge_samsung
+            name: Lave-linge
+            icon: mdi:washing-machine
+            color: teal
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dehors
+            heading_style: title
+            icon: mdi:weather-partly-cloudy
+
+          - type: tile
+            entity: weather.forecast_maison
+            name: Météo
+            features:
+              - type: weather-forecast
+                forecast_type: daily
+
+          - type: tile
+            entity: sun.sun
+            name: Soleil
+            icon: mdi:white-balance-sunny
+
+  # ── Vue 2 — l'infrastructure ────────────────────────────────────────────
+  - title: JARVIS
+    path: jarvis
+    icon: mdi:server-network
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Machines
+            heading_style: title
+            icon: mdi:server
+
+          - type: tile
+            entity: binary_sensor.nuc
+            name: NUC — Core, Hermes, vision
+            icon: mdi:cpu-64-bit
+            color: green
+
+          # Sonde le port 32400, pas le ping : Windows bloque l'ICMP et le
+          # serveur paraissait éteint alors qu'il diffusait.
+          - type: tile
+            entity: binary_sensor.proliant_plex
+            name: ProLiant — Plex
+            icon: mdi:plex
+            color: amber
+
+          # Joignable serveur éteint : c'est ce qui permettra d'allumer le
+          # ProLiant à distance.
+          - type: tile
+            entity: binary_sensor.proliant_ilo
+            name: ProLiant iLO — gestion
+            icon: mdi:power-settings
+            color: orange
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Réseau
+            heading_style: title
+            icon: mdi:router-network
+
+          - type: tile
+            entity: binary_sensor.freebox_server
+            name: Freebox Server
+            icon: mdi:router-wireless
+            color: blue
+
+          - type: tile
+            entity: binary_sensor.repeteur_wi_fi
+            name: Répéteur Wi-Fi
+            icon: mdi:wifi-arrow-up-down
+            color: cyan
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Sauvegarde
+            heading_style: title
+            icon: mdi:backup-restore
+
+          - type: tile
+            entity: sensor.backup_backup_manager_state
+            name: État
+          - type: tile
+            entity: sensor.backup_next_scheduled_automatic_backup
+            name: Prochaine
+
+  # ── Vue 3 — la famille ──────────────────────────────────────────────────
+  - title: Famille
+    path: famille
+    icon: mdi:account-group
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Appareils
+            heading_style: title
+            icon: mdi:tablet
+
+          # ⚠ Présence d'APPAREIL, pas de personne. Ces états oscillent avec la
+          # veille Wi-Fi et les MAC aléatoires — informatif, jamais déclencheur.
+          - type: tile
+            entity: binary_sensor.ipad_1
+            name: iPad
+            icon: mdi:tablet-ipad
+          - type: tile
+            entity: binary_sensor.ipad_2
+            name: iPad
+            icon: mdi:tablet-ipad
+          - type: tile
+            entity: binary_sensor.galaxy_tab_s9_fe
+            name: Galaxy Tab S9 FE
+            icon: mdi:tablet-android
+          - type: tile
+            entity: binary_sensor.galaxy_a26
+            name: Galaxy A26
+            icon: mdi:cellphone
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Quotidien
+            heading_style: title
+            icon: mdi:calendar-check
+
+          - type: todo-list
+            entity: todo.liste_d_achats

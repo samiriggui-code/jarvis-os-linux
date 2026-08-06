@@ -60,7 +60,9 @@ lines:
     security_level: public
     text:
       - "Synthèse vocale opérationnelle."
-      - "Canal vocal actif."
+      # Éviter « Canal vocal actif » : deux -al collés (ca-nal / vo-cal),
+      # le TTS les martèle et ça sonne comique. Même sens, rythme propre.
+      - "Liaison vocale établie."
     face_animation: boot
     orb_state: thinking
 

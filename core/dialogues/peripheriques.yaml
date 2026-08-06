@@ -139,6 +139,21 @@ lines:
     orb_state: error
     pause_ms: 300
 
+  # Le navigateur n'expose la liste des SORTIES audio qu'une fois le micro
+  # autorisé. Sans cette permission, la liste est vide — ce qui est
+  # indiscernable d'un câble débranché si on ne regarde que le nombre
+  # d'entrées. C'est le piège qui faisait annoncer « Vérifiez le raccordement
+  # HDMI » sur une machine dont rien n'était débranché, et qui envoyait
+  # chercher un câble quand il fallait cliquer sur une autorisation.
+  - event: peripheral_audio_out_denied
+    tone: human
+    security_level: public
+    address: vous
+    text:
+      - "Je n'ai pas accès aux périphériques audio. Autorisez le microphone dans votre navigateur."
+    face_animation: alert
+    orb_state: thinking
+
   - event: peripheral_audio_out_hdmi_lost
     tone: cinematic
     security_level: public

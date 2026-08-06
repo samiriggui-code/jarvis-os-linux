@@ -1,9 +1,22 @@
 /**
- * Ouverture centralisée des apps HUD — grille, dock, voix, Hermes.
- * Évite les faux chemins (Dashboard sans admin, VPS root, soon).
+ * Ouverture centralisée des intentions — grille, dock, voix.
+ *
+ * Deux chemins, et un seul décide :
+ *
+ *   - `status: 'live'`  → une page produit React existe. Le HUD l'ouvre lui-même,
+ *     sans LLM et sans réseau. C'est ce qui fait tenir `JARVIS BASE` : le lanceur
+ *     et ses pages fréquentes survivent à un Core absent.
+ *   - `status: 'surface'` → le HUD ne décide de rien. Il demande au Core d'ouvrir
+ *     l'intention ; le Core applique la Policy, choisit l'exécutant, et diffuse une
+ *     surface. Le résultat arrive par `SURFACE_SNAPSHOT`, pas par cette fonction.
+ *
+ * Ce fichier n'a donc AUCUNE connaissance de qui exécute. Il envoie un `intent`.
+ * Avant, il affichait « Hermes outil « X » » dans une notification — un libellé,
+ * jamais un appel : vingt tuiles sur trente ne faisaient rien.
  */
 import type { LucideIcon } from 'lucide-react';
 import { getAppById, type HudApp } from '../apps/catalog';
+import { getCoreClient } from './coreClient';
 
 export type OpenHudAppFx = {
   launchApp: (app: { id: string; name: string; color: string; icon: LucideIcon }) => void;
@@ -64,24 +77,35 @@ export function openHudApp(appOrId: HudApp | string, fx: OpenHudAppFx): OpenResu
 
   fx.launchApp({ id: app.id, name: app.name, color: app.color, icon: app.icon });
 
-  if (app.vpsLimited) {
-    fx.addNotification({
-      type: 'info',
-      title: app.name,
-      message: 'VPS limité — Hermes + Policy (allowlist). Pas de root libre.',
-    });
-    return { ok: true, message: `${app.name} (VPS limité via Hermes).` };
-  }
+  if (app.status === 'surface') {
+    if (!app.intent) {
+      // Une tuile « surface » sans intention n'a aucun chemin d'exécution. Le dire
+      // plutôt que d'ouvrir une fenêtre vide : c'est une erreur de catalogue.
+      fx.addNotification({
+        type: 'warning',
+        title: app.name,
+        message: 'Aucune intention déclarée pour cette tuile.',
+      });
+      return { ok: false, message: `${app.name} — intention manquante.` };
+    }
 
-  if (app.status === 'hermes') {
-    fx.addNotification({
-      type: 'info',
-      title: app.name,
-      message: app.hermesTool
-        ? `Surface HUD — Hermes outil « ${app.hermesTool} ».`
-        : 'Surface HUD — commande Hermes.',
+    // `prompt` est laissé vide ici : un clic demande un ÉTAT, pas une action. Une
+    // phrase (« allume le salon ») arrive par la voix ou le chat, pas par la tuile.
+    getCoreClient().send({
+      type: 'surface',
+      action: 'open',
+      app: app.id,
+      intent: app.intent,
     });
-    return { ok: true, message: `${app.name} — Hermes.` };
+
+    if (app.vpsLimited) {
+      fx.addNotification({
+        type: 'info',
+        title: app.name,
+        message: 'Accès limité — allowlist + Policy. Pas de root libre.',
+      });
+    }
+    return { ok: true, message: `${app.name} — demande envoyée au Core.` };
   }
 
   return { ok: true, message: `${app.name} ouvert.` };

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mic, User, ChevronRight, Check, RotateCcw } from 'lucide-react';
 import { FaceCamPanel } from './FaceCamPanel';
 import { Orb } from '../orb';
-import { speakDev, initTtsDev, stopDev } from '../../bridge/ttsDev';
+import { initTtsDev, stopDev } from '../../bridge/ttsDev';
 import {
   ExperienceOrchestrator,
   type OrchestratorState,
@@ -15,6 +15,17 @@ import {
 } from '../../engine/experienceOrchestrator';
 import { commitFaceEnroll } from '../../bridge/faceAuthLive';
 import { authEnroll } from '../../bridge/authClient';
+import { acquireCamera, releaseCamera } from '../../bridge/mediaDevices';
+import { captureEnrollmentPhrase } from '../../bridge/micRecorder';
+import { getCoreClient } from '../../bridge/coreClient';
+import { askNameWithConfirm, askYesNo, jarvisSay } from '../../bridge/voiceConfirm';
+import { getDevicePolicy } from '../../../ui/core/devicePolicy';
+import {
+  INITIAL_BOOT_CHECKS,
+  SystemBootOverlay,
+  runSystemBootGate,
+  type BootCheck,
+} from './SystemBootGate';
 
 /* ─── Fonts ─────────────────────────────────────────────────────────────────── */
 const orbF = { fontFamily: 'Orbitron, sans-serif' };
@@ -22,6 +33,7 @@ const mono = { fontFamily: 'Share Tech Mono, monospace' };
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 type SetupPhase =
+  | 'system_boot'
   | 'boot'
   | 'username'
   | 'face_capture'
@@ -29,27 +41,40 @@ type SetupPhase =
   | 'complete';
 
 interface Props {
+  mode?: 'first_run' | 'add_profile';
   onComplete?: () => void;
 }
 
 /* ─── Composant ─────────────────────────────────────────────────────────────── */
-export function FirstSetupScene({ onComplete }: Props) {
-  const [phase, setPhase]               = useState<SetupPhase>('boot');
+export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
+  const [phase, setPhase]               = useState<SetupPhase>('system_boot');
   const [username, setUsername]         = useState('');
   const [usernameInput, setUsernameInput] = useState('');
   const [usernameSubmitting, setUsernameSubmitting] = useState(false);
+  const isAddProfile = mode === 'add_profile';
+  // NUC kiosk : pas de clavier/souris — tout à la voix + caméra.
+  // add_profile (foyer) : toujours voix, rôle USER forcé.
+  const voiceOnly =
+    isAddProfile
+    || (typeof window !== 'undefined' && getDevicePolicy().persona === 'kiosk');
   const [awaitingNameApproval, setAwaitingNameApproval] = useState(false);
   const [nameRetryHint, setNameRetryHint] = useState(false);
   const [faceProgress, setFaceProgress] = useState(0);
+  const [faceAttempt, setFaceAttempt] = useState(0);
   const [voiceReady, setVoiceReady]     = useState(false);
+  /** Passe en cours de l'empreinte vocale — « 2 / 3 » à l'écran. */
+  const [voiceTake, setVoiceTake]       = useState<{ index: number; total: number } | null>(null);
+  const [bootChecks, setBootChecks]     = useState<BootCheck[]>(INITIAL_BOOT_CHECKS);
+  const [bootBlocked, setBootBlocked]   = useState<string | null>(null);
+  const [bootSubtext, setBootSubtext]   = useState('Vérification des systèmes');
   const [orchState, setOrchState]       = useState<OrchestratorState>({
     stepIndex: -1,
     currentStep: null,
     isRunning: false,
     isSpeaking: false,
     isWaitingForUser: false,
-    hudText: 'JARVIS INITIALIZING',
-    hudSubtext: '',
+    hudText: 'INITIALISATION',
+    hudSubtext: 'Vérification des systèmes',
     orbState: 'thinking',
     avatarMode: 'idle',
   });
@@ -58,20 +83,58 @@ export function FirstSetupScene({ onComplete }: Props) {
   const aliveRef  = useRef(true);
   const usernameRef = useRef('');
   const faceEnrollResolveRef = useRef<((ok: boolean) => void) | null>(null);
-  const ttsEnabled = import.meta.env.VITE_TTS_STUB === 'true';
+  // Jamais de SpeechSynthesis Windows ici : le Core + voicebox narrent.
 
   /* ── Montage : boot + steps ──────────────────────────────────────────────── */
+  /**
+   * L'enrôlement détient la caméra du début à la fin de la scène.
+   *
+   * Les deux « préchauffages » plus bas l'allumaient sans que rien ne
+   * l'éteigne : une fois l'enrôlement terminé, la webcam restait active pour
+   * le reste de la session. Ici la prise et le relâchement sont symétriques et
+   * couvrent aussi bien la fin normale que l'abandon en cours de route.
+   */
+  useEffect(() => {
+    void acquireCamera('enrollment');
+    return () => releaseCamera('enrollment');
+  }, []);
+
   useEffect(() => {
     initTtsDev();
     aliveRef.current = true;
     if (orchRef.current) return;
 
     const STEPS: SceneStep[] = [
-      /* BOOT */
+      /* CHECKLIST SYSTÈME (Core) — avant tout enrôlement */
+      {
+        id: 'boot_core',
+        hudText: 'INITIALISATION',
+        hudSubtext: 'Vérification des systèmes',
+        orbState: 'processing' as const,
+        avatarMode: 'idle' as const,
+        waitForAsync: async () => {
+          setPhase('system_boot');
+          const blocked = await runSystemBootGate({
+            setChecks: setBootChecks,
+            setHudSubtext: setBootSubtext,
+            onBlocked: setBootBlocked,
+          });
+          if (blocked) throw new Error(blocked);
+          // Ensuite seulement : narration d'enrôlement côté Core
+          try {
+            getCoreClient().send({ type: 'auth', action: 'sequence_start', sequence: 'enrollment' });
+          } catch {
+            /* */
+          }
+          setPhase('boot');
+        },
+        pauseAfter: 400,
+      },
+      /* BOOT ENRÔLEMENT (UI) — sans voiceLine : le Core parle */
       {
         id: 'boot_0',
         hudText: 'JARVIS INITIALIZING',
-        hudSubtext: 'PREMIER DÉMARRAGE',
+        hudSubtext: isAddProfile ? 'NOUVEAU PROFIL' : 'PREMIER DÉMARRAGE',
         orbState: 'thinking' as const,
         avatarMode: 'idle' as const,
         minDuration: 800,
@@ -79,39 +142,67 @@ export function FirstSetupScene({ onComplete }: Props) {
       },
       {
         id: 'boot_1',
-        hudText: 'AUCUN PROFIL DÉTECTÉ',
-        hudSubtext: 'Protocole d\'enrôlement requis',
-        voiceLine: 'Aucun profil détecté. Initialisation du protocole d\'enrôlement.',
+        hudText: isAddProfile ? 'PROFIL INCONNU' : 'AUCUN PROFIL DÉTECTÉ',
+        hudSubtext: isAddProfile ? "Création d'un nouveau profil utilisateur" : "Protocole d'enrôlement requis",
         orbState: 'processing' as const,
         avatarMode: 'idle' as const,
         minDuration: 200,
         pauseAfter: 0,
         onComplete: () => setPhase('username'),
       },
-      /* USERNAME */
+      /* USERNAME — voix sur kiosk ; clavier seulement en first_run laptop */
       {
         id: 'username_prompt',
         hudText: 'ENREGISTREMENT IDENTITÉ',
-        hudSubtext: 'Saisissez votre identifiant',
-        voiceLine: 'Veuillez choisir un nom de profil et le saisir. Ce nom sera associé à votre empreinte biométrique.',
+        hudSubtext: voiceOnly ? 'Dites votre prénom clairement' : 'Saisissez votre identifiant',
         orbState: 'listening' as const,
         avatarMode: 'listening' as const,
-        waitForUser: true,
+        ...(voiceOnly
+          ? {
+              waitForAsync: async () => {
+                setPhase('username');
+                orchRef.current?.patchHud({
+                  hudText: 'ÉCOUTE DU PRÉNOM',
+                  hudSubtext: 'Parlez face au micro',
+                  orbState: 'listening',
+                });
+                const name = await askNameWithConfirm({
+                  isAlive: () => aliveRef.current,
+                  onHeard: (n) => {
+                    setUsername(n);
+                    usernameRef.current = n;
+                    setUsernameInput(n);
+                    orchRef.current?.patchHud({
+                      hudText: 'CONFIRMATION',
+                      hudSubtext: `Nom entendu : ${n}`,
+                    });
+                  },
+                });
+                if (!aliveRef.current) return;
+                if (!name) throw new Error('name_capture_failed');
+                setUsername(name);
+                usernameRef.current = name;
+                // Foyer : toujours USER — pas de choix admin / clavier.
+                try {
+                  const c = getCoreClient();
+                  c.send({ type: 'auth', action: 'enroll_signal', step: 'name' });
+                  c.send({ type: 'auth', action: 'enroll_signal', step: 'profile' });
+                } catch { /* */ }
+              },
+            }
+          : { waitForUser: true }),
       },
       /* FACE CAPTURE */
       {
         id: 'face_intro',
         hudText: 'CALIBRATION BIOMÉTRIQUE',
         hudSubtext: 'Activation caméra Holomat',
-        voiceLine: 'Positionnez-vous face à la caméra. Calibration biométrique en cours.',
         orbState: 'processing' as const,
         avatarMode: 'scanning' as const,
         pauseAfter: 400,
         onEnter: () => {
-          // Allume l’UI caméra tout de suite (preview), avant le scan
           setPhase('face_capture');
           setFaceProgress(0);
-          void import('../../bridge/mediaDevices').then(m => m.ensureCamera());
         },
       },
       {
@@ -123,26 +214,50 @@ export function FirstSetupScene({ onComplete }: Props) {
         waitForAsync: async () => {
           if (!aliveRef.current) return;
           setPhase('face_capture');
-          // FaceCamPanel envoie les frames Holomat
-          const ok = await new Promise<boolean>((resolve) => {
-            faceEnrollResolveRef.current = resolve;
-            setTimeout(() => {
-              if (faceEnrollResolveRef.current === resolve) {
-                faceEnrollResolveRef.current = null;
-                resolve(false);
-              }
-            }, 50_000);
-          });
-          if (!aliveRef.current) return;
-          if (!ok) throw new Error('face_enroll_failed');
-          setFaceProgress(100);
+          // Boucle capture + confirmation vocale (kiosk sans clavier).
+          for (let attempt = 0; attempt < 5 && aliveRef.current; attempt++) {
+            await jarvisSay(
+              attempt === 0
+                ? 'Placez-vous face à la caméra et restez immobile pour la capture du visage.'
+                : 'Recommençons la capture. Restez immobile face à la caméra.',
+            );
+            orchRef.current?.patchHud({
+              hudText: 'SCAN FACIAL',
+              hudSubtext: 'Restez immobile',
+              orbState: 'processing',
+            });
+            const ok = await new Promise<boolean>((resolve) => {
+              faceEnrollResolveRef.current = resolve;
+              setTimeout(() => {
+                if (faceEnrollResolveRef.current === resolve) {
+                  faceEnrollResolveRef.current = null;
+                  resolve(false);
+                }
+              }, 50_000);
+            });
+            if (!aliveRef.current) return;
+            if (!ok) {
+              await jarvisSay('Capture échouée. Nous réessayons.');
+              continue;
+            }
+            setFaceProgress(100);
+            if (!voiceOnly) return;
+            const confirmed = await askYesNo(
+              'Empreinte faciale capturée. Confirmez par oui si l\'image est correcte, ou non pour recommencer.',
+            );
+            if (!aliveRef.current) return;
+            if (confirmed) return;
+            setFaceProgress(0);
+            setFaceAttempt((n) => n + 1);
+            await jarvisSay('Très bien. Nous reprenons la capture.');
+          }
+          throw new Error('face_enroll_failed');
         },
       },
       {
         id: 'face_ok',
         hudText: 'EMPREINTE FACIALE ENREGISTRÉE',
         hudSubtext: 'Données biométriques sécurisées',
-        voiceLine: 'Empreinte faciale enregistrée avec succès.',
         orbState: 'responding' as const,
         avatarMode: 'ok' as const,
         minDuration: 1000,
@@ -153,7 +268,6 @@ export function FirstSetupScene({ onComplete }: Props) {
         id: 'voice_intro',
         hudText: 'ENRÔLEMENT VOCAL',
         hudSubtext: 'Enregistrement empreinte vocale',
-        voiceLine: 'Dites votre phrase d\'activation pour enregistrer votre empreinte vocale.',
         orbState: 'listening' as const,
         avatarMode: 'listening' as const,
         pauseAfter: 300,
@@ -162,17 +276,40 @@ export function FirstSetupScene({ onComplete }: Props) {
       {
         id: 'voice_wait',
         hudText: 'EN ATTENTE DE VOTRE VOIX',
-        hudSubtext: 'Dites : « Jarvis, active-toi »',
+        hudSubtext: 'Dites : « Jarvis, active-toi » — trois fois',
         orbState: 'listening' as const,
         avatarMode: 'listening' as const,
-        waitForUser: true,
-        onComplete: () => setVoiceReady(true),
+        /**
+         * ⚠ C'était `waitForUser: true` — l'étape attendait un CLIC, pas la
+         * voix. On affichait « en attente de votre voix », l'utilisateur
+         * parlait, et rien n'écoutait : aucun octet d'audio n'a jamais quitté
+         * le HUD, donc aucune empreinte vocale n'a jamais été créée.
+         *
+         * Trois passes parce qu'une empreinte tirée d'un seul échantillon
+         * épouse les accidents de celui-ci. On accepte à partir de deux
+         * prises exploitables : exiger les trois ferait recommencer tout
+         * l'enrôlement pour une porte qui claque.
+         */
+        waitForAsync: async () => {
+          if (!aliveRef.current) return;
+          setPhase('voice_enroll');
+          const takes = await captureEnrollmentPhrase(3, 5_000, (i, total) => {
+            if (!aliveRef.current) return;
+            setVoiceTake({ index: i, total });
+          });
+          if (!aliveRef.current) return;
+          const retenues = takes.filter(t => t.ok && t.text.trim());
+          setVoiceTake(null);
+          if (retenues.length < 2) {
+            throw new Error('voice_enroll_failed');
+          }
+          setVoiceReady(true);
+        },
       },
       {
         id: 'voice_process',
         hudText: 'ANALYSE VOCALE',
         hudSubtext: 'Création empreinte sonore unique',
-        voiceLine: 'Empreinte vocale enregistrée. Calibration terminée.',
         orbState: 'processing' as const,
         avatarMode: 'scanning' as const,
         minDuration: 1800,
@@ -189,15 +326,17 @@ export function FirstSetupScene({ onComplete }: Props) {
         pauseAfter: 800,
         onEnter: () => setPhase('complete'),
         onComplete: () => {
-          const name = usernameRef.current || 'admin';
+          const name = usernameRef.current || (isAddProfile || voiceOnly ? 'membre' : 'admin');
           void (async () => {
             try {
               const res = await authEnroll({
-                username: name,
+                username: name.toLowerCase().replace(/\s+/g, '_').slice(0, 24),
                 display_name: name,
                 pin: '0000',
                 face: true,
                 voice: true,
+                // Foyer / kiosk : toujours USER — jamais ADMIN via ce flux.
+                ...(isAddProfile || voiceOnly ? { role: 'USER' as const } : {}),
               });
               if (!res.ok || !res.user?.id) {
                 console.warn('[first-setup] enroll failed', res.error);
@@ -215,7 +354,12 @@ export function FirstSetupScene({ onComplete }: Props) {
       },
     ];
 
-    const orch = new ExperienceOrchestrator({ ttsEnabled, speakFn: speakDev, stopFn: stopDev });
+    // Voix = Core/voicebox uniquement — pas de SpeechSynthesis Windows.
+    const orch = new ExperienceOrchestrator({
+      ttsEnabled: false,
+      speakFn: async () => {},
+      stopFn: stopDev,
+    });
     orchRef.current = orch;
     const unsub = orch.subscribe(s => setOrchState({ ...s }));
     orch.load(STEPS);
@@ -240,36 +384,39 @@ export function FirstSetupScene({ onComplete }: Props) {
     setUsername(v);
     usernameRef.current = v;
     try {
-      const ackLine = `Nom de profil choisi : ${v}. Est-ce bien prononcé ?`;
-      if (ttsEnabled) {
-        await speakDev(ackLine);
-      } else {
-        await new Promise(r => setTimeout(r, 1600));
-      }
+      // Le Core annonce via la séquence enrollment — pas de voix Windows.
+      await new Promise(r => setTimeout(r, 400));
       if (aliveRef.current) setAwaitingNameApproval(true);
     } finally {
       if (aliveRef.current) setUsernameSubmitting(false);
     }
-  }, [ttsEnabled, usernameInput, usernameSubmitting]);
+  }, [usernameInput, usernameSubmitting]);
 
   const approveUsername = useCallback(async () => {
     if (!usernameRef.current || usernameSubmitting) return;
     setUsernameSubmitting(true);
     try {
-      const ackLine = `Profil ${usernameRef.current} validé. Poursuite de la procédure d'enrôlement biométrique.`;
-      if (ttsEnabled) {
-        await speakDev(ackLine);
-      } else {
-        await new Promise(r => setTimeout(r, 1400));
-      }
+      await new Promise(r => setTimeout(r, 300));
       setAwaitingNameApproval(false);
-      // Pré-chauffe caméra pendant la voix / transition biométrique
-      void import('../../bridge/mediaDevices').then(m => m.ensureCamera()).catch(() => null);
+      // Caméra déjà tenue pour toute la scène — plus de préchauffage isolé.
+      //
+      // Le nom est arrêté : on débloque les deux étapes du scénario qui
+      // l'attendaient. `enroll.name` et `enroll.profile` n'étaient émis nulle
+      // part ; les étapes correspondantes expiraient au bout de trente
+      // secondes chacune, en silence. Le profil est décidé ici même — un
+      // premier enrôlement crée forcément l'administrateur.
+      try {
+        const c = getCoreClient();
+        c.send({ type: 'auth', action: 'enroll_signal', step: 'name' });
+        c.send({ type: 'auth', action: 'enroll_signal', step: 'profile' });
+      } catch {
+        // Core absent : la séquence tombera dans ses délais, sans casser l'écran.
+      }
       orchRef.current?.userConfirm();
     } finally {
       if (aliveRef.current) setUsernameSubmitting(false);
     }
-  }, [ttsEnabled, usernameSubmitting]);
+  }, [usernameSubmitting]);
 
   const retryUsername = useCallback(async () => {
     setAwaitingNameApproval(false);
@@ -277,15 +424,16 @@ export function FirstSetupScene({ onComplete }: Props) {
     usernameRef.current = '';
     setUsernameInput('');
     setNameRetryHint(true);
-    if (ttsEnabled) {
-      await speakDev('Veuillez parler avec une voix claire pour l’enregistrement du nom de profil.');
-    }
-  }, [ttsEnabled]);
+  }, []);
 
   /* ── Dérivés visuels ─────────────────────────────────────────────────────── */
   const accentColor = phase === 'complete' ? '#22c55e' : '#00e5ff';
+  const inSystemBoot = phase === 'system_boot' || bootBlocked !== null;
 
   const displayName = username || usernameRef.current;
+  const protocolLabel = isAddProfile
+    ? 'PROTOCOLE D\'ENRÔLEMENT — NOUVEL UTILISATEUR'
+    : 'PROTOCOLE D\'ENRÔLEMENT — PREMIER DÉMARRAGE';
 
   /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
@@ -297,6 +445,19 @@ export function FirstSetupScene({ onComplete }: Props) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
+      <AnimatePresence>
+        {inSystemBoot && (
+          <SystemBootOverlay
+            checks={bootChecks}
+            msg={bootBlocked ?? 'INITIALISATION'}
+            subtext={bootBlocked ? 'Utilisez le code de secours ou rechargez' : bootSubtext}
+            blocked={bootBlocked !== null}
+          />
+        )}
+      </AnimatePresence>
+
+      {!inSystemBoot && (
+      <>
       {/* Scanlines */}
       <div
         className="absolute inset-0 pointer-events-none opacity-20"
@@ -328,7 +489,7 @@ export function FirstSetupScene({ onComplete }: Props) {
             J.A.R.V.I.S
           </h1>
           <p style={{ ...mono, color: 'rgba(0,229,255,0.4)', fontSize: 9, letterSpacing: '0.25em', marginTop: 6 }}>
-            PROTOCOLE D'ENRÔLEMENT — PREMIER DÉMARRAGE
+            {protocolLabel}
           </p>
         </div>
 
@@ -358,8 +519,9 @@ export function FirstSetupScene({ onComplete }: Props) {
         <div className="flex flex-col items-center justify-center gap-3 w-full">
           {phase === 'face_capture' && faceProgress < 100 ? (
             <FaceCamPanel
+              key={`face-enroll-${faceAttempt}`}
               mode="enroll"
-              username={username || usernameRef.current || 'admin'}
+              username={username || usernameRef.current || 'membre'}
               active={orchState.currentStep?.id === 'face_scan'}
               onProgress={(p) => setFaceProgress(p)}
               onHud={(t) => orchRef.current?.patchHud({ hudSubtext: t })}
@@ -417,9 +579,9 @@ export function FirstSetupScene({ onComplete }: Props) {
           </motion.div>
         </AnimatePresence>
 
-        {/* USERNAME INPUT — phase username + orchState.isWaitingForUser */}
+        {/* USERNAME — clavier seulement hors kiosk / first_run laptop */}
         <AnimatePresence>
-          {phase === 'username' && orchState.isWaitingForUser && (
+          {!voiceOnly && phase === 'username' && orchState.isWaitingForUser && (
             <motion.div
               key="username-input"
               className="w-full max-w-sm flex flex-col gap-3"
@@ -489,6 +651,26 @@ export function FirstSetupScene({ onComplete }: Props) {
           )}
         </AnimatePresence>
 
+        {/* Username voix : statut seulement (pas d’input) */}
+        <AnimatePresence>
+          {voiceOnly && phase === 'username' && (
+            <motion.div
+              key="username-voice"
+              className="w-full max-w-sm text-center px-4 py-3 rounded-2xl"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              style={{ border: '1px solid rgba(0,229,255,0.3)', background: 'rgba(0,229,255,0.06)' }}
+            >
+              <p style={{ ...mono, color: '#00e5ff', fontSize: 11, letterSpacing: '0.1em' }}>
+                {usernameRef.current
+                  ? `Nom : ${usernameRef.current} — confirmation vocale`
+                  : 'Parlez votre prénom — Jarvis répète, puis oui ou non'}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* FACE PROGRESS BAR */}
         <AnimatePresence>
           {phase === 'face_capture' && (
@@ -517,33 +699,36 @@ export function FirstSetupScene({ onComplete }: Props) {
 
         {/* VOICE BUTTON */}
         <AnimatePresence>
-          {phase === 'voice_enroll' && orchState.isWaitingForUser && (
+          {/*
+            Le micro enregistre DE LUI-MÊME, en trois passes. Il y avait ici un
+            bouton « ENREGISTRER MA VOIX » qui ne déclenchait aucun
+            enregistrement : il avançait simplement la scène. On montre
+            maintenant la passe en cours, sinon l'utilisateur ne sait pas quand
+            parler — et une empreinte vocale ne se capture pas au hasard.
+          */}
+          {phase === 'voice_enroll' && voiceTake && (
             <motion.div
-              key="voice-btn"
+              key="voice-take"
               className="flex flex-col items-center gap-3"
               initial={{ opacity: 0, scale: 0.85 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ duration: 0.3 }}
             >
-              <motion.button
-                type="button"
-                onClick={() => orchRef.current?.userConfirm()}
-                className="flex items-center gap-3 px-6 py-3 rounded-2xl cursor-pointer"
+              <motion.div
+                className="flex items-center gap-3 px-6 py-3 rounded-2xl"
                 style={{
                   background: 'rgba(25,240,216,0.1)',
                   border: '2px solid rgba(25,240,216,0.6)',
-                  boxShadow: '0 0 24px rgba(25,240,216,0.25)',
                 }}
                 animate={{ boxShadow: ['0 0 16px rgba(25,240,216,0.2)', '0 0 32px rgba(25,240,216,0.5)', '0 0 16px rgba(25,240,216,0.2)'] }}
-                transition={{ duration: 1.6, repeat: Infinity }}
-                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 1.2, repeat: Infinity }}
               >
                 <Mic className="w-5 h-5" style={{ color: '#19f0d8' }} />
                 <span style={{ ...orbF, color: '#19f0d8', fontSize: 11, letterSpacing: '0.15em' }}>
-                  ENREGISTRER MA VOIX
+                  PARLEZ — PASSE {voiceTake.index} / {voiceTake.total}
                 </span>
-              </motion.button>
+              </motion.div>
               <p style={{ ...mono, color: 'rgba(25,240,216,0.55)', fontSize: 10, letterSpacing: '0.12em' }}>
                 Dites : « Jarvis, active-toi »
               </p>
@@ -583,6 +768,8 @@ export function FirstSetupScene({ onComplete }: Props) {
           <Orb state={orchState.orbState} volume={0.1} playbackVolume={0} />
         </div>
       </motion.div>
+      </>
+      )}
     </motion.div>
   );
 }

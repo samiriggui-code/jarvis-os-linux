@@ -1,14 +1,16 @@
-/**
- * Monte le pont Core ↔ HUD (WS) + sync User Manager.
- */
 import { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { bootCoreBridge, getCoreClient } from '../bridge/coreClient';
 import { startPeripheralWatch } from '../bridge/peripheralWatch';
+import { bindHudCommands } from '../bridge/hudCommands';
+import { getAppById } from '../apps/catalog';
 import type { AuthUser } from '../bridge/authClient';
 
 export function CoreBridge() {
-  const { addNotification, setAiState, addMessage, setCoreAuth } = useApp();
+  const {
+    addNotification, setAiState, addMessage, setCoreAuth, sessionUnlocked,
+    lockSession, closeApp, openApps, activeAppId, launchApp,
+  } = useApp();
 
   useEffect(() => {
     const client = bootCoreBridge();
@@ -16,6 +18,15 @@ export function CoreBridge() {
     client.setHandlers({
       onConnected: (ok) => {
         setCoreAuth({ online: ok, ...(ok ? {} : { ready: false }) });
+        // Session HUD déjà ouverte (refresh) : coupe toute narration boot/auth.
+        if (ok && sessionUnlocked) {
+          try {
+            client.send({ type: 'boot', action: 'skip' });
+            client.send({ type: 'auth', action: 'sequence_stop' });
+            client.send({ type: 'voice', action: 'cancel' });
+            client.sendAuth('status');
+          } catch { /* */ }
+        }
         addNotification({
           type: ok ? 'success' : 'warning',
           title: ok ? 'Core en ligne' : 'Core hors ligne',
@@ -24,19 +35,19 @@ export function CoreBridge() {
             : 'Relance python -m jarvis_core dans core/',
         });
       },
+      onOrbState: (state) => {
+        if (state === 'thinking' || state === 'processing') setAiState('processing');
+        else if (state === 'speaking') setAiState('responding');
+        else if (state === 'listening') setAiState('listening');
+        else setAiState('idle'); // VoiceChatBridge rouvre l'écoute si conversation ouverte
+      },
       onNotification: (message) => {
         addNotification({ type: 'info', title: 'JARVIS', message });
         if (message && !message.startsWith('JARVIS Core prêt') && !message.startsWith('Core en ligne')) {
           addMessage({ type: 'ai', text: message, source: 'core' });
           setAiState('responding');
-          setTimeout(() => setAiState('idle'), 1800);
+          // Ne force plus idle à 1.8s — laisse TTS + VoiceChatBridge gérer le TX/RX
         }
-      },
-      onOrbState: (state) => {
-        if (state === 'thinking' || state === 'processing') setAiState('processing');
-        else if (state === 'speaking') setAiState('responding');
-        else if (state === 'listening') setAiState('listening');
-        else setAiState('idle');
       },
       onAuthStatus: (payload) => {
         setCoreAuth({
@@ -57,19 +68,12 @@ export function CoreBridge() {
         });
       },
 
-      /**
-       * Bout de chaîne du pipeline vocal : micro → Whisper → Core → ici.
-       * Sans ce branchement la transcription arrivait sur le socket et
-       * disparaissait — la parole était comprise, jamais affichée.
-       */
       onVoiceTranscript: (payload) => {
         const texte = String(payload.text ?? '').trim();
         if (payload.ok && texte) {
           addMessage({ type: 'user', text: texte, source: 'voice' });
           return;
         }
-        // Un échec silencieux ferait croire à un micro sourd. La raison vient
-        // du Core (`no_speech`, `stt_unavailable`…), on la montre telle quelle.
         addNotification({
           type: 'warning',
           title: 'Transcription',
@@ -77,7 +81,6 @@ export function CoreBridge() {
         });
       },
 
-      /** Le Core parle : l'orbe suit, et le barge-in sait quoi interrompre. */
       onVoicePlayback: (payload) => {
         setAiState(payload.phase === 'start' ? 'responding' : 'idle');
       },
@@ -91,8 +94,6 @@ export function CoreBridge() {
       },
 
       onSupervisorStatus: (payload) => {
-        // Pas de notification : ces transitions sont fréquentes et le HUD a
-        // déjà `component_state` pour les peindre. On trace, sans bruit.
         console.debug('[supervisor]', payload);
       },
     });
@@ -101,13 +102,33 @@ export function CoreBridge() {
       client.connect();
     }
 
-    // Monté ici et pas dans AuthScene : un câble qui se débranche pendant
-    // une session doit s'entendre aussi, pas seulement pendant l'écran
-    // d'authentification.
     const stopPeripherals = startPeripheralWatch();
 
     return () => { stopPeripherals(); /* le WS, lui, reste ouvert */ };
-  }, [addNotification, setAiState, addMessage, setCoreAuth]);
+  }, [addNotification, setAiState, addMessage, setCoreAuth, sessionUnlocked]);
+
+  // Actions quotidiennes Core → HUD (verrouiller, mute, espaces…).
+  useEffect(() => {
+    return bindHudCommands({
+      lockSession,
+      closeApp,
+      closeAllSpaces: () => {
+        openApps.forEach(a => closeApp(a.id));
+      },
+      openSpace: (appId: string) => {
+        const app = getAppById(appId);
+        if (!app) return;
+        launchApp({ id: app.id, name: app.name, color: app.color, icon: app.icon });
+      },
+      activeAppId,
+      openAppIds: openApps.map(a => a.id),
+      startEnrollment: () => {
+        try {
+          window.dispatchEvent(new CustomEvent('jarvis:start-enrollment'));
+        } catch { /* */ }
+      },
+    });
+  }, [lockSession, closeApp, openApps, activeAppId, launchApp]);
 
   return null;
 }

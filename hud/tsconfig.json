@@ -1,0 +1,37 @@
+{
+  // Vérification de types seule — Vite/esbuild produit le bundle et ne vérifie
+  // RIEN. Le HUD a vécu sans ce fichier : `npm run typecheck` est donc un
+  // premier passage sur du code jamais contrôlé, et il remonte des erreurs
+  // antérieures. Elles ne sont pas masquées.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+
+    // `strict` complet est volontairement absent : `noImplicitAny` sur une base
+    // jamais vérifiée produirait un flot d'erreurs, donc ignoré, donc inutile.
+    //
+    // `strictNullChecks` en revanche est ACTIVÉ, et pas par zèle : sans lui, TS
+    // n'affine plus les unions discriminées par un booléen. `acceptVoiceCommand`
+    // rend `{ok:true;…} | {ok:false;reason}` — désactiver l'option fabriquait une
+    // fausse erreur sur du code correct. Une vérification qui invente des fautes
+    // est pire que pas de vérification.
+    "strictNullChecks": true,
+    "noImplicitAny": false,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

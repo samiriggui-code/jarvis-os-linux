@@ -8,7 +8,7 @@
 > **PostgreSQL obligatoire** (users, Dashboard, config).  
 > **Aucun port ouvert sur la box** — tunnel sortant NUC → VPS.
 
-Références : [`core/`](../core/), [`hud/`](../hud/), [`deploy/`](../deploy/), [`vendor/agents/hermes-agent/`](../vendor/agents/hermes-agent/), cahier §2 / §3 / §6.8 / §10 / §11 / §13 / §14 (`hud/cahierdecharges.md`).
+Références : [`core/`](../core/), [`hud/`](../hud/), [`deploy/`](../deploy/), [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) (amont, cloné sur la machine cible — plus de copie sous `vendor/`), cahier §2 / §3 / §6.8 / §10 / §11 / §13 / §14 (`hud/cahierdecharges.md`).
 
 ---
 
@@ -287,9 +287,11 @@ JARVIS_HERMES_URL=http://127.0.0.1:8642
 ### 7.2 Hermes
 
 ```bash
-# 1) Installer le code sous /opt/jarvis/hermes-agent (depuis vendor/agents/hermes-agent)
-sudo rsync -a vendor/agents/hermes-agent/ /opt/jarvis/hermes-agent/
+# 1) Cloner l'amont sur la machine cible — il n'y a pas de copie dans le dépôt.
+#    (C'est ainsi que le NUC a réellement été installé : clone au commit f5be923.)
+sudo git clone https://github.com/NousResearch/hermes-agent /opt/jarvis/hermes-agent
 cd /opt/jarvis/hermes-agent
+sudo git checkout f5be923   # commit en service sur le NUC au 2026-08-05
 # ⚠ Hermes exige >=3.11,<3.14 (pyproject). Sur une distro récente, `python3`
 #    peut déjà être en 3.14 : pydantic-core n'a pas de roue cp314 et part en
 #    compilation maturin, qui échoue. Forcer l'interpréteur si besoin.

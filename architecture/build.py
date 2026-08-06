@@ -34,6 +34,9 @@ GENERATED = Path(__file__).resolve().parent / "generated"
 CORE_PKG = ROOT / "core" / "jarvis_core"
 CORE_MAIN = CORE_PKG / "__init__.py"
 HUD_SRC = ROOT / "hud" / "src" / "app"
+# La couche agentique est hors de `app/` — sans elle, l'extracteur ignore
+# `AgentSurface` et rapporte ses écoutes comme inexistantes.
+HUD_AGENTIC = ROOT / "hud" / "src" / "agentic"
 SYSTEMD = ROOT / "deploy" / "systemd"
 
 EN_TETE = (
@@ -152,8 +155,20 @@ def extraire_emissions() -> dict[str, dict[str, list[str]]]:
                     continue
                 if nom == "cmd":
                     noter(commandes, texte, chemin)
-                elif nom == "_emit":
+                elif nom in ("_emit", "publish"):
+                    # `publish` manquait : `bus.publish("GESTURE_DETECTED", …)`
+                    # alimente le même relais WS que `_emit`. Sans lui, trois
+                    # événements réellement émis étaient rapportés comme
+                    # « le Core ne l'émet jamais ».
                     noter(bus, texte, chemin)
+                elif nom == "_envelope":
+                    # Quatrième canal, découvert le 2026-08-05 : les surfaces
+                    # ne construisent pas un dict littéral mais passent par
+                    # `_envelope(kind, payload)` → `{"type": kind, …}`. Le type
+                    # est le PREMIER ARGUMENT, donc invisible à la lecture des
+                    # dicts. `SURFACE_SNAPSHOT` sortait « jamais émis » alors
+                    # qu'il est le message central de la couche agentique.
+                    noter(types, texte, chemin)
 
     trier = lambda d: {k: sorted(v) for k, v in sorted(d.items())}  # noqa: E731
     return {"types": trier(types), "commandes": trier(commandes), "bus": trier(bus)}
@@ -175,15 +190,40 @@ def extraire_hud() -> dict[str, list[str]]:
     ecoute_cmd: set[str] = set()
     declare: set[str] = set()
 
-    for ts in sorted(HUD_SRC.rglob("*.ts")) + sorted(HUD_SRC.rglob("*.tsx")):
+    # ⚠ `HUD_SRC` seul ne suffit pas : la couche agentique vit dans
+    # `hud/src/agentic/`, HORS de `hud/src/app/`. Elle était donc entièrement
+    # invisible à cet extracteur — `surface_result` et `surface_error` étaient
+    # rapportés « non écoutés » alors qu'`AgentSurface.tsx` les traite. Un
+    # extracteur aveugle sur un dossier ment avec l'assurance d'un fichier
+    # généré, ce qui est pire que de ne rien dire.
+    sources_hud = [HUD_SRC, HUD_AGENTIC]
+    fichiers = sorted(
+        f for base in sources_hud if base.is_dir()
+        for f in list(base.rglob("*.ts")) + list(base.rglob("*.tsx"))
+    )
+
+    for ts in fichiers:
         texte = ts.read_text(encoding="utf-8")
         # Envoi réel : send({ type: 'x', … }) — l'objet peut être multiligne.
         envoie |= set(re.findall(r"send\(\s*\{[^{}]*?type:\s*'([a-z_]+)'", texte, re.S))
         declare |= set(re.findall(r"type:\s*'([a-z_]+)'", texte))
 
-        # Deux formes : `data.type === 'x'` et, après extraction dans une
-        # variable (`const type = String(data.type)`), `type === 'x'`.
-        ecoute |= set(re.findall(r"\btype === '([a-z_]+)'", texte))
+        # Formes rencontrées, et les enveloppes de surface sont en MAJUSCULES
+        # (`SURFACE_SNAPSHOT`), que `[a-z_]+` ne voyait pas :
+        #   `data.type === 'x'`                    → `type === 'x'`
+        #   `const type = String(data.type)` puis  → `type === 'x'`
+        #   `const kind = data.type` puis          → `kind === 'x'`
+        #
+        # ⚠ Le troisième cas ne se traite PAS en élargissant à `kind` : le HUD
+        # compare aussi `MediaDeviceInfo.kind === 'audioinput'`, qui n'est pas un
+        # message. Trois fausses alertes en sortaient. On lit donc d'abord les
+        # alias RÉELLEMENT liés à `data.type` **dans ce fichier**, et on ne
+        # reconnaît qu'eux — l'information est extraite, jamais recopiée.
+        alias = {"type"} | set(
+            re.findall(r"\b(?:const|let)\s+(\w+)\s*=\s*(?:String\()?\s*\w+\.type\b", texte)
+        )
+        for nom_alias in alias:
+            ecoute |= set(re.findall(rf"\b{re.escape(nom_alias)} === '([A-Za-z_]+)'", texte))
         ecoute_cmd |= set(re.findall(r"\bcmd === '([a-z_]+)'", texte))
 
     # `msg.type === 'ai'` du chat n'est pas un message WebSocket. Restreindre
@@ -309,8 +349,14 @@ def extraire_plugins() -> list[dict[str, Any]]:
     apps: list[dict[str, Any]] = []
     for bloc in re.findall(r"\{\s*\n?\s*id:\s*'([^']+)'(.*?)\n\s*\},", src, re.S):
         app_id, corps = bloc
-        voix = re.findall(r"'([^']+)'", (re.search(r"voice:\s*\[(.*?)\]", corps, re.S) or
-                                        re.match(r"", "")).group(1)) if re.search(r"voice:\s*\[", corps, re.S) else []
+        raw = re.search(r"voice:\s*\[(.*?)\]", corps, re.S)
+        if raw:
+            voix = [
+                m.replace("\\'", "'")
+                for m in re.findall(r"'((?:\\.|[^'\\])*)'", raw.group(1))
+            ]
+        else:
+            voix = []
         def champ(nom: str) -> str | None:
             m = re.search(rf"{nom}:\s*'([^']*)'", corps)
             return m.group(1) if m else None
@@ -319,7 +365,11 @@ def extraire_plugins() -> list[dict[str, Any]]:
             "nom": champ("name"),
             "risque": champ("risk"),
             "statut": champ("status"),
-            "outil_hermes": champ("hermesTool"),
+            # `hermesTool` a été retiré du catalogue : il nommait des outils
+            # inexistants. `intent` est résolu par `core/jarvis_core/capabilities.py`,
+            # et `owner` n'est qu'un indice de diagnostic — pas un routage.
+            "intention": champ("intent"),
+            "execute_par": champ("owner"),
             "declencheurs": voix,
         })
     return apps
@@ -531,7 +581,7 @@ def construire() -> dict[str, str]:
     corps = ["apps:"]
     for p in plugins:
         corps.append(f"  - id: {yaml_valeur(p['id'])}")
-        for k in ("nom", "statut", "risque", "outil_hermes"):
+        for k in ("nom", "statut", "risque", "intention", "execute_par"):
             corps.append(f"    {k}: {yaml_valeur(p[k])}")
         corps.append(f"    declencheurs: [{', '.join(yaml_valeur(d) for d in p['declencheurs'])}]")
     corps.append("declencheurs_ambigus:")
@@ -558,6 +608,39 @@ def construire() -> dict[str, str]:
 
 # ── incohérences : ce que la fusion révèle ────────────────────────────────
 
+def types_du_bus() -> set[str]:
+    """Types déclarant une politique de débit dans `bus.py` — ce qui circule.
+
+    Sert à ne pas accuser d'absence un type publié dynamiquement
+    (`bus.publish(kind, …)`), tout en laissant l'accusation valable pour un type
+    que rien ne déclare nulle part.
+
+    ⚠ Repéré par sa **forme** — un dict dont les valeurs sont des `RatePolicy(…)`
+    — et non par son nom. Première version : je cherchais `RATE_POLICIES`, nom
+    lu dans un commentaire ; la table s'appelle `DEFAULT_POLICIES`. Elle
+    renvoyait donc un ensemble vide, en silence. C'est le travers que l'en-tête
+    de ce fichier dénonce : une information recopiée est fausse au premier
+    renommage. La forme, elle, survit à un `git mv`.
+    """
+    chemin = CORE_PKG / "bus.py"
+    if not chemin.is_file():
+        return set()
+
+    noms: set[str] = set()
+    for node in ast.walk(ast.parse(chemin.read_text(encoding="utf-8"))):
+        if not isinstance(node, ast.Dict):
+            continue
+        if not any(
+            isinstance(v, ast.Call) and nom_appele(v) == "RatePolicy" for v in node.values
+        ):
+            continue
+        noms |= {
+            k.value for k in node.keys
+            if isinstance(k, ast.Constant) and isinstance(k.value, str)
+        }
+    return noms
+
+
 def incoherences() -> list[str]:
     routes = extraire_routes()
     emissions = extraire_emissions()
@@ -574,7 +657,16 @@ def incoherences() -> list[str]:
         if t not in connus:
             problemes.append(f"le HUD envoie « {t} » — aucune route Core ne l'accepte")
 
-    connus_types = set(emissions["types"]) | set(emissions["bus"])
+    # Certains types transitent par `self.bus.publish(kind, …)` où `kind` est
+    # une VARIABLE — les gestes, construits en tuples dans `gestures.py`. Aucune
+    # lecture statique ne peut les rattacher à leur nom. Mais `bus.py` déclare
+    # une politique de débit PAR TYPE : cette table est la liste, écrite dans le
+    # code, de ce qui circule sur le bus. On la lit plutôt que de recopier des
+    # exceptions à la main.
+    #
+    # Ça ne masque rien : une politique déclarée pour un type jamais publié est
+    # signalée séparément par `events.yaml` comme code mort.
+    connus_types = set(emissions["types"]) | set(emissions["bus"]) | types_du_bus()
     for t in hud["ecoute"]:
         if t not in connus_types:
             problemes.append(f"le HUD écoute l'événement « {t} » — le Core ne l'émet jamais")
@@ -600,6 +692,57 @@ def incoherences() -> list[str]:
             continue  # homonyme d'une phase d'interface — pas le même concept
         if c not in hud["ecoute_commandes"]:
             problemes.append(f"commande « {c} » émise par le Core, mais aucun test `cmd ===` ne la traite")
+
+    problemes.extend(derive_declencheurs())
+    return problemes
+
+
+def derive_declencheurs() -> list[str]:
+    """Les déclencheurs vocaux du HUD et du Core disent-ils la même chose ?
+
+    Le HUD déclare `voice: [...]` par tuile ; le Core déclare `triggers=(...)`
+    par capacité. Le doublon est assumé — le Core ne peut pas dépendre du HUD
+    pour choisir un niveau de risque — mais une divergence est une vraie panne,
+    et silencieuse dans les deux sens :
+
+      * un mot connu du HUD seul lance une fenêtre que rien n'exécute ;
+      * un mot connu du Core seul est une commande **que personne n'a écrite
+        dans le produit**, et qui agit pourtant à la voix.
+
+    Le second cas est le grave : c'est une porte d'entrée non documentée.
+    """
+    import re
+
+    src_cap = ROOT / "core" / "jarvis_core" / "capabilities.py"
+    if not src_cap.exists():
+        return []
+    texte = src_cap.read_text(encoding="utf-8")
+
+    core: dict[str, set[str]] = {}
+    for bloc in re.findall(r'app_id="([^"]+)",(.*?)\n    \),', texte, re.S):
+        app_id, corps = bloc
+        m = re.search(r"triggers=\((.*?)\)", corps, re.S)
+        core[app_id] = set(re.findall(r'"([^"]+)"', m.group(1))) if m else set()
+
+    problemes: list[str] = []
+    for app in extraire_plugins():
+        aid = app["id"]
+        cote_hud = set(app["declencheurs"])
+        if aid not in core:
+            if cote_hud:
+                problemes.append(
+                    f"tuile « {aid} » : déclencheurs vocaux dans le HUD, aucune capacité Core"
+                )
+            continue
+        cote_core = core.pop(aid)
+        for mot in sorted(cote_hud - cote_core):
+            problemes.append(f"déclencheur « {mot} » ({aid}) : connu du HUD, inconnu du Core")
+        for mot in sorted(cote_core - cote_hud):
+            problemes.append(f"déclencheur « {mot} » ({aid}) : connu du Core, ABSENT du HUD")
+
+    for aid, mots in core.items():
+        if mots:
+            problemes.append(f"capacité « {aid} » : déclencheurs Core sans tuile HUD correspondante")
 
     return problemes
 

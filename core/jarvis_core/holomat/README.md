@@ -29,6 +29,22 @@ Seuil match SFace : `VERIFY_THRESHOLD = 0.363` (doc OpenCV).
 4. First setup : face à la caméra jusqu’à 100 %  
 5. Auth : même visage → unlock  
 
+## Gestes
+
+Faits, mais **hors de ce module** : MediaPipe tourne dans le HUD
+(`hud/src/app/bridge/gestureLive.ts`), pas ici — le Core est en Python 3.14
+où la roue `mediapipe` n'existe pas, et Chromium tient déjà la caméra.
+
+Chaîne : HUD mesure des confidences → `type: gesture` → `bus.py`
+discrétise (EDGE / hystérésis / cooldown) → `gestures.py` résout contre
+`gesture_profile.bindings` → `GESTURE_DETECTED` → HUD exécute.
+
+Assets : `cd hud && npm run mediapipe` (~19 Mo, hors git).
+Test : `python -m jarvis_core._smoke_gestures`.
+
 ## Suite
 
-Gestes MediaPipe · service `jarvis-holomat` séparé si besoin.
+Service `jarvis-holomat` séparé si besoin. La projection sur table (homographie
+Charuco, `M.npy`, `calibration.json`) reste **non développée** — sans
+vidéoprojecteur elle n'a pas d'objet, et la route `holomat_calibrate_start`
+est encore un stub.

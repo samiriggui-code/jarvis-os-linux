@@ -1,0 +1,35 @@
+[Unit]
+Description=JARVIS Hermes Agent (HTTP API :8642)
+Documentation=https://github.com/NousResearch/hermes-agent
+After=network.target
+# Wants et pas Requires depuis jarvis.target : Hermes down ne doit pas
+# emporter JARVIS BASE (Core / HUD). Le Core sonde /health et se rabat.
+PartOf=jarvis.target
+# Après rafales de crash, systemd cesse de relancer (Safe Mode manuel,
+# OnFailure plus tard). Ces deux directives appartiennent à [Unit] depuis
+# systemd 230 : laissées dans [Service], elles sont ignorées et le frein
+# anti-rafale n'existe pas — un Hermes qui boucle au démarrage repartirait
+# indéfiniment.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/jarvis/hermes-agent
+Environment=JARVIS_CONFIG_DIR=/etc/jarvis
+Environment=HERMES_HOME=/var/lib/jarvis/hermes
+Environment=API_SERVER_ENABLED=true
+Environment=API_SERVER_HOST=127.0.0.1
+Environment=API_SERVER_PORT=8642
+# Secrets (API_SERVER_KEY, clés LLM…) — hors git
+EnvironmentFile=-/etc/jarvis/secrets.env
+EnvironmentFile=-/etc/jarvis/hermes.env
+ExecStart=/opt/jarvis/bin/jarvis-hermes
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=jarvis.target
+# Alias pour les docs / recovery : systemctl restart hermes-agent
+Alias=hermes-agent.service

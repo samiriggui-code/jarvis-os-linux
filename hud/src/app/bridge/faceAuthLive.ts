@@ -198,6 +198,9 @@ export type FaceVerifyResult = {
   user_id?: string;
   username?: string;
   confidence: number;
+  reason?: string;
+  hudText?: string;
+  hudSubtext?: string;
 };
 
 /** Vérification faciale — caméra tenue le temps du scan, rendue ensuite. */
@@ -212,11 +215,12 @@ async function faceVerifyBody(
   const stream = camera || getCameraStream();
   if (!stream) {
     opts.patchFace({ phase: 'obstruction', obstruction: true });
-    return { ok: false, confidence: 0 };
+    return { ok: false, confidence: 0, reason: 'no_camera' };
   }
 
   opts.patchFace({ phase: 'camera_on', progress: 0, confidence: 0 });
-  if (opts.speak) await opts.speak('Activation du module de perception visuelle.');
+  // Pas de TTS ici : le Core (Holomat) parle seulement après vraie présence.
+  // Avant : « Activation du module… » partait même pièce vide.
 
   const need = opts.stableNeeded ?? 2;
   let hits = 0;
@@ -263,7 +267,13 @@ async function faceVerifyBody(
       }
     } else if (ev.type === 'FACE_FAILED') {
       opts.patchFace({ phase: 'deconstruct', progress: 0 });
-      return { ok: false, confidence: conf };
+      return {
+        ok: false,
+        confidence: conf,
+        reason: ev.reason,
+        hudText: ev.hudText,
+        hudSubtext: ev.hudSubtext,
+      };
     } else {
       hits = 0;
     }
@@ -272,7 +282,7 @@ async function faceVerifyBody(
 
   opts.patchFace({ phase: 'deconstruct', progress: 0 });
   if (opts.speak) await opts.speak('Signature biométrique insuffisante.');
-  return { ok: false, confidence: lastUser?.confidence ?? 0 };
+  return { ok: false, confidence: lastUser?.confidence ?? 0, reason: 'timeout' };
 }
 
 export async function commitFaceEnroll(username: string, userId: string): Promise<boolean> {

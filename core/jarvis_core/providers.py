@@ -5,10 +5,56 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from enum import Enum
 from urllib import error, request
 
 logger = logging.getLogger("jarvis.providers")
+
+
+_THINK_TAGS = re.compile(r"<think>.*?</think>|<thinking>.*?</thinking>", re.S | re.I)
+
+# Préambules de raisonnement qu'un modèle écrit EN CLAIR, sans balise. Observé
+# le 2026-08-04 : à « quelle heure est-il », le modèle a renvoyé tout son
+# « Thinking Process » et jamais l'heure.
+_THINK_LEAD = re.compile(
+    r"^\s*(?:thinking\s+process|thought\s+process|reasoning|analysis|réflexion|raisonnement)\s*:?.*?"
+    r"(?:\n\s*\n|\Z)",
+    re.S | re.I,
+)
+
+# Le modèle numérote parfois sa démarche sans aucun mot-clé d'en-tête :
+#   « 1. **Analyze the Request:** … 4. **Checking Constraints:** … »
+# Ces intitulés-là sont la signature d'un raisonnement, jamais d'une réponse
+# adressée à l'utilisateur.
+_THINK_STEPS = re.compile(
+    r"\d\.\s*\*{0,2}(?:Analyze|Determine|Drafting|Draft|Refin\w+|Check\w+|Select\w+|Consider\w+|"
+    r"Evaluate|Plan|Review)\b[^\n]*",
+    re.I,
+)
+
+
+def strip_reasoning(text: str) -> str:
+    """Retire la réflexion du modèle pour ne garder que la réponse.
+
+    Deuxième ligne de défense : l'invite système demande déjà de ne pas
+    raconter sa démarche, mais un modèle à raisonnement le fait quand même
+    régulièrement. Ce que l'utilisateur entend doit être la RÉPONSE, pas le
+    cheminement.
+
+    ⚠ On ne renvoie jamais une chaîne vide : si le filtre a tout mangé — parce
+    que le modèle n'a produit QUE du raisonnement — on rend le texte d'origine.
+    Une réponse maladroite vaut mieux qu'un silence que rien n'explique.
+    """
+    cleaned = _THINK_TAGS.sub("", text)
+    cleaned = _THINK_LEAD.sub("", cleaned)
+    cleaned = _THINK_STEPS.sub("", cleaned)
+    # Les puces de délibération qui restent (« * **Persona:** … »).
+    cleaned = re.sub(r"^\s*[*\-]\s*\*{0,2}(?:Persona|Tone|Constraint|Format|Context|"
+                     r"User Input|Role|Option \d|Selection|Draft)\b[^\n]*$",
+                     "", cleaned, flags=re.I | re.M)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned or text.strip()
 
 
 class ProviderMode(str, Enum):
@@ -39,7 +85,13 @@ class AIProviderManager:
     def _detect(self) -> ProviderMode:
         if os.environ.get("JARVIS_FORCE_SYSTEM") == "1":
             return ProviderMode.SYSTEM
-        # Priorité doc : Ollama distant (ProLiant/VPS) > Ollama local > cloud
+        # Chat libre : OpenRouter (Qwen flash) EN PREMIER — Ollama VPS trop lent /
+        # peu fiable pour les réponses courtes. Forcer Ollama : JARVIS_OLLAMA_FIRST=1.
+        if (
+            os.environ.get("OPENROUTER_API_KEY")
+            and os.environ.get("JARVIS_OLLAMA_FIRST") != "1"
+        ):
+            return ProviderMode.CLOUD
         if os.environ.get("JARVIS_REMOTE_LLM_URL"):
             return ProviderMode.REMOTE
         if os.environ.get("OLLAMA_HOST") or os.environ.get("JARVIS_OLLAMA_URL"):
@@ -63,7 +115,19 @@ class AIProviderManager:
                 f"(Reçu : « {prompt[-80:]} »)"
             )
 
-        # Ollama (local ou remote) d’abord si mode LOCAL/REMOTE
+        if self._mode == ProviderMode.CLOUD and os.environ.get("OPENROUTER_API_KEY"):
+            try:
+                return await self._openrouter_complete(prompt)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("OpenRouter échec : %s — repli Ollama si dispo", exc)
+                if _ollama_base():
+                    try:
+                        return await self._ollama_complete(prompt)
+                    except Exception as exc2:  # noqa: BLE001
+                        return f"Erreur OpenRouter puis Ollama : {exc2}"
+                return f"Erreur OpenRouter : {exc}"
+
+        # Ollama (local ou remote)
         if self._mode in (ProviderMode.LOCAL, ProviderMode.REMOTE):
             try:
                 return await self._ollama_complete(prompt)
@@ -75,13 +139,6 @@ class AIProviderManager:
                     except Exception as exc2:  # noqa: BLE001
                         return f"Erreur Ollama puis OpenRouter : {exc2}"
                 return f"Erreur Ollama : {exc}"
-
-        if self._mode == ProviderMode.CLOUD and os.environ.get("OPENROUTER_API_KEY"):
-            try:
-                return await self._openrouter_complete(prompt)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("OpenRouter échec : %s", exc)
-                return f"Erreur OpenRouter : {exc}"
 
         return (
             f"[{self._mode.value}] Clé API présente mais provider non câblé "
@@ -113,6 +170,17 @@ class AIProviderManager:
                     ],
                     "temperature": 0.6,
                     "max_tokens": 400,
+                    # ⚠ Qwen3.5 est un modèle à RAISONNEMENT. Laissé libre, il
+                    # dépense la totalité des 400 jetons à narrer sa démarche
+                    # (« Analyze the Request », « Determine the Action »,
+                    # « Drafting the Response ») et la réponse est tronquée
+                    # avant d'exister. Observé le 2026-08-04 : à « quelle heure
+                    # est-il », zéro heure donnée, 400 jetons de réflexion.
+                    #
+                    # Ce champ est la commande OFFICIELLE d'OpenRouter pour
+                    # l'éteindre. Un filtre de sortie ne suffisait pas : on ne
+                    # peut pas extraire une réponse qui n'a jamais été écrite.
+                    "reasoning": {"enabled": False},
                 }
             ).encode("utf-8")
             req = request.Request(
@@ -128,7 +196,7 @@ class AIProviderManager:
             )
             with request.urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-            text = str(data["choices"][0]["message"]["content"]).strip()
+            text = strip_reasoning(str(data["choices"][0]["message"]["content"]))
             return text, data
 
         try:
@@ -157,6 +225,13 @@ class AIProviderManager:
             tokens_out=tout,
             cost_usd=cost,
             meta={"id": data.get("id")},
+        )
+        logger.info(
+            "OpenRouter · %s · in=%d out=%d · « %s »",
+            data.get("model") or model,
+            tin,
+            tout,
+            text[:80].replace("\n", " "),
         )
         return text
 
@@ -197,7 +272,7 @@ class AIProviderManager:
 
         data = await asyncio.to_thread(_call)
         msg = data.get("message") or {}
-        text = str(msg.get("content") or "").strip()
+        text = strip_reasoning(str(msg.get("content") or ""))
         # Ollama eval counts
         tin = int(data.get("prompt_eval_count") or max(1, len(prompt) // 4))
         tout = int(data.get("eval_count") or max(1, len(text) // 4))

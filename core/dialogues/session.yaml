@@ -10,6 +10,7 @@ default_voice: jarvis
 lines:
 
   # ── Cycle de session ───────────────────────────────────────────────────
+  # Verrouillage / déverrouillage : phrases product — WAV si cache, sinon TTS.
 
   - event: session_opened
     tone: human
@@ -17,14 +18,22 @@ lines:
     text:
       - "Session ouverte."
       - "Session sécurisée activée."
-      - "Bienvenue, {titre}."
+    orb_state: idle
+
+  - event: session_goodbye
+    tone: human
+    security_level: public
+    text:
+      - "Mise en veille des systèmes. À bientôt."
+      - "Je mets les systèmes en veille. À bientôt."
+      - "À bientôt."
     orb_state: idle
 
   - event: session_closed
     tone: human
     security_level: public
     text:
-      - "Session fermée."
+      - "Session verrouillée."
       - "Déconnexion effectuée."
     orb_state: idle
 
@@ -32,15 +41,44 @@ lines:
     tone: technical
     security_level: public
     text:
-      - "Verrouillage automatique activé."
+      - "Verrouillage automatique. Mise en veille des systèmes. À bientôt."
+      - "Inactivité détectée. Session verrouillée. À bientôt."
     orb_state: idle
 
   - event: session_locked_manual
-    tone: technical
+    tone: human
     security_level: public
     text:
-      - "Verrouillage manuel activé."
+      - "Verrouillage de session. Mise en veille des systèmes. À bientôt."
+      - "Session verrouillée sur demande. À bientôt."
     orb_state: idle
+
+  # Reprise après lock — adulte : titre, jamais le prénom.
+  - event: session_welcome_back
+    tone: human
+    security_level: auth
+    user_role: admin
+    text:
+      - "Tous les systèmes sont opérationnels. Ravi de vous revoir, {titre}. Que puis-je faire pour vous ?"
+      - "Systèmes nominaux. Ravi de vous revoir, {titre}. Que puis-je faire pour vous ?"
+    orb_state: listening
+
+  - event: session_welcome_back
+    tone: human
+    security_level: auth
+    user_role: user
+    text:
+      - "Tous les systèmes sont opérationnels. Ravi de vous revoir, {titre}. Que puis-je faire pour vous ?"
+    orb_state: listening
+
+  - event: session_welcome_back
+    tone: human
+    security_level: auth
+    address: tu
+    user_role: child
+    text:
+      - "Tout est prêt, {user}. Content de te revoir. Qu'est-ce qu'on fait ?"
+    orb_state: listening
 
   # ── Chargement de profil ───────────────────────────────────────────────
   # {user} expansé à la génération : 5 WAV, un par personne. Phrase entière,
@@ -49,6 +87,8 @@ lines:
   # Ligne technique : le prénom est ici une INFORMATION (qui vient d'être
   # reconnu), pas une adresse. C'est le seul endroit où JARVIS nomme un
   # adulte par son prénom — et il ne lui parle pas, il annonce un état.
+  # ⚠ Ne jamais jouer sans binding `user` : sinon le cache tire au hasard
+  # (Inès, Syrine…) — bug observé au déverrouillage.
   - event: profile_loaded
     tone: technical
     security_level: auth

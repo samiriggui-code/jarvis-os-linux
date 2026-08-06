@@ -7,15 +7,13 @@
 #
 # ─── DEUX RÈGLES NON NÉGOCIABLES ──────────────────────────────────────────
 #
-# 1. L'enrôlement NE PEUT PAS produire un administrateur. Pas « il refuse
-#    de » : il en est structurellement incapable. La promotion admin n'existe
-#    que dans le Dashboard, avec Samir authentifié. Conséquence : même si la
-#    commande vocale est imitée, ou si le LLM est victime d'une injection, le
-#    pire cas reste « un utilisateur simple de plus ».
+# 1. Hors first_run, l'enrôlement NE PEUT PAS produire un administrateur.
+#    Le bootstrap first_run crée le premier ADMIN — c'est l'exception.
+#    Ensuite, la promotion admin n'existe que dans le Dashboard.
 #
-# 2. L'enrôlement est INITIÉ par un adulte identifié. Jamais par une voix non
-#    reconnue, jamais par un enfant. Sinon n'importe quel visiteur s'accorde
-#    un profil tout seul.
+# 2. Hors first_run, l'enrôlement est INITIÉ après validation admin
+#    (session admin ou PIN recovery). Jamais par une voix non reconnue.
+#    Un visage inconnu propose l'enrôlement ; l'admin valide ; puis le flux.
 #
 # Rôles créables ici : `adulte` | `enfant` | `invite`.
 # `invite` (neveux, nièces, amis de passage) : accès média et éclairage
@@ -59,7 +57,7 @@ lines:
     security_level: public
     address: vous
     text:
-      - "Veuillez indiquer votre nom."
+      - "Veuillez dire votre prénom clairement. Je le répéterai pour confirmation."
     orb_state: listening
 
   - event: enrollment_name_saved
@@ -69,24 +67,22 @@ lines:
       - "Nom enregistré."
     orb_state: idle
 
-  # ── Choix du type de profil ────────────────────────────────────────────
-  # « Administrateur » n'est pas proposé, et n'est pas non plus refusé : il
-  # n'existe pas dans ce flux. Rien à contourner.
+  # ── Type de profil ─────────────────────────────────────────────────────
+  # Kiosk foyer : toujours utilisateur standard. Admin = Dashboard seulement.
 
   - event: enrollment_ask_profile_type
     tone: human
     security_level: public
     address: vous
     text:
-      - "Profil adulte, enfant, ou invité ?"
-      - "Quel type d'accès souhaitez-vous créer ? Adulte, enfant ou invité."
+      - "Création d'un profil utilisateur du foyer."
     orb_state: listening
 
   - event: enrollment_profile_adult
     tone: technical
     security_level: public
     text:
-      - "Profil adulte sélectionné."
+      - "Profil utilisateur sélectionné."
     orb_state: idle
 
   - event: enrollment_profile_child

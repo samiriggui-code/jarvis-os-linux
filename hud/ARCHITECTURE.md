@@ -20,9 +20,9 @@
 │             └── api/        WS + REST           │
 └──────────────────────┬──────────────────────────┘
                        │
-        vendor/refs/jarvis_ai   (pipeline voix — réf.)
-        vendor/vision/*         (Holomat — à brancher)
-        vendor/agents/hermes-agent  (HTTP :8642)
+        voicebox        (VPS, docker — TTS + Whisper, HTTP :17600)
+        Holomat         (à brancher)
+        hermes-agent    (NUC, clone git — HTTP :8642)
 ```
 
 ## Contrats

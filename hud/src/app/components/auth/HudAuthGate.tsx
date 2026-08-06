@@ -10,19 +10,35 @@ import { AuthScene } from './AuthScene';
 import { getCoreClient } from '../../bridge/coreClient';
 import { DEV_BUILD } from '../../bridge/devAuthBypass';
 
-type AuthRoute = 'waiting' | 'offline' | 'first_setup' | 'lock' | 'auth';
+type AuthRoute = 'waiting' | 'offline' | 'first_setup' | 'profile_enroll' | 'lock' | 'auth';
 
 export function HudAuthGate() {
   const { sessionUnlocked, sessionWasUnlocked, coreAuth, setCoreAuth, addNotification } = useApp();
   const [route, setRoute] = useState<AuthRoute>('waiting');
   const [waitMs, setWaitMs] = useState(0);
 
+  // Admin distant / voix → force l'UI d'enrôlement sur ce kiosk (même depuis lock/auth).
+  useEffect(() => {
+    const onEnroll = () => setRoute('profile_enroll');
+    window.addEventListener('jarvis:start-enrollment', onEnroll as EventListener);
+    return () => window.removeEventListener('jarvis:start-enrollment', onEnroll as EventListener);
+  }, []);
+
   useEffect(() => {
     if (sessionUnlocked) return;
 
+    // Soft-lock : LockScene dès que la session a déjà été ouverte —
+    // ne JAMAIS retomber sur AuthScene/boot (caméra bloquée derrière checklist).
+    // Sauf si un enrôlement remote a forcé profile_enroll.
+    if (route === 'profile_enroll') return;
+
+    if (sessionWasUnlocked) {
+      setRoute('lock');
+      return;
+    }
+
     if (coreAuth.ready && coreAuth.firstRun !== null) {
       if (coreAuth.firstRun) setRoute('first_setup');
-      else if (sessionWasUnlocked) setRoute('lock');
       else setRoute('auth');
       return;
     }
@@ -35,7 +51,6 @@ export function HudAuthGate() {
       if (getCoreClient().connected) {
         getCoreClient().sendAuth('status');
       }
-      // Après 6s sans Core → message clair (pas de fake first_run local)
       if (elapsed > 6000 && !coreAuth.ready) {
         setRoute('offline');
         setCoreAuth({ ready: false, online: false });
@@ -117,6 +132,18 @@ export function HudAuthGate() {
       />
     );
   }
+  if (route === 'profile_enroll') {
+    return (
+      <FirstSetupScene
+        mode="add_profile"
+        onComplete={() => {
+          setCoreAuth({ firstRun: false, userCount: Math.max(coreAuth.userCount, 1) });
+          setRoute('auth');
+        }}
+      />
+    );
+  }
   if (route === 'lock') return <LockScene />;
-  return <AuthScene />;
+  // Enrôlement : uniquement via AuthScene → gate PIN admin (pas depuis LockScene).
+  return <AuthScene onRequestEnroll={() => setRoute('profile_enroll')} />;
 }

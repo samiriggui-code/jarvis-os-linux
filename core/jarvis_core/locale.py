@@ -6,6 +6,7 @@ Whisper (plus tard) fournit detected_lang ; ici heuristique texte + regles profi
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any, Literal
 
 Lang = Literal["fr", "en"]
@@ -175,6 +176,46 @@ def resolve_reply_language(
 
 
 def system_prompt_language(lang: Lang) -> str:
+    """Consignes de langue et de tenue, plus le contexte que le modèle ignore.
+
+    ⚠ Deux ajouts qui viennent d'un défaut observé (2026-08-04) : à « quelle
+    heure est-il », le modèle a répondu par toute sa réflexion interne
+    (« Thinking Process », « Persona », « Determine the Content ») **sans
+    jamais donner l'heure**.
+
+    Deux causes, deux remèdes ici :
+
+      · Les modèles à raisonnement narrent leur démarche s'ils n'ont pas
+        l'ordre explicite de ne pas le faire. Un filtre de sortie existe aussi
+        côté provider, mais mieux vaut ne pas produire ce qu'on devra couper.
+
+      · Un LLM n'a AUCUNE notion du temps. Sans la date dans le contexte, il
+        répond honnêtement qu'il ne peut pas savoir — ce qui est exact, et
+        inutilisable pour un assistant domestique.
+    """
+    now = datetime.now().astimezone()
+
+    # Noms écrits en dur, jamais `strftime('%A')` : celui-ci suit la locale du
+    # SYSTÈME. Sur ce poste il rendait « Tuesday 04 August » dans une invite
+    # française — et le NUC, en production, n'aura pas forcément de locale
+    # française installée non plus.
+    _JOURS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+    _MOIS = (
+        "janvier", "février", "mars", "avril", "mai", "juin",
+        "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+    )
+    fr_date = f"{_JOURS[now.weekday()]} {now.day} {_MOIS[now.month - 1]} {now.year}"
+
     if lang == "en":
-        return "Reply briefly in English, JARVIS tone."
-    return "Réponds brièvement en français, ton JARVIS."
+        return (
+            "Reply briefly in English, JARVIS tone. "
+            "Answer directly: never narrate your reasoning, never describe your "
+            "persona or your process. Output only the final answer. "
+            f"Current date and time: {now.strftime('%A %d %B %Y, %H:%M')}."
+        )
+    return (
+        "Réponds brièvement en français, ton JARVIS. "
+        "Réponds directement : ne raconte jamais ton raisonnement, ne décris ni "
+        "ta démarche ni ton personnage. Ne donne que la réponse finale. "
+        f"Date et heure actuelles : {fr_date}, {now.strftime('%Hh%M')}."
+    )

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS — Agentic UI Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #02080f;
+      --panel: rgba(0, 14, 32, 0.72);
+      --line: rgba(0, 245, 255, 0.22);
+      --cyan: #00f5ff;
+      --violet: #a855f7;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --green: #22c55e;
+      --text: rgba(230, 240, 255, 0.92);
+      --muted: rgba(180, 200, 220, 0.55);
+      --mono: "Share Tech Mono", monospace;
+      --raj: Rajdhani, sans-serif;
+      --orb: Orbitron, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: var(--raj);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(0, 120, 180, 0.18), transparent 55%),
+        radial-gradient(900px 500px at 90% 0%, rgba(120, 40, 180, 0.14), transparent 50%),
+        var(--bg);
+    }
+    header {
+      padding: 28px 32px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    header h1 {
+      margin: 0;
+      font-family: var(--orb);
+      font-size: 22px;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+    }
+    header p {
+      margin: 8px 0 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      max-width: 72ch;
+      line-height: 1.55;
+    }
+    main {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      padding: 20px 24px 40px;
+    }
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    section h2 {
+      margin: 0 0 14px;
+      font-family: var(--orb);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      color: rgba(0, 245, 255, 0.75);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid rgba(0, 245, 255, 0.16);
+      border-radius: 12px;
+      background: rgba(0, 8, 22, 0.55);
+      padding: 12px;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card .name {
+      font-family: var(--orb);
+      font-size: 11px;
+      color: var(--cyan);
+      letter-spacing: 0.06em;
+    }
+    .card .tag {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+    }
+    .card .body {
+      font-size: 13px;
+      line-height: 1.4;
+      color: rgba(220, 235, 255, 0.85);
+      flex: 1;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted);
+    }
+    .ok .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .bad .dot { background: var(--rose); box-shadow: 0 0 8px var(--rose); }
+    .warn .dot { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+    .unk .dot { background: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    th { color: var(--muted); font-weight: 500; }
+    .bar {
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(0,245,255,0.4), var(--cyan));
+    }
+    .mock-cam {
+      height: 90px;
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(40,20,60,0.9), rgba(0,40,60,0.8)),
+        repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,245,255,0.04) 4px);
+      border: 1px dashed rgba(0,245,255,0.25);
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .approval {
+      border-color: rgba(244, 63, 94, 0.35);
+      background: rgba(244, 63, 94, 0.06);
+    }
+    footer {
+      padding: 0 24px 28px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+    a { color: var(--cyan); }
+    button.refresh {
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--cyan);
+      background: transparent;
+      border: 1px solid rgba(0,245,255,0.35);
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>JARVIS · AGENTIC UI LAB</h1>
+    <p>
+      <strong>23 composants</strong> enregistrés (11 historiques + 12 : StatCard, MetricChart,
+      DataTable, DialogCard, ToastStack, ServiceHub, AvatarChip…). Pas un dump shadcn :
+      registre produit JARVIS. Hubs = surfaces domaine (Status / Media / Home / Dev / Reach).
+      Doc : <code>docs/architecture/JARVIS-Agentic-Catalog.md</code>.
+      Caméra LG ThinQ IP : pas encore câblée — getUserMedia seulement.
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>COMPOSANTS AGENTIC (23)</h2>
+      <div class="grid" id="components">
+        <article class="card"><div class="name">SystemMonitor</div><div class="tag">system</div><div class="body">CPU / RAM / disque live</div></article>
+        <article class="card"><div class="name">MemoryPanel</div><div class="tag">data</div><div class="body">Mémoire foyer</div></article>
+        <article class="card"><div class="name">CommandConsole</div><div class="tag">system</div><div class="body">Journal actions</div></article>
+        <article class="card"><div class="name">CameraPreview</div><div class="tag">media</div><div class="mock-cam" id="cam-slot">aperçu live</div></article>
+        <article class="card"><div class="name">GesturePanel</div><div class="tag">system</div><div class="body">Gestes MediaPipe</div></article>
+        <article class="card"><div class="name">VoiceBar</div><div class="tag">media</div><div class="body">STT / wake</div></article>
+        <article class="card"><div class="name">ScanningPanel</div><div class="tag">system</div><div class="body">Discovery</div></article>
+        <article class="card"><div class="name">SettingsPanel</div><div class="tag">system</div><div class="body">Préférences</div></article>
+        <article class="card"><div class="name">ActionRequest</div><div class="tag">control</div><div class="body">Bouton → Policy</div></article>
+        <article class="card approval"><div class="name">ApprovalCard</div><div class="tag">control</div><div class="body">Confirm ADMIN</div></article>
+        <article class="card"><div class="name">ResultPanel</div><div class="tag">data</div><div class="body">Recherche / résumé</div></article>
+        <article class="card"><div class="name">SectionHeader</div><div class="tag">layout</div><div class="body">Titre de section</div></article>
+        <article class="card"><div class="name">StatCard</div><div class="tag">data · card</div><div class="body">KPI chiffré</div></article>
+        <article class="card"><div class="name">InfoCard</div><div class="tag">layout · card</div><div class="body">Carte texte</div></article>
+        <article class="card"><div class="name">StatusBadge</div><div class="tag">feedback</div><div class="body">Pastille ok/warn/down</div></article>
+        <article class="card"><div class="name">AvatarChip</div><div class="tag">identity</div><div class="body">Avatar + rôle</div></article>
+        <article class="card"><div class="name">LinkList</div><div class="tag">data</div><div class="body">Liens cliquables</div></article>
+        <article class="card"><div class="name">KeyValueList</div><div class="tag">data · table</div><div class="body">Paires clé/valeur</div></article>
+        <article class="card"><div class="name">DataTable</div><div class="tag">data · table</div><div class="body">Colonnes × lignes</div></article>
+        <article class="card"><div class="name">MetricChart</div><div class="tag">data · chart</div><div class="body">Sparkline SVG</div></article>
+        <article class="card approval"><div class="name">DialogCard</div><div class="tag">control · dialog</div><div class="body">Confirm / cancel</div></article>
+        <article class="card"><div class="name">ToastStack</div><div class="tag">feedback · sonner</div><div class="body">Pile de toasts</div></article>
+        <article class="card"><div class="name">ServiceHub</div><div class="tag">system · hub</div><div class="body">NUC / VPS / services</div></article>
+      </div>
+    </section>
+
+    <section>
+      <h2>SERVICES &amp; HÔTES</h2>
+      <table>
+        <thead>
+          <tr><th>Cible</th><th>Rôle</th><th>État</th><th>Note</th></tr>
+        </thead>
+        <tbody id="services">
+          <tr data-id="core"><td>jarvis-core</td><td>NUC</td><td><span class="pill unk"><span class="dot"></span><span class="lbl">…</span></span></td><td>WS :8765</td></tr>
+          <tr data-id="hermes"><td>hermes-agent</td><td>NUC</td><td><span class="pill unk"><span class="dot"></span><span class="lbl">…</span></span></td><td>:8642 /health</td></tr>
+          <tr data-id="voicebox"><td>voicebox</td><td>VPS via tunnel</td><td><span class="pill unk"><span class="dot"></span><span class="lbl">…</span></span></td><td>:17600</td></tr>
+          <tr data-id="ollama"><td>ollama</td><td>VPS via tunnel</td><td><span class="pill unk"><span class="dot"></span><span class="lbl">…</span></span></td><td>:11435</td></tr>
+          <tr data-id="openrouter"><td>openrouter</td><td>cloud</td><td><span class="pill warn"><span class="dot"></span><span class="lbl">clé</span></span></td><td>providers.py</td></tr>
+          <tr data-id="holomat"><td>holomat / face</td><td>NUC+navigateur</td><td><span class="pill unk"><span class="dot"></span><span class="lbl">…</span></span></td><td>caméra navigateur</td></tr>
+          <tr data-id="ha"><td>home assistant</td><td>LAN</td><td><span class="pill unk"><span class="dot"></span><span class="lbl">…</span></span></td><td>adaptateur Core</td></tr>
+          <tr data-id="plex"><td>plex</td><td>ProLiant</td><td><span class="pill unk"><span class="dot"></span><span class="lbl">…</span></span></td><td>:32400</td></tr>
+          <tr data-id="pi"><td>raspberry pi</td><td>satellite</td><td><span class="pill warn"><span class="dot"></span><span class="lbl">TBD</span></span></td><td>Device Manager absent</td></tr>
+          <tr data-id="vps"><td>VPS</td><td>voice / ollama</td><td><span class="pill warn"><span class="dot"></span><span class="lbl">tunnel</span></span></td><td>pas de métriques live ici</td></tr>
+        </tbody>
+      </table>
+      <button class="refresh" type="button" id="btn-refresh">Rafraîchir sondes (même origine)</button>
+      <p style="margin:14px 0 0;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.5">
+        Les sondes HTML ne remplacent pas le Superviseur Core. Elles tentent
+        <code>/health</code> locaux si le reverse-proxy les expose. Sinon : Dashboard → System /
+        moniteur HUD.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    Catalogue source : <code>hud/src/agentic/registry/definitions.ts</code> ·
+    Contrat : <code>docs/architecture/JARVIS-Agentic-UI.md</code> ·
+    Fichier : <code>/agentic-lab.html</code>
+  </footer>
+
+  <script>
+    const setPill = (id, cls, label) => {
+      const row = document.querySelector(`tr[data-id="${id}"] .pill`);
+      if (!row) return;
+      row.className = `pill ${cls}`;
+      row.querySelector('.lbl').textContent = label;
+    };
+
+    async function probe(url, okCodes = [200]) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 2500);
+        const r = await fetch(url, { signal: ctrl.signal, mode: 'cors' });
+        clearTimeout(t);
+        return okCodes.includes(r.status);
+      } catch {
+        return null; // unknown (CORS / offline)
+      }
+    }
+
+    async function refresh() {
+      const checks = [
+        ['hermes', '/hermes/health', [200]],
+        ['voicebox', '/voicebox/health', [200]],
+        ['core', '/ws', [101, 400, 426, 200]],
+      ];
+      // Best-effort same-origin paths — often blocked; mark unk honestly.
+      for (const [id] of [
+        ['core'], ['hermes'], ['voicebox'], ['ollama'], ['holomat'], ['ha'], ['plex'],
+      ]) {
+        setPill(id, 'unk', 'probe');
+      }
+      setPill('openrouter', 'warn', 'clé');
+      setPill('pi', 'warn', 'TBD');
+      setPill('vps', 'warn', 'tunnel');
+
+      // If served behind jarvis nginx, try common health aliases.
+      const hermes = await probe('/api/hermes/health');
+      if (hermes === true) setPill('hermes', 'ok', 'UP');
+      else if (hermes === false) setPill('hermes', 'bad', 'DOWN');
+      else setPill('hermes', 'unk', 'CORS');
+
+      const vb = await probe('/api/voicebox/');
+      if (vb === true) setPill('voicebox', 'ok', 'UP');
+      else if (vb === false) setPill('voicebox', 'bad', 'DOWN');
+      else setPill('voicebox', 'unk', 'CORS');
+
+      setPill('core', 'ok', 'HUD');
+      setPill('holomat', 'warn', 'nav');
+    }
+
+    document.getElementById('btn-refresh').addEventListener('click', refresh);
+    refresh();
+
+    // Optional local webcam preview for CameraPreview mock
+    (async () => {
+      const slot = document.getElementById('cam-slot');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const v = document.createElement('video');
+        v.autoplay = true;
+        v.muted = true;
+        v.playsInline = true;
+        v.style.width = '100%';
+        v.style.height = '90px';
+        v.style.objectFit = 'cover';
+        v.style.borderRadius = '8px';
+        v.srcObject = stream;
+        slot.replaceWith(v);
+      } catch {
+        slot.textContent = 'caméra refusée / absente';
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -332,7 +332,7 @@ export const DEFAULT_HUD_PREFS: HudExperiencePreferences = {
   assistantName: 'JARVIS',
   orbPosition: 'center',
   showTranscript: true,
-  cinematicBoot: true,
+  cinematicBoot: false,
   bargeIn: true,
   locale: {
     preferredLanguage: 'fr',

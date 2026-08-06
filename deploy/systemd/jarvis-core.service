@@ -12,6 +12,12 @@ NotifyAccess=main
 WatchdogSec=30
 WorkingDirectory=/opt/jarvis/core
 Environment=JARVIS_CONFIG_DIR=/etc/jarvis
+# Les jetons de la maison (HA, Plex). Le Core ne lit QUE `os.environ` : sans
+# cette ligne, `JARVIS_HASS_TOKEN` n'existe pas dans le service et l'adaptateur
+# domotique se déclare non configuré — il ne marchait qu'en test, variables
+# exportées à la main. Le `-` rend le fichier facultatif : une machine sans
+# maison raccordée démarre quand même, et les adaptateurs le disent.
+EnvironmentFile=-/etc/jarvis/core.env
 ExecStart=/opt/jarvis/bin/jarvis-core
 Restart=on-failure
 RestartSec=3

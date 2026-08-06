@@ -14,7 +14,7 @@ type ReachStatus = {
   config_path?: string
   hint?: string | null
   skill?: string
-  vendor?: string
+  upstream?: string
   platforms?: Array<{ id: string; label: string; zero_config?: boolean }>
   doctor?: unknown
   error?: string
@@ -109,7 +109,7 @@ export default function AgentReachPage() {
           <Row name="CLI agent-reach" meta={st?.cli_path || 'non trouvé dans PATH'} status={installed ? 'OK' : 'TODO'} statusColor={installed ? '#00FF99' : '#FF6B4A'} />
           <Row name="Config" meta={st?.config_path || '~/.agent-reach/config.yaml'} status={st?.config_exists ? 'OK' : 'VIDE'} />
           <Row name="Skill Hermes" meta={st?.skill || 'deploy/hermes/skills/agent-reach'} status="SEED" />
-          <Row name="Vendor" meta={st?.vendor || 'vendor/Agent-Reach-main'} status="REF" />
+          <Row name="Amont" meta={st?.upstream || 'github.com/Panniantong/agent-reach'} status="PIN" />
           {!installed && (
             <pre style={{
               marginTop: 12,
@@ -121,7 +121,7 @@ export default function AgentReachPage() {
               color: 'rgba(224,244,255,0.75)',
               whiteSpace: 'pre-wrap',
             }}>
-{st?.hint || `pip install -e vendor/Agent-Reach-main
+{st?.hint || `pip install -r core/requirements.txt
 agent-reach install --env=auto --safe
 agent-reach doctor`}
             </pre>

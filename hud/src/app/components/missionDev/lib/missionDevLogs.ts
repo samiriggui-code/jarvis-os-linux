@@ -1,4 +1,4 @@
-import type { MissionDevStep } from '../../context/AppContext';
+import type { MissionDevStep } from '../../../context/AppContext';
 
 export function missionDevProgressPct(steps: MissionDevStep[]) {
   if (!steps.length) return 0;

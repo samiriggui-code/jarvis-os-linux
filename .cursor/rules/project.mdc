@@ -18,8 +18,9 @@ Code produit actuel : `core/` + `setup/` + fronts React `hud/` (HUD) et `dashboa
 | Setup | React + Vite | `setup/` |
 | Deploy | Manifestes / scripts | `deploy/` |
 | Assets | Orbe + fonts | `assets/` |
-| Holomat / vision | TBD | `vendor/vision/` |
-| Upstream voix / Hermes | refs | `vendor/refs/jarvis_ai/`, `vendor/agents/hermes-agent/` |
+| Holomat / vision | TBD | — (plus de copie locale) |
+| Voix (voicebox) | amont déployé | VPS, docker — `jamiepine/voicebox` |
+| Hermes | amont déployé | NUC, clone git — `NousResearch/hermes-agent` |
 
 - **Un service systemd par fonction** (`jarvis-hud`, `jarvis-core`, `jarvis-voice`…) — jamais un monolithe.
 - Orchestrateur **délègue** aux agents (voix, vision, maison, système, média, dev, sécu).

@@ -1,0 +1,36 @@
+# HUD JARVIS — reverse tunnel NUC → VPS pour HTTPS public
+# (Traefik + Let's Encrypt sur jarvis.global-it-ss.com)
+#
+# Direction : le NUC pousse 127.0.0.1:8080 vers le VPS en 127.0.0.1:18080.
+# Traefik (network_mode=host) proxifie https://jarvis.global-it-ss.com → :18080.
+# Aucun port HUD ouvert sur la Freebox.
+#
+# Clé dédiée VPS (authorized_keys) :
+#   restrict,port-forwarding,permitlisten="127.0.0.1:18080",command="/bin/false"
+
+[Unit]
+Description=JARVIS — reverse tunnel HUD NUC → VPS (127.0.0.1:18080)
+After=network-online.target nginx.service
+Wants=network-online.target
+Before=jarvis-core.service
+PartOf=jarvis.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -N \
+    -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=30 \
+    -o ServerAliveCountMax=3 \
+    -o ConnectTimeout=15 \
+    -o StrictHostKeyChecking=yes \
+    -o BatchMode=yes \
+    -i /root/.ssh/jarvis_vps_hud_ed25519 \
+    -R 127.0.0.1:18080:127.0.0.1:8080 \
+    root@187.77.166.124
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=jarvis.target

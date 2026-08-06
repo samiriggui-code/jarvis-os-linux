@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Chromium kiosk → HUD React (nginx :8080), optimisé TV salon.
+set -euo pipefail
+
+# ?kiosk=1 → devicePolicy persona kiosk (caméra chaude, gestes, densité TV).
+URL="${JARVIS_HUD_URL:-http://127.0.0.1:8080/?kiosk=1}"
+# 40″ Full HD vue du canapé : ~1.35 = textes / panneaux lisibles sans pixel mush.
+SCALE="${JARVIS_HUD_SCALE:-1.35}"
+
+CHROME="${JARVIS_CHROME:-}"
+if [[ -z "$CHROME" ]]; then
+  for c in /snap/bin/chromium chromium chromium-browser google-chrome google-chrome-stable; do
+    if command -v "$c" >/dev/null 2>&1 || [[ -x "$c" ]]; then
+      CHROME="$c"
+      break
+    fi
+  done
+fi
+if [[ -z "$CHROME" ]]; then
+  echo "jarvis-hud: aucun Chromium trouvé" >&2
+  exit 1
+fi
+
+EXTRA=()
+# systemd lance souvent en root — Chromium refuse sans sandbox flag.
+if [[ "$(id -u)" -eq 0 ]]; then
+  EXTRA+=(--no-sandbox --disable-dev-shm-usage)
+fi
+
+exec "$CHROME" \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --disable-translate \
+  --disable-features=TranslateUI,Translate \
+  --lang=fr \
+  --accept-lang=fr \
+  --check-for-update-interval=31536000 \
+  --user-data-dir=/var/lib/jarvis/chromium-hud \
+  --autoplay-policy=no-user-gesture-required \
+  --use-fake-ui-for-media-stream \
+  --force-device-scale-factor="$SCALE" \
+  --window-size=1920,1080 \
+  --start-maximized \
+  "${EXTRA[@]}" \
+  "$URL"

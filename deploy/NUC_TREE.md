@@ -12,7 +12,8 @@ Base OS : Ubuntu **ou** CachyOS — peu importe.
 │   ├── dashboard/                 # build React (dist/) — quand prêt
 │   ├── core/                      # Orchestrateur
 │   ├── setup/                     # Setup Center (optionnel hors kiosque)
-│   ├── bin/                       # jarvis-hud (Chromium kiosk), jarvis-core
+│   ├── bin/                       # jarvis-hud, jarvis-core, jarvis-hermes
+│   ├── hermes-agent/              # install vendor Hermes (venv + CLI)
 │   └── share/                     # Assets (orbe, fonts, sons…)
 │
 ├── etc/jarvis/
@@ -21,6 +22,7 @@ Base OS : Ubuntu **ou** CachyOS — peu importe.
 │   ├── modules.yaml
 │   ├── manifest.json
 │   ├── secrets.env                # chmod 600
+│   ├── hermes.env                 # API_SERVER_* — chmod 600
 │   └── systemd/
 │
 ├── storage/jarvis/
@@ -32,11 +34,14 @@ Base OS : Ubuntu **ou** CachyOS — peu importe.
 │
 ├── var/lib/jarvis/
 │   ├── state/
-│   └── devices/
+│   ├── devices/
+│   └── hermes/                    # HERMES_HOME (SOUL, skills, config)
 │
 └── etc/systemd/system/
     ├── jarvis-core.service
     ├── jarvis-hud.service         # Chromium kiosk (pas Qt)
+    ├── jarvis-hermes.service      # Alias: hermes-agent.service
+    ├── jarvis-voicebox.service
     └── jarvis.target
 ```
 
@@ -69,14 +74,33 @@ ainsi, et le build Vite en produit.
 | futur `dashboard/dist` | `/opt/jarvis/dashboard/dist/` |
 | `assets/` | `/opt/jarvis/share/` (copie) |
 | `deploy/manifests/*.json` | `/etc/jarvis/manifest.json` |
-| `vendor/**` | **ne pas déployer** (sauf builds issus de figma* une fois promu) |
+| ~~`vendor/agents/hermes-agent/`~~ | **rien à déployer** — voir ci-dessous |
+| `vendor/**` (reste) | **ne pas déployer** : références de lecture uniquement |
+
+⚠ Ce tableau annonçait un `rsync` de `vendor/agents/hermes-agent` vers
+`/opt/jarvis/hermes-agent`. **Ce rsync n'a jamais existé dans aucun script.**
+Constaté sur le NUC le 2026-08-05 : `/opt/jarvis/hermes-agent` est un **clone git**
+de `NousResearch/hermes-agent` (commit `f5be923`), avec son propre `.venv` et le
+binaire `hermes` — installé à la main, pas synchronisé depuis le dépôt.
+
+C'est d'ailleurs le bon modèle, le même que voicebox sur le VPS : **l'amont est
+cloné sur la machine cible**. La copie sous `vendor/` a donc été supprimée.
+Pour réinstaller ailleurs :
+
+```bash
+git clone https://github.com/NousResearch/hermes-agent /opt/jarvis/hermes-agent
+cd /opt/jarvis/hermes-agent && git checkout f5be923
+python3 -m venv .venv && .venv/bin/pip install -e .
+```
 
 ## Services
 
 ```
 jarvis.target
- ├── jarvis-core.service     # WS :8765
- └── jarvis-hud.service      # Chromium --kiosk $JARVIS_HUD_URL
+ ├── jarvis-core.service       # WS :8765
+ ├── jarvis-hud.service        # Chromium --kiosk $JARVIS_HUD_URL
+ ├── jarvis-voicebox.service   # TTS/STT :17600 (Wants, pas Requires)
+ └── jarvis-hermes.service     # HTTP :8642 — alias hermes-agent.service
 ```
 
 ## Créer l’arbre

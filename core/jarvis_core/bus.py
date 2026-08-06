@@ -98,11 +98,24 @@ DEFAULT_POLICIES: dict[str, RatePolicy] = {
     "HAND_PINCH": RatePolicy(mode=Mode.EDGE, key_field="hand"),
     "HAND_FIST": RatePolicy(mode=Mode.EDGE, key_field="hand"),
     "HAND_OPEN": RatePolicy(mode=Mode.EDGE, key_field="hand"),
-    "GESTURE_DETECTED": RatePolicy(mode=Mode.EDGE, key_field="gestureId"),
+    # Résolu par `gestures.py` À PARTIR d'un HAND_* déjà discrétisé : refaire
+    # un front ici l'émettrait une seule fois, puis plus jamais. `_allow` lit
+    # `confidence` avec 1.0 par défaut, et le réarmement exige `value <= exit`
+    # — un payload sans confiance reste donc désarmé à vie. La discrétisation
+    # a eu lieu en amont ; ici on laisse passer.
+    "GESTURE_DETECTED": RatePolicy(mode=Mode.PASS, key_field="gestureId"),
     # Balayages : mouvement bref, cooldown plus long pour éviter le double-tir.
     "HAND_SWIPE": RatePolicy(mode=Mode.EDGE, cooldown_ms=600.0, key_field="hand"),
     # Position du curseur : seule la dernière compte.
     "HAND_POINT": RatePolicy(mode=Mode.COALESCE, key_field="hand"),
+    # Charge machine : seul le dernier relevé a un sens. Un HUD qui se
+    # reconnecte veut l'état actuel, pas la file des dix précédents.
+    #
+    # `key_field="host"` est indispensable, pas cosmétique : le HUD tourne sur
+    # le NUC et agrège tout l'écosystème (NUC, VPS, Pi, ProLiant, portable).
+    # Sans clé, le relevé du VPS écraserait celui du NUC en attente — même
+    # piège que les deux mains sur HAND_PINCH.
+    "SYSTEM_METRICS": RatePolicy(mode=Mode.COALESCE, key_field="host"),
     "BODY_POSE": RatePolicy(mode=Mode.COALESCE),
     "EYE_GAZE": RatePolicy(mode=Mode.COALESCE),
     # Frames visage : le HUD limite déjà à ~5 fps, mais on ne fait pas
