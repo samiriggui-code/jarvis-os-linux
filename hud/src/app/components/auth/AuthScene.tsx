@@ -21,7 +21,7 @@ import {
 } from '../../engine/experienceOrchestrator';
 import { authLogin, getEnrollPin, getLastUsername } from '../../bridge/authClient';
 import { getCoreClient } from '../../bridge/coreClient';
-import { ensureCamera, getMediaState } from '../../bridge/mediaDevices';
+import { ensureCameraAndMic, ensureMic, getMediaState, withCamera } from '../../bridge/mediaDevices';
 import { isCoreOnline } from '../CoreBridge';
 import { DEV_BUILD, isAuthBypassEnabled } from '../../bridge/devAuthBypass';
 
@@ -76,7 +76,7 @@ const BOOT_CHECKS_INIT: BootCheck[] = [
  * probable au démarrage à froid du kiosque, où le HUD se connecte pendant que
  * le Core enregistre encore ses sondes.
  */
-const CORE_HANDSHAKE_MS = 14000;
+const CORE_HANDSHAKE_MS = 90_000;
 
 /* ─── Composant ─────────────────────────────────────────────────────────────── */
 export function AuthScene() {
@@ -111,6 +111,9 @@ export function AuthScene() {
 
   /** Boot bloqué sur une brique vitale : on n'enchaîne pas sur la caméra. */
   const [bootBlocked, setBootBlocked] = useState<string | null>(null);
+  /** Permissions caméra + micro obtenues (gesture utilisateur ou auto). */
+  const [mediaArmed, setMediaArmed] = useState(false);
+  const [mediaHint, setMediaHint] = useState('');
 
   /* — Refs pour accès dans callbacks onEnter/onComplete — */
   const orchRef          = useRef<ExperienceOrchestrator | null>(null);
@@ -123,6 +126,19 @@ export function AuthScene() {
   unlockRef.current      = unlockSession;
 
   /** Login User Manager puis unlock HUD — plus de unlock local seul. */
+  const armMedia = useCallback(async () => {
+    setMediaHint('Demande caméra + micro…');
+    const s = await ensureCameraAndMic();
+    const camOk = s.camera === 'granted';
+    const micOk = s.mic === 'granted';
+    setMediaArmed(camOk || micOk);
+    if (camOk && micOk) setMediaHint('');
+    else if (!camOk && !micOk) setMediaHint('Caméra et micro refusés — utilisez le PIN');
+    else if (!camOk) setMediaHint('Caméra refusée — micro OK');
+    else setMediaHint('Micro refusé — caméra OK');
+    return s;
+  }, []);
+
   const coreUnlock = useCallback(async (meta: { method: string; confidence?: number; pin?: string; user_id?: string; username?: string }) => {
     try {
       const res = await authLogin({
@@ -258,6 +274,22 @@ export function AuthScene() {
           checksRef.current
             .filter(c => c.status === 'pending')
             .forEach(c => setCheckStatus(c.component, 'skipped'));
+
+          // Le boot est fini : on demande au Core de NARRER l'identification.
+          //
+          // ⚠ Sans ce message, la séquence `auth` de `sequences.py` ne se
+          // lançait jamais. Le Core l'attendait derrière `action:
+          // "sequence_start"` et personne ne l'envoyait : la caméra s'allumait,
+          // scannait, et JARVIS ne disait pas un mot. On n'envoie évidemment
+          // rien si le démarrage a échoué — annoncer une identification
+          // par-dessus une panne serait la contradiction d'origine.
+          if (data.ok !== false) {
+            try {
+              client.send({ type: 'auth', action: 'sequence_start', sequence: 'auth' });
+            } catch {
+              // Core injoignable : le HUD continue, l'écran restera muet.
+            }
+          }
           finish(data.ok === false ? 'DÉMARRAGE INTERROMPU' : null);
         }
       });
@@ -265,7 +297,12 @@ export function AuthScene() {
       // HOLOMAT VISION : le Core ne peut pas sonder une caméra qu'il ne tient
       // pas. On l'ouvre ici et on lui rapporte le résultat — c'est ce qui
       // sépare « moteur de reconnaissance chargé » de « flux caméra ouvert ».
-      void ensureCamera().then(stream => {
+      //
+      // ⚠ On REND la caméra aussitôt le résultat rapporté. C'est une sonde,
+      // pas un usage : savoir si l'objectif répond ne justifie pas de filmer
+      // ensuite. Le battement d'extinction de `withCamera` couvre l'enchaînement
+      // immédiat sur le scan facial, qui la redemandera de lui-même.
+      void withCamera('auth', async stream => {
         client.send({
           type: 'holomat',
           action: 'camera',
@@ -326,9 +363,14 @@ export function AuthScene() {
         hudSubtext: 'Initialisation capteurs',
         orbState: 'processing' as const,
         avatarMode: 'scanning' as const,
+        onEnter: () => {
+          void armMedia();
+        },
         waitForAsync: async () => {
           const orch = orchRef.current;
           if (!orch) return;
+
+          await armMedia();
 
           const useLive = isCoreOnline() && !faceFailDemo;
           let ok = false;
@@ -393,9 +435,23 @@ export function AuthScene() {
           }
 
           if (!ok) {
-            orch.patchHud({ hudText: 'AUTH LOCK TEMPORARY', hudSubtext: 'Utilisez PIN ou réessayez', avatarMode: 'denied' });
+            // Pas de throw : l'orchestrateur reste vivant, le PIN reste utilisable.
+            orch.patchHud({
+              hudText: 'AUTH LOCK TEMPORARY',
+              hudSubtext: 'Visage inconnu — PIN ou réessayez',
+              avatarMode: 'denied',
+            });
             setFaceHologram(prev => ({ ...prev, phase: 'locked' }));
-            throw new Error('face_auth_locked');
+            setDenied(true);
+            await new Promise<void>((resolve) => {
+              const id = setInterval(() => {
+                if (!aliveRef.current) {
+                  clearInterval(id);
+                  resolve();
+                }
+              }, 250);
+            });
+            return;
           }
           factorsRef.current = { ...factorsRef.current, face: true };
           setFactors(f => ({ ...f, face: true }));
@@ -414,6 +470,12 @@ export function AuthScene() {
         avatarMode: 'listening' as const,
         pauseAfter: 300,
         waitForUser: true,
+        onEnter: () => {
+          void ensureMic().then((stream) => {
+            if (stream) setMediaArmed(true);
+            else setMediaHint('Micro requis pour la voix — autorisez ou utilisez le PIN');
+          });
+        },
       },
       {
         id: 'voice_scan',
@@ -561,8 +623,12 @@ export function AuthScene() {
   /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
     <motion.div
-      className="fixed inset-0 z-[300] flex flex-col items-center justify-center overflow-hidden"
-      style={{ background: 'radial-gradient(ellipse at 50% 30%, #071828 0%, #020509 70%)' }}
+      className="fixed inset-0 z-[300] flex flex-col items-center overflow-x-hidden overflow-y-auto overscroll-contain"
+      style={{
+        background: 'radial-gradient(ellipse at 50% 30%, #071828 0%, #020509 70%)',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+        paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
+      }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -616,7 +682,7 @@ export function AuthScene() {
         {isAuth && (
           <motion.div
             key="main"
-            className="flex flex-col items-center gap-5 w-full max-w-md px-6"
+            className="flex flex-col items-center gap-3 sm:gap-5 w-full max-w-md px-4 sm:px-6 py-4 my-auto min-h-0"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
@@ -648,27 +714,26 @@ export function AuthScene() {
                 confiance biométrique renvoyée par YuNet/SFace — le hologramme
                 se construit au rythme de la reconnaissance, il ne joue pas une
                 animation décorative dans le vide. */}
-            <div className="flex items-end justify-center">
-              <div className="relative" style={{ width: 'min(92vw, 420px)', height: 280 }}>
+            <div className="flex items-end justify-center w-full shrink-0">
+              <div className="relative w-full flex justify-center" style={{ maxHeight: '40dvh' }}>
                 <FaceCamView
                   progress={scanProgress}
-                  active={inFaceFlow || scanProgress > 0}
+                  active={inFaceFlow || scanProgress > 0 || mediaArmed}
                   label={factors.face ? 'HOLOMAT · OK' : 'HOLOMAT · CAM'}
                 />
                 {(inFaceFlow || forceHolo) && (
                   <div
-                    className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden"
+                    className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden mx-auto"
                     style={{
-                      // Monte avec la confiance : au début on voit surtout son
-                      // visage (utile pour se cadrer), à la fin le hologramme
-                      // domine. Plafonné à 0.92 pour garder le réel dessous.
+                      width: 'min(92vw, 420px)',
+                      height: '100%',
                       opacity: Math.min(0.92, 0.25 + faceHologram.progress / 130),
                       transition: 'opacity 400ms linear',
                       mixBlendMode: 'screen',
                     }}
                   >
                     <EmmaHologram3D
-                      size={280}
+                      size={Math.min(280, typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.32) : 280)}
                       progress={forceHolo ? holoDemo : faceHologram.progress}
                       buildPhase={forceHolo ? 'reconstruction' : faceHologram.phase}
                       speaking={orchState.isSpeaking}
@@ -678,11 +743,34 @@ export function AuthScene() {
               </div>
             </div>
 
+            {!mediaArmed && (
+              <button
+                type="button"
+                onClick={() => void armMedia()}
+                className="w-full max-w-xs rounded-xl px-4 py-3 cursor-pointer shrink-0"
+                style={{
+                  ...orbF,
+                  fontSize: 10,
+                  letterSpacing: '0.12em',
+                  color: '#00e5ff',
+                  background: 'rgba(0,229,255,0.1)',
+                  border: '1px solid rgba(0,229,255,0.45)',
+                }}
+              >
+                AUTORISER CAMÉRA + MICRO
+              </button>
+            )}
+            {mediaHint && (
+              <p style={{ ...mono, color: 'rgba(245,158,11,0.85)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
+                {mediaHint}
+              </p>
+            )}
+
             {/* Message HUD courant */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={orchState.hudText}
-                className="text-center"
+                className="text-center shrink-0"
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -704,7 +792,7 @@ export function AuthScene() {
               {orchState.isWaitingForUser && (
                 <motion.div
                   key="voice-trigger"
-                  className="flex flex-col items-center gap-3"
+                  className="flex flex-col items-center gap-3 shrink-0"
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.85 }}
@@ -712,7 +800,9 @@ export function AuthScene() {
                 >
                   <motion.button
                     type="button"
-                    onClick={() => orchRef.current?.userConfirm()}
+                    onClick={() => {
+                      void armMedia().then(() => orchRef.current?.userConfirm());
+                    }}
                     className="flex items-center gap-3 px-6 py-3 rounded-2xl cursor-pointer"
                     style={{
                       background: 'rgba(25,240,216,0.1)',
@@ -747,9 +837,14 @@ export function AuthScene() {
               hudText={orchState.hudText}
             />
 
-            {/* PIN + skip */}
+            {/* PIN collé en bas du viewport — toujours visible sur portable */}
             {orchState.isRunning && orchState.hudText !== 'SYSTÈME PRÊT' && (
-              <div className="w-full flex flex-col gap-2">
+              <div
+                className="w-full flex flex-col gap-2 shrink-0 sticky bottom-0 z-10 pt-2 pb-1"
+                style={{
+                  background: 'linear-gradient(180deg, transparent 0%, #020509 28%)',
+                }}
+              >
                 <div className="flex gap-2">
                   <input
                     type="password"
@@ -757,7 +852,8 @@ export function AuthScene() {
                     onChange={e => setPin(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && tryPin()}
                     placeholder="Code ACCESS (dev: jarvis)"
-                    className="flex-1 rounded-xl px-3 py-2 outline-none text-center"
+                    autoComplete="one-time-code"
+                    className="flex-1 rounded-xl px-3 py-2.5 outline-none text-center"
                     style={{
                       ...orbF, fontSize: 11, letterSpacing: '0.15em',
                       color: denied ? '#ef4444' : '#cfeefb',
@@ -795,14 +891,15 @@ export function AuthScene() {
         )}
       </AnimatePresence>
 
+      {/* Orbe — masqué sur petits écrans pour ne pas chevaucher le PIN */}
       {isAuth && (
         <motion.div
-          className="absolute left-8 bottom-8 flex flex-col items-center gap-1 pointer-events-none"
+          className="hidden md:flex absolute right-6 bottom-6 flex-col items-center gap-1 pointer-events-none"
           initial={{ opacity: 0, scale: 0.6 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <div style={{ width: 72, height: 72 }}>
+          <div style={{ width: 64, height: 64 }}>
             <Orb
               state={orchState.orbState}
               volume={isVoiceScan ? 0.6 : 0.1}
@@ -836,13 +933,13 @@ function BootOverlay(
   const accent = blocked ? '#ef4444' : '#00e5ff';
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-8"
+      className="absolute inset-0 flex flex-col items-center justify-start sm:justify-center gap-4 sm:gap-6 px-4 sm:px-8 py-6 overflow-y-auto"
       style={{ background: '#020509' }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6 }}
     >
       {/* Orbe — fixe, vibre selon la voix */}
-      <div style={{ width: 80, height: 80, marginBottom: 10 }}>
+      <div className="shrink-0" style={{ width: 72, height: 72, marginBottom: 4 }}>
         <Orb state={blocked ? 'idle' : 'thinking'} volume={blocked ? 0.05 : 0.4} playbackVolume={0} />
       </div>
 

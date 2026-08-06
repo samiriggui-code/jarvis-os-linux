@@ -10,13 +10,19 @@ version: 1
 evenements_emis:
   - type: FACE_FAILED
     sources: [core/jarvis_core/holomat/face_engine.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: FACE_PROGRESS
     sources: [core/jarvis_core/__init__.py, core/jarvis_core/holomat/face_engine.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: FACE_SUCCESS
     sources: [core/jarvis_core/holomat/face_engine.py]
+    ecoute_par_le_hud: true
+  - type: SURFACE_DELTA
+    sources: [core/jarvis_core/surface.py]
     ecoute_par_le_hud: false
+  - type: SURFACE_SNAPSHOT
+    sources: [core/jarvis_core/surface.py]
+    ecoute_par_le_hud: true
   - type: agent_reach_status
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
@@ -26,6 +32,9 @@ evenements_emis:
   - type: auth_enroll_result
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
+  - type: auth_enroll_signal
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
   - type: auth_error
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
@@ -51,6 +60,9 @@ evenements_emis:
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
   - type: chat_reply
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: core_error
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
   - type: face_enroll_commit_result
@@ -87,6 +99,15 @@ evenements_emis:
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
   - type: supervisor_status
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: surface_catalog
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
+  - type: surface_error
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: true
+  - type: surface_result
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
   - type: tts_audio
@@ -133,12 +154,16 @@ commandes_emises:
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
 signaux_bus:
+  - signal: GESTURE_DETECTED
+    sources: [core/jarvis_core/gestures.py]
   - signal: SYSTEM_METRICS
     sources: [core/jarvis_core/metrics.py]
   - signal: component_state
     sources: [core/jarvis_core/supervisor.py]
 hud_envoie:
   - type: auth
+    route_core_existe: true
+  - type: boot
     route_core_existe: true
   - type: holomat
     route_core_existe: true
@@ -153,6 +178,8 @@ hud_envoie:
   - type: save_hud_preferences
     route_core_existe: true
   - type: stop_run
+    route_core_existe: true
+  - type: surface
     route_core_existe: true
   - type: user_event
     route_core_existe: true

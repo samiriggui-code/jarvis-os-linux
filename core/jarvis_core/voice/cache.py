@@ -26,6 +26,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import random
 from pathlib import Path
 from typing import Any
@@ -62,11 +63,10 @@ class VoiceCache:
 
     @staticmethod
     def _voice_from_config() -> str | None:
-        """Nom du dossier de cache, lu dans `cache_config.yaml`.
-
-        On tolère l'absence de PyYAML : le Core doit démarrer même sans, quitte
-        à passer par la synthèse.
-        """
+        """Nom du dossier de cache (`JARVIS_VOICE_CACHE` > cache_config.yaml)."""
+        env = os.environ.get("JARVIS_VOICE_CACHE", "").strip()
+        if env:
+            return env
         try:
             import yaml
 

@@ -4,7 +4,7 @@
 # comparé au code par `--check`, il perdrait toujours l'arbitrage.
 # Événements de dialogue et couverture du cache — hors cache = facturé.
 version: 1
-voix_cache: jarvis2
+voix_cache: jarvis
 domaines:
   - domaine: auth
     evenements: 34

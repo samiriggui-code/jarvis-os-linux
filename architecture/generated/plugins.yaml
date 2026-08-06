@@ -9,180 +9,210 @@ apps:
     nom: Paramètres
     statut: live
     risque: info
-    outil_hermes: null
+    intention: core.preferences
+    execute_par: core
     declencheurs: [paramètres, settings, réglages]
   - id: jarvis
     nom: Noyau
     statut: live
     risque: info
-    outil_hermes: neural_map
+    intention: core.neural_map
+    execute_par: core
     declencheurs: [noyau, carte hermes, neural]
   - id: hub
     nom: Dashboard
     statut: live
     risque: admin
-    outil_hermes: dashboard_open
+    intention: core.dashboard
+    execute_par: core
     declencheurs: [dashboard, admin, cockpit]
   - id: monitor
     nom: Moniteur
     statut: live
     risque: info
-    outil_hermes: null
+    intention: core.monitor
+    execute_par: core
     declencheurs: [moniteur, cpu, ressources]
   - id: vision
     nom: Holomat
     statut: live
     risque: info
-    outil_hermes: null
+    intention: core.holomat
+    execute_par: core
     declencheurs: [holomat, vision, gestes, caméra]
   - id: security
     nom: Sécurité
-    statut: hermes
+    statut: surface
     risque: admin
-    outil_hermes: security_status
+    intention: core.security
+    execute_par: core
     declencheurs: [sécurité, policy, auth]
   - id: network
     nom: Réseau
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: network_status
+    intention: system.network
+    execute_par: core
     declencheurs: [réseau, wifi, lan]
   - id: terminal
     nom: Terminal
-    statut: hermes
+    statut: surface
     risque: vps
-    outil_hermes: vps_shell_limited
+    intention: system.shell
+    execute_par: hermes
     declencheurs: [terminal, shell, console ssh]
   - id: files
     nom: Fichiers
-    statut: hermes
+    statut: surface
     risque: admin
-    outil_hermes: files_browse
+    intention: files.browse
+    execute_par: hermes
     declencheurs: [fichiers, dossier, explorer]
   - id: browser
     nom: Navigateur
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: browser
+    intention: web.browse
+    execute_par: hermes
     declencheurs: [navigateur, browser, holoweb]
   - id: reach
     nom: Internet
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: agent_reach
+    intention: web.search
+    execute_par: hermes
     declencheurs: [internet, agent-reach, agent reach, recherche web, cherche, github, youtube, reddit, rss, openclaw]
   - id: docker
     nom: Docker
-    statut: hermes
+    statut: surface
     risque: vps
-    outil_hermes: vps_docker_limited
+    intention: vps.docker
+    execute_par: hermes
     declencheurs: [docker, conteneur, containers]
   - id: code
     nom: VS Code
-    statut: hermes
+    statut: surface
     risque: vps
-    outil_hermes: vps_code_limited
+    intention: vps.code
+    execute_par: device
     declencheurs: [code, vscode, éditeur]
   - id: analyze
     nom: Analyse
-    statut: hermes
-    risque: info
-    outil_hermes: analyze
+    statut: surface
+    risque: admin
+    intention: data.analyze
+    execute_par: hermes
     declencheurs: [analyse, stats, données]
   - id: storage
     nom: Stockage
-    statut: hermes
+    statut: surface
     risque: vps
-    outil_hermes: vps_storage_limited
+    intention: vps.storage
+    execute_par: hermes
     declencheurs: [stockage, disque, volume]
   - id: cerveau
     nom: Cerveau
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: node_cerveau
+    intention: core.providers
+    execute_par: core
     declencheurs: [cerveau, llm]
   - id: tokens
     nom: Tokens
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: node_tokens
+    intention: core.usage
+    execute_par: core
     declencheurs: [tokens, quota]
   - id: objectifs
     nom: Objectifs
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: node_missions
+    intention: core.missions
+    execute_par: core
     declencheurs: [objectifs, buts]
   - id: skills
     nom: Skills
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: node_skills
+    intention: agent.skills
+    execute_par: hermes
     declencheurs: [skills, compétences]
   - id: connexions
     nom: Connexions
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: node_connexions
+    intention: devices.list
+    execute_par: device
     declencheurs: [connexions, entités]
   - id: reseau
     nom: Topologie
-    statut: hermes
+    statut: surface
     risque: info
-    outil_hermes: node_reseau
+    intention: devices.topology
+    execute_par: device
     declencheurs: [topologie, mesh]
   - id: cursor
     nom: Cursor
     statut: live
     risque: info
-    outil_hermes: null
+    intention: core.cursor
+    execute_par: core
     declencheurs: [cursor, éditeur cursor, ouvre cursor]
   - id: mission-control-dev
     nom: Mission Ctrl DEV
     statut: live
     risque: info
-    outil_hermes: node_mission_control_dev
+    intention: core.mission_dev
+    execute_par: core
     declencheurs: [mission control dev, mission-control-dev, mission control]
   - id: crons
     nom: Crons
-    statut: hermes
+    statut: surface
     risque: admin
-    outil_hermes: node_crons
+    intention: agent.cron
+    execute_par: hermes
     declencheurs: [cron, planifié, schedule]
   - id: outils
     nom: Outils
-    statut: hermes
-    risque: info
-    outil_hermes: tool_manager
+    statut: surface
+    risque: admin
+    intention: agent.tools
+    execute_par: hermes
     declencheurs: [outils, tools, tool manager]
   - id: home
     nom: Maison
-    statut: hermes
+    statut: surface
     risque: home
-    outil_hermes: home_assistant
-    declencheurs: [maison, domotique, lumières, home assistant]
+    intention: home.control
+    execute_par: hermes
+    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant]
   - id: music
     nom: Musique
-    statut: hermes
+    statut: surface
     risque: media
-    outil_hermes: media_music
+    intention: media.music
+    execute_par: hermes
     declencheurs: [musique, spotify, plex audio]
   - id: video
     nom: Vidéo
-    statut: hermes
+    statut: surface
     risque: media
-    outil_hermes: media_video
-    declencheurs: [vidéo, video, film, plex]
+    intention: media.video
+    execute_par: core
+    declencheurs: [vidéo, video, film, plex, série, serie, épisode, episode, regarde]
   - id: mail
     nom: Courrier
     statut: soon
     risque: info
-    outil_hermes: null
+    intention: null
+    execute_par: null
     declencheurs: []
   - id: calendar
     nom: Agenda
     statut: soon
     risque: info
-    outil_hermes: null
+    intention: null
+    execute_par: null
     declencheurs: []
 declencheurs_ambigus:

@@ -3,7 +3,7 @@
  * Remplace faceAuthSimulator quand Core + caméra OK.
  */
 import { getCoreClient } from './coreClient';
-import { ensureCamera, getCameraStream } from './mediaDevices';
+import { getCameraStream, withCamera } from './mediaDevices';
 import type { FaceHologramState } from '../engine/faceHologramTypes';
 
 export type FaceLiveEvent = {
@@ -23,7 +23,8 @@ export type FaceLiveEvent = {
 
 function isFaceEvent(d: Record<string, unknown>): boolean {
   const t = d.type;
-  return t === 'FACE_PROGRESS' || t === 'FACE_SUCCESS' || t === 'FACE_FAILED' || t === 'FACE_OBSTRUCTION';
+  // Obstruction = phase sur FACE_PROGRESS (Core Holomat), pas un type WS dédié.
+  return t === 'FACE_PROGRESS' || t === 'FACE_SUCCESS' || t === 'FACE_FAILED';
 }
 
 async function grabJpegB64(stream: MediaStream, quality = 0.72): Promise<string | null> {
@@ -82,14 +83,31 @@ async function sendFrame(payload: Record<string, unknown>): Promise<FaceLiveEven
   return data as unknown as FaceLiveEvent;
 }
 
-export async function runFaceEnrollLive(opts: {
+export interface FaceEnrollOpts {
   username: string;
   isAlive: () => boolean;
   patchFace: (u: Partial<FaceHologramState>) => void;
   patchHud?: (hudText: string, hudSubtext: string) => void;
   speak?: (t: string) => Promise<void>;
-}): Promise<boolean> {
-  const stream = (await ensureCamera()) || getCameraStream();
+}
+
+/**
+ * Enrôlement facial — tient la caméra du début à la fin, et la rend ensuite.
+ *
+ * `withCamera` garantit la libération sur TOUTES les sorties : succès, échec
+ * anticipé, exception. Avant, cette fonction appelait `ensureCamera()` et rien
+ * ne l'éteignait jamais — la webcam du portable restait allumée en permanence
+ * après le premier démarrage.
+ */
+export async function runFaceEnrollLive(opts: FaceEnrollOpts): Promise<boolean> {
+  return withCamera('enrollment', (stream) => faceEnrollBody(opts, stream));
+}
+
+async function faceEnrollBody(
+  opts: FaceEnrollOpts,
+  camera: MediaStream | null,
+): Promise<boolean> {
+  const stream = camera || getCameraStream();
   if (!stream) {
     opts.patchFace({ phase: 'obstruction', obstruction: true });
     return false;
@@ -159,7 +177,7 @@ export async function runFaceEnrollLive(opts: {
   return false;
 }
 
-export async function runFaceVerifyLive(opts: {
+export interface FaceVerifyOpts {
   username?: string;
   isAlive: () => boolean;
   patchFace: (u: Partial<FaceHologramState>) => void;
@@ -167,8 +185,31 @@ export async function runFaceVerifyLive(opts: {
   speak?: (t: string) => Promise<void>;
   /** frames successives au-dessus du seuil avant lock */
   stableNeeded?: number;
-}): Promise<{ ok: boolean; user_id?: string; username?: string; confidence: number }> {
-  const stream = (await ensureCamera()) || getCameraStream();
+  /**
+   * Pourquoi on filme. Change uniquement l'étiquette d'arbitrage : le
+   * déverrouillage et l'identification de démarrage font la même chose, mais
+   * ne se relâchent pas au même moment.
+   */
+  reason?: 'auth' | 'unlock';
+}
+
+export type FaceVerifyResult = {
+  ok: boolean;
+  user_id?: string;
+  username?: string;
+  confidence: number;
+};
+
+/** Vérification faciale — caméra tenue le temps du scan, rendue ensuite. */
+export async function runFaceVerifyLive(opts: FaceVerifyOpts): Promise<FaceVerifyResult> {
+  return withCamera(opts.reason ?? 'auth', (stream) => faceVerifyBody(opts, stream));
+}
+
+async function faceVerifyBody(
+  opts: FaceVerifyOpts,
+  camera: MediaStream | null,
+): Promise<FaceVerifyResult> {
+  const stream = camera || getCameraStream();
   if (!stream) {
     opts.patchFace({ phase: 'obstruction', obstruction: true });
     return { ok: false, confidence: 0 };

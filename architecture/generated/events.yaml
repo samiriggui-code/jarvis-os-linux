@@ -9,11 +9,12 @@ bus_publies:
     politique_debit: PASS
     sources: [core/jarvis_core/gestures.py]
 publications_dynamiques:  # type passé en variable, invisible à l'AST
-  - "core/jarvis_core/__init__.py:L1129"
-  - "core/jarvis_core/__init__.py:L241"
-  - "core/jarvis_core/__init__.py:L243"
-  - "core/jarvis_core/__init__.py:L500"
-  - "core/jarvis_core/__init__.py:L520"
+  - "core/jarvis_core/__init__.py:L1545"
+  - "core/jarvis_core/__init__.py:L1678"
+  - "core/jarvis_core/__init__.py:L308"
+  - "core/jarvis_core/__init__.py:L310"
+  - "core/jarvis_core/__init__.py:L575"
+  - "core/jarvis_core/__init__.py:L595"
 politiques_sans_emetteur_STATIQUE:  # peuvent être publiées dynamiquement, cf. ci-dessus
   - BODY_POSE
   - EYE_GAZE

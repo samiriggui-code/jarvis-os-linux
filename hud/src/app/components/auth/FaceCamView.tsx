@@ -9,18 +9,23 @@ export function FaceCamView({
   progress = 0,
   label = 'HOLOMAT',
   active = true,
+  height,
 }: {
   progress?: number;
   label?: string;
   active?: boolean;
+  /** Hauteur CSS (ex. clamp) — défaut 280 desktop. */
+  height?: string | number;
 }) {
   const p = Math.max(0, Math.min(100, progress));
+  const h = height ?? 'clamp(140px, 32dvh, 280px)';
   return (
     <div
-      className="relative overflow-hidden rounded-xl select-none"
+      className="relative overflow-hidden rounded-xl select-none w-full max-w-[420px]"
       style={{
         width: 'min(92vw, 420px)',
-        height: 280,
+        height: h,
+        maxHeight: '40dvh',
         background: '#000',
         border: '1px solid rgba(0,229,255,0.35)',
       }}
