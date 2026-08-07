@@ -6,20 +6,21 @@
 
 ## Priorité immédiate
 
-- [ ] **Hard refresh HUD** `https://jarvis.global-it-ss.com/?boot=0` (bundle `index-DqbE4fNX.js`)
-- [ ] **Autoriser caméra + micro** sur cette origine (cause racine checks / enroll)
-- [ ] Tester enrôlement gated : visage inconnu → PIN admin → FirstSetup add_profile
-- [ ] **Bascule accès LAN** — 4 gestes Samir : `architecture/JARVIS-Acces-Reseau.md` §6
-- [ ] **P3 HUD** — `compose` depuis le navigateur, surface visible
-- [ ] Régénérer cache vocal `peripheral_audio_out_denied` (muet sinon)
+- [ ] Rétablir Freebox WAN **41223** (Pi) — secours actuel `jarvis-pi-via-nuc`
+- [ ] Chrome / Spotify Freebox si besoin (TV Bro OK pour le web)
+- [ ] Hard refresh HUD + autoriser cam/micro sur origine HTTPS LAN
+- [ ] **Bascule accès LAN** — `architecture/JARVIS-Acces-Reseau.md` §6
+- [ ] **P3 HUD** — `compose` depuis le navigateur
+- [ ] Zigbee / vraies commandes HA (aujourd’hui surtout monitoring)
 
 ---
 
 ## Prochaines sessions
 
 ### Session 2 — Home Assistant
+- [x] Pi salon voix/cam/player (ear + cam + ADB) — runtime 2026-08-07
 - [ ] Lire [`architecture/JARVIS-Satellites.md`](architecture/JARVIS-Satellites.md)
-- [ ] Brancher Pi salon (`jarvis-pi-wan`) dans l'écosystème satellite
+- [ ] Inventaire HA au-delà des ping LAN
 
 ### Session 3 — HUD / Agentic UI
 - [ ] Câbler exécuteurs SOON (docker/storage/devices/missions/network)
@@ -43,6 +44,5 @@
 
 ## Dette / hygiene
 
-- [ ] Committer le travail non commité (auth/device/agentic/dashboard)
 - [ ] Vider `vendor/` des 2 dossiers restants une fois dispatchés
 - [ ] Désactiver auth mot de passe SSH sur Pi WAN (clé seule)

@@ -22,6 +22,13 @@ logger = logging.getLogger("jarvis.core")
 HOST = "127.0.0.1"
 PORT = 8765
 
+
+class _SalonNullWs:
+    """Remplace un client HUD quand l'utterance vient du Pi (HTTP)."""
+
+    async def send(self, _data: str) -> None:
+        return
+
 # Délai minimal entre deux séquences de boot parlées. Une reconnexion en
 # boucle ne doit pas faire réciter JARVIS toutes les deux secondes.
 BOOT_REPLAY_COOLDOWN_S = 30.0
@@ -455,6 +462,8 @@ class Orchestrator:
         self._components_ready = asyncio.Event()
         #: HUD a demandé un boot silencieux (session déjà ouverte).
         self._boot_skip = False
+        #: True le temps d'une utterance venue du Pi salon (affichage → Freebox).
+        self._salon_turn = False
 
     def cmd(self, command: str, **kwargs: Any) -> dict[str, Any]:
         return {"command": command, **kwargs}
@@ -477,6 +486,16 @@ class Orchestrator:
         if self.face is not None:
             asyncio.create_task(self._load_face())
         asyncio.create_task(self._probe_agents())
+        self._start_salon_ingest()
+
+    def _start_salon_ingest(self) -> None:
+        """HTTP Pi → Core (loopback :8766, nginx proxifie `/v1/salon/`)."""
+        try:
+            from .salon_ingest import start_salon_ingest
+
+            start_salon_ingest(asyncio.get_running_loop(), self.handle_salon_utterance)
+        except Exception:  # noqa: BLE001
+            logger.warning("salon ingest non démarré", exc_info=True)
 
     def _register_components(self) -> None:
         """Ce que le superviseur surveille. Une brique absente n'est pas
@@ -499,25 +518,18 @@ class Orchestrator:
 
             self.supervisor.register("face", face_check, interval_s=10.0)
 
-            # HOLOMAT VISION ≠ FACE RECOGNITION. Ce sont deux pannes
-            # différentes et il faut pouvoir les distinguer à l'oral :
+            # HOLOMAT = moteur CV partagé (écosystème), PAS la webcam d'un device.
             #
-            #   face     → modèles YuNet + SFace chargés, côté Core (~20 s)
-            #              → panne type : `fetch_models.py` jamais lancé
-            #   holomat  → flux caméra ouvert, côté NAVIGATEUR (getUserMedia)
-            #              → panne type : webcam débranchée, permission refusée
+            #   face     → modèles YuNet + SFace chargés
+            #   holomat  → FaceEngine prêt à traiter des frames de N'IMPORTE
+            #              quel client (NUC, laptop, tablette…)
             #
-            # Les modèles peuvent être parfaitement chargés sans une seule
-            # image à traiter, et l'inverse aussi. Le Core ne peut pas sonder
-            # une caméra qu'il ne tient pas : c'est le HUD qui la rapporte
-            # (`{"type":"holomat","action":"camera"}`), d'où `note()` et une
-            # sonde qui se contente de relire le dernier état connu.
-            async def holomat_check() -> bool | None:
-                # `None` tant que le HUD n'a rien rapporté : le Core ne tient
-                # pas cette caméra, il n'a donc aucun moyen d'affirmer quoi que
-                # ce soit. Ne pas confondre « pas encore de navigateur » avec
-                # « objectif en panne » — la ligne reste grise, pas rouge.
-                return self._camera_ok
+            # La caméra est un PÉRIPHÉRIQUE par appareil (getUserMedia local).
+            # Un kiosk qui monopolise /dev/video0 ou refuse la permission ne
+            # doit PAS passer Holomat en degraded pour tout le monde —
+            # `handle_peripheral` / `note_camera` racontent ça à part.
+            async def holomat_check() -> bool:
+                return self.face.ready
 
             self.supervisor.register("holomat", holomat_check, interval_s=20.0)
 
@@ -718,16 +730,17 @@ class Orchestrator:
             await self.say("peripheral_resume")
 
     def note_camera(self, ok: bool, error: str | None = None) -> None:
-        """Le HUD rapporte l'état de son flux caméra (HOLOMAT VISION).
+        """Un HUD rapporte l'état de SA caméra locale (périphérique device).
 
-        Le Core n'ouvre pas la caméra — c'est `getUserMedia` dans le
-        navigateur. Sans ce retour, la seule façon de « vérifier » la vision
-        était de recopier l'état du moteur de reconnaissance, ce que faisait
-        `handle_holomat` : `"camera": "ok" if face_ready else "missing"`.
-        Deux pannes distinctes affichées comme une seule.
+        N'altère PAS la brique superviseur `holomat` : Holomat est le moteur
+        CV partagé. Caméra absente sur le kiosk ≠ Holomat mort pour le laptop.
+        La narration `peripheral_camera_*` passe par `handle_peripheral`.
         """
         self._camera_ok = ok
-        self.supervisor.note("holomat", READY if ok else DEGRADED, error)
+        if error and not ok:
+            logger.info("caméra device · indisponible · %s", error)
+        elif ok:
+            logger.debug("caméra device · ok")
 
     # Les états de composants passent tous par le superviseur : une seule
     # source, et sa règle « n'émettre que sur transition » s'applique partout.
@@ -737,8 +750,13 @@ class Orchestrator:
 
     async def _load_face(self) -> None:
         self.supervisor.note("face", LOADING)
+        self.supervisor.note("holomat", LOADING)
         ok = await self.face.load()
-        self.supervisor.note("face", READY if ok else DEGRADED, self.face.error)
+        state = READY if ok else DEGRADED
+        err = self.face.error
+        self.supervisor.note("face", state, err)
+        # Holomat = même moteur, dispo pour tout client dès que chargé.
+        self.supervisor.note("holomat", state, err)
 
     async def _probe_agents(self) -> None:
         """Verdict immédiat sur agent-reach, au lieu d'attendre le heartbeat.
@@ -797,7 +815,7 @@ class Orchestrator:
                 return ev
             import base64
 
-            return {
+            ev = {
                 "type": "tts_audio",
                 "utterance_id": ev.get("utterance_id"),
                 "format": "wav",
@@ -808,6 +826,9 @@ class Orchestrator:
                 "source": "elevenlabs_live",
                 "interruptible": True,
             }
+        # Parole synthétisée → jack salon (cache vocal passe par `say`, pas ici).
+        if isinstance(ev, dict) and ev.get("type") == "tts_audio":
+            await self._maybe_salon_speak(ev)
         return ev
 
     async def say(
@@ -833,6 +854,7 @@ class Orchestrator:
         (séquence de boot, alerte maison).
         """
         payload = None
+        from_cache = False
         if self.voice_cache is not None:
             payload = self.voice_cache.play(
                 event,
@@ -841,6 +863,7 @@ class Orchestrator:
                 user_role=user_role,
                 bindings=bindings,
             )
+            from_cache = payload is not None
 
         if payload is None:
             raw = fallback_text or SESSION_SAY_FALLBACKS.get(event)
@@ -852,11 +875,16 @@ class Orchestrator:
                     titre=titre,
                     user=(bindings or {}).get("user", ""),
                 )
+                # speak() pousse déjà le salon.
                 payload = await self.speak(text, user_id=user_id)
 
         if payload is None:
             logger.debug("say(%s) : ni cache ni texte de repli", event)
             return None
+
+        # Cache WAV : pas passé par speak() → salon ici une seule fois.
+        if from_cache:
+            await self._maybe_salon_speak(payload)
 
         if ws is not None:
             await ws.send(json.dumps(payload))
@@ -937,54 +965,124 @@ class Orchestrator:
             await self.broadcast(again)
 
     async def _try_streaming_platforms(self, ws: Any, text: str) -> bool:
-        """Netflix / Disney+ / Prime — surface agentic + onglet navigateur.
+        """Netflix / Disney+ / YouTube / cam — Freebox via Pi, sinon HUD.
 
-        Pas de contrôle PC distant : on ouvre l'URL sur le client HUD
-        (`open_external`). Plex reste le chemin « média maison » (media.video).
+        Plex reste `media.video` (Cast). Ici : apps Android du Player POP.
         """
         from urllib.parse import quote
 
+        from .salon_player import (
+            google_on_player,
+            player_configured,
+            search_app,
+            show_salon_camera,
+        )
+
         low = " " + " ".join(text.lower().replace("'", " ").split()) + " "
+
+        # Caméra salon sur la télé.
+        if any(
+            k in low
+            for k in (
+                " caméra", " camera", " la cam ", " montre la cam",
+                "affiche la cam", "flux salon", "voir le salon",
+            )
+        ):
+            if player_configured():
+                result = await show_salon_camera()
+                spoken = (
+                    "J'affiche la caméra du salon."
+                    if result.get("ok")
+                    else "Je n'arrive pas à ouvrir la caméra sur la Freebox."
+                )
+                await ws.send(json.dumps({
+                    "type": "chat_reply", "text": spoken, "intent": "media.streaming",
+                }))
+                ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+                await ws.send(json.dumps(ev))
+                return True
+
         platforms: list[tuple[str, str, str]] = [
-            ("netflix", "Netflix", "https://www.netflix.com/search?q="),
-            ("disney", "Disney+", "https://www.disneyplus.com/search?q="),
-            ("prime", "Amazon Prime", "https://www.primevideo.com/search/ref=atv_nb_sr?phrase="),
-            ("amazon", "Amazon Prime", "https://www.primevideo.com/search/ref=atv_nb_sr?phrase="),
+            ("netflix", "netflix", "Netflix"),
+            ("disney", "disney", "Disney+"),
+            ("youtube", "youtube", "YouTube"),
         ]
         hit = next(
-            ((k, label, base) for k, label, base in platforms if f" {k} " in low),
+            ((key, app, label) for key, app, label in platforms if f" {key} " in low),
             None,
         )
-        if not hit:
-            # Sans marque explicite → Plex (media.video), pas de vol d'intent.
+        # « cherche … » générique → Freebox seulement si la voix vient du salon
+        # (sinon Hermes / HUD gardent la recherche web).
+        web_ask = (
+            hit is None
+            and self._salon_turn
+            and any(
+                k in low
+                for k in (
+                    " sur internet", " sur le web", " google ", "cherche",
+                    "recherche", "trouve", "youtube",
+                )
+            )
+        )
+
+        if not hit and not web_ask:
             return False
 
-        _, label, base = hit
-        # Extraire un titre approximatif après le nom de plateforme / « série ».
         q = text
         for token in (
-            "netflix", "disney+", "disney plus", "disney", "amazon prime",
-            "prime video", "amazon", "prime", "sur", "regarde", "regarder",
+            "netflix", "disney+", "disney plus", "disney", "youtube",
+            "amazon prime", "prime video", "amazon", "prime",
+            "sur internet", "sur le web", "google",
+            "sur", "regarde", "regarder", "ouvre", "lance", "cherche", "recherche", "trouve",
             "une série", "un film", "série", "serie", "film", "épisode", "episode",
         ):
             q = re.sub(re.escape(token), " ", q, flags=re.I)
-        q = " ".join(q.split()).strip() or label
-        url = base + quote(q)
+        q = " ".join(q.split()).strip()
+
+        if web_ask:
+            app, label = "youtube", "YouTube"
+            result = await google_on_player(q or label) if player_configured() else {"ok": False}
+            url = f"https://www.youtube.com/results?search_query={quote(q or label)}"
+        else:
+            assert hit is not None
+            _, app, label = hit
+            if player_configured():
+                result = await search_app(app, q or label)
+            else:
+                result = {"ok": False, "error": "player non configuré"}
+            meta_search = {
+                "netflix": "https://www.netflix.com/search?q=",
+                "disney": "https://www.disneyplus.com/search?q=",
+                "youtube": "https://www.youtube.com/results?search_query=",
+            }
+            url = meta_search[app] + quote(q or label)
 
         await self._publish_result_surface(
             "video",
-            title=f"{label} — {q}",
-            body=f"Ouverture de {label}. Lien aussi dans la surface agentic.",
+            title=f"{label} — {q or label}",
+            body=(
+                f"Freebox Player · {label}."
+                if result.get("ok")
+                else f"Repli HUD · {label} ({result.get('error') or 'player down'})."
+            ),
             source="media.streaming",
             items=[url],
         )
+        # HUD : toujours le lien ; Freebox : si le Pi a réussi.
         await self.broadcast({
             "type": "hud_command",
             "action": "open_external",
             "url": url,
         })
-        spoken = f"J'ouvre {label}."
-        await ws.send(json.dumps({"type": "chat_reply", "text": spoken, "intent": "media.streaming"}))
+        if result.get("ok"):
+            spoken = f"J'ouvre {label} sur la Freebox."
+        elif player_configured():
+            spoken = f"La Freebox ne répond pas — j'ouvre {label} sur le HUD."
+        else:
+            spoken = f"J'ouvre {label}."
+        await ws.send(json.dumps({
+            "type": "chat_reply", "text": spoken, "intent": "media.streaming",
+        }))
         ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
         await ws.send(json.dumps(ev))
         return True
@@ -1170,6 +1268,32 @@ class Orchestrator:
         if not prompt and (approval_id := payload.get("approval_id")):
             prompt = self._pending_prompts.pop(str(approval_id), "")
 
+        # Toujours ouvrir l'espace Maison sur l'écran — sinon « affiche home »
+        # ne montrait rien même quand HA répondait (ou pas).
+        await self.broadcast({
+            "type": "hud_command",
+            "action": "open_space",
+            "app": "home",
+        })
+
+        low = " ".join(prompt.lower().replace("'", " ").split())
+        open_only = any(
+            w in low
+            for w in (
+                "affiche", "ouvre", "montre", "mission control home",
+                "mission contrôle home", "mission controle home",
+            )
+        ) and not any(
+            w in low
+            for w in ("allume", "éteint", "eteint", "ouvre la porte", "ferme", "lampe", "lumière", "lumiere")
+        )
+        if open_only or low in ("home", "maison", "domotique", "home assistant"):
+            await self.say(
+                "house_status",
+                fallback_text="J'ouvre la maison sur l'écran.",
+            )
+            return {"ok": True, "opened": "home", "ha": False}
+
         try:
             result = await self.hass.execute(prompt or "état de la maison")
         except HomeAssistantAmbiguous as exc:
@@ -1192,14 +1316,17 @@ class Orchestrator:
         lance la séquence vocale `enrollment`.
         """
         sess = self.auth.active if self.auth is not None else None
+        # Ouvrir l'UI kiosk pour un USER foyer ne nécessite pas de session admin
+        # active sur ce Core (souvent le kiosk est verrouillé). Créer un ADMIN
+        # reste impossible via ce canal (`role` forcé USER plus bas).
         if self.auth is not None and not self.auth.users.is_first_run():
-            if not sess or not (
+            if sess and not (
                 "user_management" in sess.permissions
                 or "dashboard_access" in sess.permissions
             ):
-                spoken = "Seul un administrateur peut lancer un enrôlement foyer."
-                await self.broadcast(await self.speak(spoken, user_id="local"))
-                return {"ok": False, "reason": "admin_required", "spoken": spoken}
+                # Session non-admin connectée : on laisse quand même ouvrir l'UI
+                # (USER only). Un invité ne peut pas élever les droits ici.
+                pass
 
         prompt = str(payload.get("prompt") or "")
         # Heuristique légère : « enrôle Léa » / « inscris mon conjoint »
@@ -1226,6 +1353,11 @@ class Orchestrator:
             self.sequences.abort()
         except Exception:  # noqa: BLE001
             pass
+        # Attendre la sortie réelle de boot/auth (0.05 s était trop court).
+        for _ in range(40):
+            if not getattr(self.sequences, "_running", None):
+                break
+            await asyncio.sleep(0.05)
         await asyncio.sleep(0.05)
 
         async def say_to(event: str, **kw: Any) -> dict[str, Any] | None:
@@ -1237,6 +1369,13 @@ class Orchestrator:
         )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+        # Prénom déjà fourni (ex. Inès) : ne pas bloquer 30 s sur enroll.name
+        # si le HUD met du temps à monter après un restart kiosk.
+        if display_name:
+            await asyncio.sleep(0.3)
+            self.sequences.signal("enroll.name")
+            self.sequences.signal("enroll.profile")
 
         spoken = (
             f"Enrôlement lancé sur le kiosk pour {display_name}."
@@ -1272,9 +1411,19 @@ class Orchestrator:
         prompt = str(payload.get("prompt") or "").strip().lower()
         # Deviner depuis le prompt si l'intent n'est pas dans le payload.
         if not intent:
-            if any(k in prompt for k in ("verrouill", "lock")):
+            # Aligné sur capabilities : pas de « verrouillage » / « veille » nus.
+            if any(
+                k in prompt
+                for k in (
+                    "verrouille la session", "verrouille-toi", "verrouille toi",
+                    "lock session", "verrouille le hud",
+                )
+            ):
                 intent = "hud.lock"
-            elif any(k in prompt for k in ("veille", "repos", "standby")):
+            elif any(
+                k in prompt
+                for k in ("mode veille", "mets-toi en veille", "met toi en veille", "repos", "standby")
+            ):
                 intent = "hud.idle"
             elif any(k in prompt for k in ("ferme", "close")):
                 intent = "hud.close_space"
@@ -2031,6 +2180,54 @@ class Orchestrator:
         for ws in dead:
             self.clients.discard(ws)
 
+    async def _maybe_salon_speak(self, payload: dict[str, Any] | None) -> None:
+        """Pousse un WAV `tts_audio` vers le jack du Pi salon (si configuré)."""
+        if not isinstance(payload, dict) or payload.get("type") != "tts_audio":
+            return
+        try:
+            from .salon_speaker import push_tts_to_salon
+
+            asyncio.create_task(push_tts_to_salon(payload))
+        except Exception:  # noqa: BLE001
+            logger.debug("salon speaker non branché", exc_info=True)
+
+    async def handle_salon_utterance(self, data: dict[str, Any]) -> dict[str, Any]:
+        """WAV du Pi → STT → même pipeline chat que le HUD (sans client WS)."""
+        b64 = str(data.get("audio_b64") or "")
+        filename = str(data.get("filename") or "salon.wav")
+        if not b64:
+            return {"ok": False, "error": "audio_b64 manquant"}
+        if self.voice is None:
+            return {"ok": False, "error": "voice module unavailable"}
+
+        result = await self.voice.transcribe(
+            b64, filename=filename, language=data.get("language") or "fr"
+        )
+        text = (result.get("text") or "").strip() if result.get("ok") else ""
+        if not text:
+            return {
+                "ok": bool(result.get("ok")),
+                "text": "",
+                "error": result.get("error") or "silence",
+                "reason": result.get("reason"),
+            }
+
+        # Garde anti-télé : wake Pi (`woken=true`) OU « Jarvis » dans la phrase.
+        woken = data.get("woken") is True
+        has_name = bool(re.search(r"\b(hey\s+)?jarvis\b", text, flags=re.I))
+        if not woken and not has_name:
+            logger.info("salon IGNORÉ (pas de wake) · « %s »", text[:48])
+            return {"ok": True, "text": text, "ignored": True, "reason": "no_wake"}
+
+        logger.info("salon · « %s »", text[:80])
+        sink = _SalonNullWs()
+        self._salon_turn = True
+        try:
+            await self.handle_user_chat(sink, text)
+        finally:
+            self._salon_turn = False
+        return {"ok": True, "text": text}
+
     async def _chat_via_capability(self, ws: Any, cap: Any, text: str) -> bool:
         """Délègue à Hermes pour une phrase routée — True si réponse parlée.
 
@@ -2176,6 +2373,31 @@ class Orchestrator:
 
         # Streaming (Netflix / Disney / Prime) avant Plex / Hermes.
         if await self._try_streaming_platforms(ws, text):
+            return
+
+        # Écho micro de nos propres phrases de lock/veille (STT pendant TTS).
+        # Sans ça : « Verrouillage automatique. Mise en veille… » → hud.lock → PIN.
+        _echo = " ".join(text.lower().replace("'", " ").split())
+        if any(
+            marker in _echo
+            for marker in (
+                "verrouillage automatique",
+                "inactivité détectée",
+                "inactivite detectee",
+                "mise en veille des systèmes",
+                "mise en veille des systemes",
+                "session verrouillée",
+                "session verrouillee",
+                "déconnexion effectuée",
+                "deconnexion effectuee",
+                "à bientôt",
+                "a bientot",
+            )
+        ) and any(
+            w in _echo
+            for w in ("verrouill", "veille", "session", "déconnexion", "deconnexion", "bientôt", "bientot")
+        ):
+            logger.info("phrase IGNORÉE (écho TTS lock/veille) · « %s »", text[:48])
             return
 
         if cap := match_intent(text):
@@ -2346,6 +2568,21 @@ class Orchestrator:
             # Narration autorisée pour cette séquence (après un stop précédent).
             self._voice_quiet = False
 
+            # Ne pas écraser un enrôlement foyer : le HUD qui recharge lance
+            # souvent `auth` au reconnect et tuait la procédure Inès/famille.
+            running = getattr(self.sequences, "_running", None)
+            if running == "enrollment" and wanted != "enrollment":
+                logger.info(
+                    "sequence_start « %s » ignoré — enrollment en cours", wanted
+                )
+                await ws.send(json.dumps({
+                    "type": "auth_sequence_start",
+                    "ok": False,
+                    "reason": "enrollment_in_progress",
+                    "sequence": wanted,
+                }))
+                return
+
             # Une séquence en cours (souvent auth après face OK) : on la coupe
             # avant d'en lancer une autre, sinon le monologue continue.
             try:
@@ -2398,24 +2635,15 @@ class Orchestrator:
             return
         elif action == "enroll":
             try:
-                # Après first_run : seul un ADMIN connecté peut enroler le foyer
-                if not self.auth.users.is_first_run():
-                    sess = self.auth.active
-                    if not sess or not (
-                        "user_management" in sess.permissions
-                        or "dashboard_access" in sess.permissions
-                    ):
-                        result = {
-                            "type": "auth_enroll_result",
-                            "ok": False,
-                            "error": "enrollment foyer réservé à l'admin",
-                        }
-                        await ws.send(json.dumps(result))
-                        return
                 # Après first_run : foyer = USER uniquement (jamais ADMIN ici).
+                # Pas de session admin obligatoire : le kiosk est souvent verrouillé
+                # pendant l'ajout d'un membre ; le rôle ADMIN reste interdit.
                 enroll_role = data.get("role")
                 if not self.auth.users.is_first_run():
                     enroll_role = "USER"
+                elif enroll_role and str(enroll_role).upper() == "ADMIN":
+                    # first_run seulement peut créer l'ADMIN initial
+                    pass
                 result = {
                     "type": "auth_enroll_result",
                     **self.auth.enroll(
@@ -2658,14 +2886,12 @@ class Orchestrator:
         # de « indisponible », sinon le HUD affiche « missing » pendant le boot.
         face_ready = self.face is not None and self.face.ready
         face_state = self.face.status() if self.face is not None else {"state": "absent"}
-        # La caméra est celle du NAVIGATEUR : le Core ne la voit qu'à travers
-        # ce que le HUD lui rapporte. Recopier `face_ready` ici affichait
-        # « caméra ok » avec la webcam débranchée dès que les modèles étaient
-        # chargés — et l'inverse pendant les 20 s de chargement.
+        # `camera` = dernier rapport d'un client (indicatif). Holomat (face_engine)
+        # reste indépendant : un device sans cam n'éteint pas le service.
         camera = "unknown" if self._camera_ok is None else ("ok" if self._camera_ok else "missing")
 
         if action == "camera":
-            # Le HUD vient d'obtenir (ou de perdre) getUserMedia.
+            # Périphérique local du client — ne touche pas la brique holomat.
             ok = bool(data.get("ok", False))
             self.note_camera(ok, None if ok else str(data.get("error") or "camera_unavailable"))
             await ws.send(json.dumps({
@@ -2802,9 +3028,8 @@ class Orchestrator:
                             matched_id, "face", float(ev.get("confidence") or 0.0)
                         )
 
-            # ⚠ Présence = VISAGE YuNet stable, pas « une trame JPEG est arrivée ».
-            # 3 hits consécutifs : un faux positif isolé (reflet TV, poster) ne
-            # doit pas lancer le speech d'authentification dans une pièce vide.
+            # Présence = visage détecté (enroll/verify sans gate strict).
+            # Un enfant devant la cam USB doit compter même s'il est un peu bas.
             from .holomat.face_engine import PRESENCE_HITS_NEEDED
 
             if ev.get("face_found"):
@@ -2814,6 +3039,11 @@ class Orchestrator:
                     self.sequences.signal("face.scanning")
             else:
                 self._presence_hits = 0
+                reason = str(ev.get("reason") or "")
+                now = time.monotonic()
+                if reason and now - getattr(self, "_face_miss_log_ts", 0.0) > 5.0:
+                    self._face_miss_log_ts = now
+                    logger.info("face miss · reason=%s mode=%s", reason, mode)
 
             await ws.send(json.dumps(ev))
             return

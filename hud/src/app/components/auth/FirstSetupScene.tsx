@@ -43,15 +43,28 @@ type SetupPhase =
 interface Props {
   mode?: 'first_run' | 'add_profile';
   onComplete?: () => void;
+  /** Prénom déjà connu (ex. Inès via hud_command) — confirmation oui/non. */
+  presetName?: string;
 }
 
+type ProfileKind = 'adult' | 'child';
+
 /* ─── Composant ─────────────────────────────────────────────────────────────── */
-export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
+export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: Props) {
+  const isAddProfile = mode === 'add_profile';
+  const kioskPersona =
+    typeof window !== 'undefined' && getDevicePolicy().persona === 'kiosk';
+  // Kiosk sans souris : premier profil = adulte/ADMIN (pas de picker tactile).
+  const [profileKind, setProfileKind] = useState<ProfileKind | null>(
+    isAddProfile || kioskPersona ? 'adult' : null,
+  );
+  const [enrollRole, setEnrollRole] = useState<'ADMIN' | 'USER' | 'CHILD' | undefined>(
+    isAddProfile ? 'USER' : kioskPersona ? 'ADMIN' : undefined,
+  );
   const [phase, setPhase]               = useState<SetupPhase>('system_boot');
   const [username, setUsername]         = useState('');
   const [usernameInput, setUsernameInput] = useState('');
   const [usernameSubmitting, setUsernameSubmitting] = useState(false);
-  const isAddProfile = mode === 'add_profile';
   // NUC kiosk : pas de clavier/souris — tout à la voix + caméra.
   // add_profile (foyer) : toujours voix, rôle USER forcé.
   const voiceOnly =
@@ -82,8 +95,12 @@ export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
   const orchRef   = useRef<ExperienceOrchestrator | null>(null);
   const aliveRef  = useRef(true);
   const usernameRef = useRef('');
+  const enrollRoleRef = useRef(enrollRole);
+  enrollRoleRef.current = enrollRole;
   const faceEnrollResolveRef = useRef<((ok: boolean) => void) | null>(null);
   // Jamais de SpeechSynthesis Windows ici : le Core + voicebox narrent.
+
+  const setupReady = isAddProfile || profileKind !== null;
 
   /* ── Montage : boot + steps ──────────────────────────────────────────────── */
   /**
@@ -95,11 +112,13 @@ export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
    * couvrent aussi bien la fin normale que l'abandon en cours de route.
    */
   useEffect(() => {
+    if (!setupReady) return;
     void acquireCamera('enrollment');
     return () => releaseCamera('enrollment');
-  }, []);
+  }, [setupReady]);
 
   useEffect(() => {
+    if (!setupReady) return;
     initTtsDev();
     aliveRef.current = true;
     if (orchRef.current) return;
@@ -120,11 +139,14 @@ export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
             onBlocked: setBootBlocked,
           });
           if (blocked) throw new Error(blocked);
-          // Ensuite seulement : narration d'enrôlement côté Core
-          try {
-            getCoreClient().send({ type: 'auth', action: 'sequence_start', sequence: 'enrollment' });
-          } catch {
-            /* */
+          // add_profile : le Core a déjà lancé la séquence `enrollment`
+          // via hud.enroll — ne pas la relancer (sinon abort / collision).
+          if (!isAddProfile) {
+            try {
+              getCoreClient().send({ type: 'auth', action: 'sequence_start', sequence: 'enrollment' });
+            } catch {
+              /* */
+            }
           }
           setPhase('boot');
         },
@@ -161,6 +183,28 @@ export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
           ? {
               waitForAsync: async () => {
                 setPhase('username');
+                const preset = (presetName || '').trim();
+                if (preset) {
+                  orchRef.current?.patchHud({
+                    hudText: 'CONFIRMATION DU PRÉNOM',
+                    hudSubtext: preset,
+                    orbState: 'listening',
+                  });
+                  const ok = await askYesNo(
+                    `Je prépare le profil de ${preset}. Est-ce bien correct ? Répondez par oui, ou par non.`,
+                  );
+                  if (!aliveRef.current) return;
+                  if (!ok) throw new Error('name_rejected');
+                  setUsername(preset);
+                  usernameRef.current = preset;
+                  setUsernameInput(preset);
+                  try {
+                    const c = getCoreClient();
+                    c.send({ type: 'auth', action: 'enroll_signal', step: 'name' });
+                    c.send({ type: 'auth', action: 'enroll_signal', step: 'profile' });
+                  } catch { /* */ }
+                  return;
+                }
                 orchRef.current?.patchHud({
                   hudText: 'ÉCOUTE DU PRÉNOM',
                   hudSubtext: 'Parlez face au micro',
@@ -334,9 +378,11 @@ export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
                 display_name: name,
                 pin: '0000',
                 face: true,
-                voice: true,
-                // Foyer / kiosk : toujours USER — jamais ADMIN via ce flux.
-                ...(isAddProfile || voiceOnly ? { role: 'USER' as const } : {}),
+                voice: voiceReady,
+                // add_profile / kiosk foyer → USER. first_run → choix Adulte/Enfant.
+                role: isAddProfile || voiceOnly
+                  ? 'USER'
+                  : (enrollRoleRef.current ?? 'ADMIN'),
               });
               if (!res.ok || !res.user?.id) {
                 console.warn('[first-setup] enroll failed', res.error);
@@ -373,7 +419,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
       stopDev();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [setupReady]);
 
   /* ── Confirmation username ───────────────────────────────────────────────── */
   const confirmUsername = useCallback(async () => {
@@ -434,6 +480,48 @@ export function FirstSetupScene({ mode = 'first_run', onComplete }: Props) {
   const protocolLabel = isAddProfile
     ? 'PROTOCOLE D\'ENRÔLEMENT — NOUVEL UTILISATEUR'
     : 'PROTOCOLE D\'ENRÔLEMENT — PREMIER DÉMARRAGE';
+
+  /* ── Choix type profil (INSTALL) — après les hooks ───────────────────────── */
+  if (!setupReady) {
+    return (
+      <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black px-6 gap-8">
+        <p style={{ ...orbF, color: '#00f5ff', fontSize: 12, letterSpacing: '0.22em' }}>
+          ASSISTANT D’INSTALLATION
+        </p>
+        <p style={{ ...mono, color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+          Quel type de profil créez-vous ?
+        </p>
+        <div className="flex flex-wrap gap-4 justify-center">
+          <button
+            type="button"
+            className="px-6 py-4 rounded-xl cursor-pointer flex flex-col items-center gap-2 min-w-[140px]"
+            style={{ border: '1px solid rgba(0,245,255,0.35)', background: 'rgba(0,40,60,0.5)' }}
+            onClick={() => {
+              setProfileKind('adult');
+              setEnrollRole('ADMIN');
+            }}
+          >
+            <span style={{ fontSize: 28 }}>👤</span>
+            <span style={{ ...orbF, color: '#00f5ff', fontSize: 11, letterSpacing: '0.12em' }}>ADULTE</span>
+            <span style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>Droits admin station</span>
+          </button>
+          <button
+            type="button"
+            className="px-6 py-4 rounded-xl cursor-pointer flex flex-col items-center gap-2 min-w-[140px]"
+            style={{ border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(40,20,60,0.5)' }}
+            onClick={() => {
+              setProfileKind('child');
+              setEnrollRole('CHILD');
+            }}
+          >
+            <span style={{ fontSize: 28 }}>👧</span>
+            <span style={{ ...orbF, color: '#c084fc', fontSize: 11, letterSpacing: '0.12em' }}>ENFANT</span>
+            <span style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>Droits limités</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   /* ── Render ──────────────────────────────────────────────────────────────── */
   return (

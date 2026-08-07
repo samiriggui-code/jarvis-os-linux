@@ -206,16 +206,34 @@ def system_prompt_language(lang: Lang) -> str:
     )
     fr_date = f"{_JOURS[now.weekday()]} {now.day} {_MOIS[now.month - 1]} {now.year}"
 
+    # Chat libre = parole seule. Aucun outil UI. Sans ça le modèle invente
+    # « c'est affiché sur l'écran » alors que rien n'a été ouvert (2026-08-06).
+    no_fake_actions_en = (
+        "You cannot open apps, screens, surfaces, or control the house from this "
+        "chat path. Never claim you displayed, opened, locked, or executed anything. "
+        "If the user asks to show or open a UI, say honestly that the command was "
+        "not recognized as an action and must be routed (e.g. « ouvre la maison »)."
+    )
+    no_fake_actions_fr = (
+        "Tu ne peux ni ouvrir d'app, ni d'écran, ni de surface, ni commander la "
+        "maison depuis ce chemin de chat. N'affirme jamais que tu as affiché, "
+        "ouvert, verrouillé ou exécuté quoi que ce soit. Si l'utilisateur demande "
+        "d'afficher une UI, dis honnêtement que la commande n'a pas été reconnue "
+        "comme action (ex. « ouvre la maison »)."
+    )
+
     if lang == "en":
         return (
             "Reply briefly in English, JARVIS tone. "
             "Answer directly: never narrate your reasoning, never describe your "
             "persona or your process. Output only the final answer. "
+            f"{no_fake_actions_en} "
             f"Current date and time: {now.strftime('%A %d %B %Y, %H:%M')}."
         )
     return (
         "Réponds brièvement en français, ton JARVIS. "
         "Réponds directement : ne raconte jamais ton raisonnement, ne décris ni "
         "ta démarche ni ton personnage. Ne donne que la réponse finale. "
+        f"{no_fake_actions_fr} "
         f"Date et heure actuelles : {fr_date}, {now.strftime('%Hh%M')}."
     )

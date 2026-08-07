@@ -160,8 +160,8 @@ BOOT = Sequence(
              wait_event="boot_wait", when="face_watched",
              recovers="face", announce="after", min_hold_s=0.4),
         # Le flux caméra est ouvert par le NAVIGATEUR : le Core ne peut que
-        # l'apprendre. Le HUD le rapporte (`holomat/camera`), et tant qu'il
-        # n'a rien dit le composant reste `unknown` — donc on attend.
+        # Holomat = moteur CV Core prêt (pas « webcam kiosk ouverte »).
+        # Caméra = périphérique par appareil, rapportée à part.
         Step("boot_holomat", awaits="holomat.ready", fails_on="holomat.degraded",
              timeout_s=15.0, on_timeout="boot_holomat_failed",
              wait_event="boot_wait", when="holomat_watched",

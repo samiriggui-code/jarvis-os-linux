@@ -27,7 +27,7 @@ function isFaceEvent(d: Record<string, unknown>): boolean {
   return t === 'FACE_PROGRESS' || t === 'FACE_SUCCESS' || t === 'FACE_FAILED';
 }
 
-async function grabJpegB64(stream: MediaStream, quality = 0.72): Promise<string | null> {
+async function grabJpegB64(stream: MediaStream, quality = 0.85): Promise<string | null> {
   // Une seule <video> réutilisée — sinon la preview clignote / reste noire
   const video = ensureCaptureVideo(stream);
   try {
@@ -43,7 +43,8 @@ async function grabJpegB64(stream: MediaStream, quality = 0.72): Promise<string 
   if (w < 16 || h < 16) return null;
 
   const canvas = grabCanvas || (grabCanvas = document.createElement('canvas'));
-  const maxW = 480;
+  // 960 px : à 480 un visage d'enfant devant la TV tombait sous YuNet (no_face).
+  const maxW = 960;
   const scale = Math.min(1, maxW / w);
   canvas.width = Math.round(w * scale);
   canvas.height = Math.round(h * scale);

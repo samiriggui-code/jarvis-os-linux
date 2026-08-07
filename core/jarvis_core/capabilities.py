@@ -203,7 +203,8 @@ CAPABILITIES: dict[str, Capability] = {
         app_id="mission-control-dev", intent="core.mission_dev", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
         note="Route Core `mission_dev`. Le kanban d'Hermes reste à raccorder.",
-        triggers=("mission control dev", "mission-control-dev", "mission control"),
+        # Plus de « mission control » nu : ça volait Mission Control Home.
+        triggers=("mission control dev", "mission-control-dev", "mission ctrl dev"),
     ),
     "cursor": Capability(
         app_id="cursor", intent="core.cursor", owner=Owner.CORE,
@@ -239,9 +240,15 @@ CAPABILITIES: dict[str, Capability] = {
         app_id="hud-lock", intent="hud.lock", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
         note="Verrouille la session HUD.",
+        # Pas de « verrouillage » / « veille » nus : la phrase TTS
+        # « Verrouillage automatique. Mise en veille… » était réécoutée par le
+        # micro et re-routée → soft-lock en boucle (kiosk collé au PIN).
         triggers=(
-            "verrouille", "verrouiller", "verrouille la session",
-            "verrouillage", "lock session", "verrouille-toi",
+            "verrouille la session",
+            "verrouille-toi",
+            "verrouille toi",
+            "lock session",
+            "verrouille le hud",
         ),
     ),
     "hud-idle": Capability(
@@ -250,7 +257,7 @@ CAPABILITIES: dict[str, Capability] = {
         note="Mode veille HUD — ferme les espaces ouverts.",
         triggers=(
             "mode veille", "mets-toi en veille", "met toi en veille",
-            "veille", "repos", "standby",
+            "repos", "standby",
         ),
     ),
     "hud-close": Capability(
@@ -340,7 +347,12 @@ CAPABILITIES: dict[str, Capability] = {
         app_id="home", intent="home.control", owner=Owner.CORE,
         risk=RiskLevel.HOME, permission="home.control", display=Display.GENERATED,
         note="Adaptateur Core `homeassistant.py` — déterministe, sans LLM.",
-        triggers=("maison", "domotique", "lumière", "lumières", "lampe", "home assistant"),
+        triggers=(
+            "maison", "domotique", "lumière", "lumières", "lampe", "home assistant",
+            "home", "ouvre home", "affiche home", "affiche-moi home",
+            "mission control home", "mission contrôle home", "mission controle home",
+            "ouvre la maison", "affiche la maison",
+        ),
     ),
     # —— Médias ————————————————————————————————————————————————————————————
     "music": Capability(

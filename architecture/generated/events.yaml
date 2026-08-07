@@ -9,12 +9,12 @@ bus_publies:
     politique_debit: PASS
     sources: [core/jarvis_core/gestures.py]
 publications_dynamiques:  # type passé en variable, invisible à l'AST
-  - "core/jarvis_core/__init__.py:L2378"
-  - "core/jarvis_core/__init__.py:L2532"
-  - "core/jarvis_core/__init__.py:L328"
-  - "core/jarvis_core/__init__.py:L330"
-  - "core/jarvis_core/__init__.py:L603"
-  - "core/jarvis_core/__init__.py:L623"
+  - "core/jarvis_core/__init__.py:L2615"
+  - "core/jarvis_core/__init__.py:L2760"
+  - "core/jarvis_core/__init__.py:L335"
+  - "core/jarvis_core/__init__.py:L337"
+  - "core/jarvis_core/__init__.py:L615"
+  - "core/jarvis_core/__init__.py:L635"
 politiques_sans_emetteur_STATIQUE:  # peuvent être publiées dynamiquement, cf. ci-dessus
   - BODY_POSE
   - EYE_GAZE
@@ -26,6 +26,12 @@ politiques_sans_emetteur_STATIQUE:  # peuvent être publiées dynamiquement, cf.
   - HAND_SWIPE
   - SYSTEM_METRICS
 signaux_sequence:
+  - signal: enroll.name
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
+  - signal: enroll.profile
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/__init__.py]
   - signal: enroll.voice
     attendu_par_une_sequence: false
     sources: [core/jarvis_core/__init__.py]

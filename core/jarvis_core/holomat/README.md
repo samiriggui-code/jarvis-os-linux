@@ -19,7 +19,11 @@ Seuil match SFace : `VERIFY_THRESHOLD = 0.363` (doc OpenCV).
 
 ## HUD
 
-`hud/src/app/bridge/faceAuthLive.ts` — frames caméra → Core.
+`hud/src/app/bridge/faceAuthLive.ts` — frames caméra **du device** → Core.
+
+Holomat (Core) = moteur partagé. La webcam est un périphérique **par appareil**
+(NUC kiosk, laptop, tablette). Un client sans caméra ne dégrade pas Holomat
+pour les autres.
 
 ## Retester from scratch
 

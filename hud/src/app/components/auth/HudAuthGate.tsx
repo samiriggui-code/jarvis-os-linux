@@ -1,25 +1,52 @@
 /**
- * HudAuthGate — routeur auth (§10.1)
- * Source de vérité : Core auth_status.first_run (User Manager SQLite).
+ * HudAuthGate — routeur des 3 modes produit.
+ *
+ * INSTALL  → welcome → wizard premier profil
+ * IDENTIFY → auth / lock / enroll membre (admin)
+ * JARVIS   → sessionUnlocked → ce composant rend null
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { FirstSetupScene } from './FirstSetupScene';
 import { LockScene } from './LockScene';
 import { AuthScene } from './AuthScene';
+import { InstallWelcome } from './InstallWelcome';
 import { getCoreClient } from '../../bridge/coreClient';
 import { DEV_BUILD } from '../../bridge/devAuthBypass';
+import { resolveProductMode, type InstallRoute, type IdentifyRoute } from '../../auth/productMode';
 
-type AuthRoute = 'waiting' | 'offline' | 'first_setup' | 'profile_enroll' | 'lock' | 'auth';
+type GateRoute =
+  | 'waiting'
+  | 'offline'
+  | { mode: 'install'; step: InstallRoute }
+  | { mode: 'identify'; step: IdentifyRoute };
+
+function sameRoute(a: GateRoute, b: GateRoute): boolean {
+  if (a === b) return true;
+  if (typeof a === 'string' || typeof b === 'string') return false;
+  return a.mode === b.mode && a.step === b.step;
+}
 
 export function HudAuthGate() {
   const { sessionUnlocked, sessionWasUnlocked, coreAuth, setCoreAuth, addNotification } = useApp();
-  const [route, setRoute] = useState<AuthRoute>('waiting');
+  const [route, setRoute] = useState<GateRoute>('waiting');
   const [waitMs, setWaitMs] = useState(0);
+  const [enrollPreset, setEnrollPreset] = useState<string | undefined>();
+  const routeRef = useRef(route);
+  routeRef.current = route;
 
-  // Admin distant / voix → force l'UI d'enrôlement sur ce kiosk (même depuis lock/auth).
+  const go = (next: GateRoute) => {
+    if (!sameRoute(routeRef.current, next)) setRoute(next);
+  };
+
+  // Admin distant → enroll membre (IDENTIFY), jamais confondu avec INSTALL.
   useEffect(() => {
-    const onEnroll = () => setRoute('profile_enroll');
+    const onEnroll = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ display_name?: string; username?: string }>).detail;
+      const preset = (detail?.display_name || detail?.username || '').trim() || undefined;
+      setEnrollPreset(preset);
+      go({ mode: 'identify', step: 'enroll_member' });
+    };
     window.addEventListener('jarvis:start-enrollment', onEnroll as EventListener);
     return () => window.removeEventListener('jarvis:start-enrollment', onEnroll as EventListener);
   }, []);
@@ -27,37 +54,57 @@ export function HudAuthGate() {
   useEffect(() => {
     if (sessionUnlocked) return;
 
-    // Soft-lock : LockScene dès que la session a déjà été ouverte —
-    // ne JAMAIS retomber sur AuthScene/boot (caméra bloquée derrière checklist).
-    // Sauf si un enrôlement remote a forcé profile_enroll.
-    if (route === 'profile_enroll') return;
+    const cur = routeRef.current;
+    // Ne pas écraser un wizard / enroll en cours.
+    if (typeof cur === 'object' && cur.mode === 'identify' && cur.step === 'enroll_member') return;
+    if (typeof cur === 'object' && cur.mode === 'install' && cur.step === 'wizard') return;
 
-    if (sessionWasUnlocked) {
-      setRoute('lock');
+    if (!coreAuth.ready) {
+      go('waiting');
+      const t0 = Date.now();
+      const id = setInterval(() => {
+        const elapsed = Date.now() - t0;
+        setWaitMs(elapsed);
+        if (getCoreClient().connected) {
+          getCoreClient().sendAuth('status');
+        }
+        if (elapsed > 6000 && !coreAuth.ready) {
+          go('offline');
+          setCoreAuth({ ready: false, online: false });
+        }
+      }, 800);
+      return () => clearInterval(id);
+    }
+
+    // Core OK mais auth_status pas encore mergé — rester en waiting, pas INSTALL.
+    if (coreAuth.firstRun === null) {
+      go('waiting');
+      if (getCoreClient().connected) getCoreClient().sendAuth('status');
       return;
     }
 
-    if (coreAuth.ready && coreAuth.firstRun !== null) {
-      if (coreAuth.firstRun) setRoute('first_setup');
-      else setRoute('auth');
+    const product = resolveProductMode({
+      sessionUnlocked: false,
+      firstRun: coreAuth.firstRun,
+      userCount: coreAuth.userCount,
+    });
+
+    if (product === 'install') {
+      go({ mode: 'install', step: 'welcome' });
       return;
     }
 
-    setRoute('waiting');
-    const t0 = Date.now();
-    const id = setInterval(() => {
-      const elapsed = Date.now() - t0;
-      setWaitMs(elapsed);
-      if (getCoreClient().connected) {
-        getCoreClient().sendAuth('status');
-      }
-      if (elapsed > 6000 && !coreAuth.ready) {
-        setRoute('offline');
-        setCoreAuth({ ready: false, online: false });
-      }
-    }, 800);
-    return () => clearInterval(id);
-  }, [sessionUnlocked, sessionWasUnlocked, coreAuth.ready, coreAuth.firstRun, setCoreAuth]);
+    if (product === 'identify') {
+      go({ mode: 'identify', step: sessionWasUnlocked ? 'lock' : 'auth' });
+    }
+  }, [
+    sessionUnlocked,
+    sessionWasUnlocked,
+    coreAuth.ready,
+    coreAuth.firstRun,
+    coreAuth.userCount,
+    setCoreAuth,
+  ]);
 
   if (sessionUnlocked) return null;
 
@@ -70,9 +117,6 @@ export function HudAuthGate() {
         <p style={{ fontFamily: 'Share Tech Mono, monospace', color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>
           Attente auth_status… {Math.round(waitMs / 1000)}s
         </p>
-        <p style={{ fontFamily: 'Share Tech Mono, monospace', color: 'rgba(255,255,255,0.3)', fontSize: 9 }}>
-          python -m jarvis_core · ws://127.0.0.1:8765
-        </p>
       </div>
     );
   }
@@ -84,8 +128,7 @@ export function HudAuthGate() {
           CORE HORS LIGNE
         </p>
         <p style={{ fontFamily: 'Share Tech Mono, monospace', color: 'rgba(255,255,255,0.55)', fontSize: 11, maxWidth: 420 }}>
-          Le User Manager est dans le Core. Sans WS, pas d’enrôlement / login réel.
-          Lance <code style={{ color: '#00f5ff' }}>cd core && python -m jarvis_core</code> puis recharge.
+          Sans Core, pas d’utilisateurs ni d’enrôlement. Vérifiez que jarvis-core tourne sur la station.
         </p>
         <button
           type="button"
@@ -98,18 +141,15 @@ export function HudAuthGate() {
             background: 'rgba(0,20,40,0.9)',
           }}
           onClick={() => {
-            setRoute('waiting');
+            go('waiting');
             setWaitMs(0);
             getCoreClient().connect();
             getCoreClient().sendAuth('status');
-            addNotification({ type: 'info', title: 'Core', message: 'Nouvelle tentative de connexion…' });
+            addNotification({ type: 'info', title: 'Core', message: 'Nouvelle tentative…' });
           }}
         >
           RÉESSAYER
         </button>
-        {/* Le lien s'annonçait « dev only » sans que rien ne le fasse
-            respecter — affiché sur l'écran « Core injoignable », donc
-            précisément quand il fallait le moins. */}
         {DEV_BUILD && (
           <a
             href="?skipAuth=1"
@@ -122,28 +162,40 @@ export function HudAuthGate() {
     );
   }
 
-  if (route === 'first_setup') {
+  if (route.mode === 'install' && route.step === 'welcome') {
+    return <InstallWelcome onStart={() => go({ mode: 'install', step: 'wizard' })} />;
+  }
+  if (route.mode === 'install' && route.step === 'wizard') {
     return (
       <FirstSetupScene
+        mode="first_run"
         onComplete={() => {
           setCoreAuth({ firstRun: false, userCount: Math.max(coreAuth.userCount, 1) });
-          setRoute('auth');
+          go({ mode: 'identify', step: 'auth' });
         }}
       />
     );
   }
-  if (route === 'profile_enroll') {
+
+  if (route.mode === 'identify' && route.step === 'enroll_member') {
     return (
       <FirstSetupScene
         mode="add_profile"
+        presetName={enrollPreset}
         onComplete={() => {
           setCoreAuth({ firstRun: false, userCount: Math.max(coreAuth.userCount, 1) });
-          setRoute('auth');
+          setEnrollPreset(undefined);
+          go({ mode: 'identify', step: sessionWasUnlocked ? 'lock' : 'auth' });
         }}
       />
     );
   }
-  if (route === 'lock') return <LockScene />;
-  // Enrôlement : uniquement via AuthScene → gate PIN admin (pas depuis LockScene).
-  return <AuthScene onRequestEnroll={() => setRoute('profile_enroll')} />;
+  if (route.mode === 'identify' && route.step === 'lock') {
+    return <LockScene />;
+  }
+  return (
+    <AuthScene
+      onRequestEnroll={() => go({ mode: 'identify', step: 'enroll_member' })}
+    />
+  );
 }

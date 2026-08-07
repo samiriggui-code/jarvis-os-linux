@@ -53,6 +53,9 @@ evenements_emis:
   - type: auth_revoke_result
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
+  - type: auth_sequence_start
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
   - type: auth_sequence_stop
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false

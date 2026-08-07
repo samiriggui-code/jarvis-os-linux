@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Wifi, Shield, Cpu, Settings, Grid, Hand, Bell, Activity, BrainCircuit, Lock } from 'lucide-react';
+import { Wifi, Shield, Cpu, Settings, Grid, Hand, Bell, Activity, BrainCircuit, Lock, LogOut } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { getDevicePolicy } from '../../ui/core/devicePolicy';
 
 const orb = { fontFamily: 'Orbitron, sans-serif' };
 const mono = { fontFamily: 'Share Tech Mono, monospace' };
@@ -10,6 +11,8 @@ const raj = { fontFamily: 'Rajdhani, sans-serif' };
 export function TopBar() {
   const [time, setTime] = useState(new Date());
   const { setSettingsOpen, setAppGridOpen, setGestureOpen, aiState, addNotification, dashboardOpen, requestDashboard, lockSession } = useApp();
+  const policy = getDevicePolicy();
+  const remoteSession = policy.sessionSecurity === 'remote';
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000);
@@ -180,14 +183,23 @@ export function TopBar() {
           whileHover={{ scale: 1.15 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => {
-            lockSession();
-            addNotification({
-              type: 'info',
-              title: 'Session verrouillée',
-              message: 'Auth face / voix → profil foyer (ex. ta fille). Dashboard = admin seulement.',
-            });
+            if (remoteSession) {
+              lockSession('hard');
+              addNotification({
+                type: 'info',
+                title: 'Déconnecté',
+                message: 'Session fermée sur cet appareil. Réidentification requise.',
+              });
+            } else {
+              lockSession('soft');
+              addNotification({
+                type: 'info',
+                title: 'Changer d’utilisateur',
+                message: 'Écran verrouillé — un autre profil foyer peut s’identifier.',
+              });
+            }
           }}
-          title="Verrouiller la session"
+          title={remoteSession ? 'Se déconnecter' : 'Changer d’utilisateur'}
           className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer"
           style={{
             background: 'rgba(239,68,68,0.06)',
@@ -203,7 +215,9 @@ export function TopBar() {
             (e.currentTarget as HTMLElement).style.borderColor = 'rgba(239,68,68,0.25)';
           }}
         >
-          <Lock className="w-4 h-4" style={{ color: '#ef4444' }} />
+          {remoteSession
+            ? <LogOut className="w-4 h-4" style={{ color: '#ef4444' }} />
+            : <Lock className="w-4 h-4" style={{ color: '#ef4444' }} />}
         </motion.button>
 
         <motion.button

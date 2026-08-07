@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-08-07 — Satellite salon (Pi) + Freebox + wake
+
+Runtime aligné local ↔ NUC ↔ Pi (hashes). Commit deploy + Core salon.
+
+- **Pi** `deploy/pi-salon/` : `jarvis-ear` (:8767 bouche + wake `hey_jarvis` + ADB player), `jarvis-cam` (:8768 MJPEG)
+- **Core** : `salon_speaker` / `salon_ingest` (:8766) / `salon_player` → Freebox via Pi
+- **nginx** : `/v1/salon/` → ingest ; HUD kiosk NUC **off**
+- Freebox : TV Bro installé ; VLC / Netflix / YouTube / Disney / Plex
+- Accès hors maison : NUC WAN OK ; Pi via `jarvis-pi-via-nuc` si `:41223` HS
+- HUD : face-only lock (PIN retiré UI), gestes opt-in, allègements kiosk
+
 ## 2026-08-06 (midi) — Auth / device / agentic honesty
 
 - Auth HUD : face + PIN uniquement (voix MFA retirée) ; enrôlement gated PIN admin

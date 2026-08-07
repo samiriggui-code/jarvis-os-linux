@@ -165,7 +165,7 @@ apps:
     risque: info
     intention: core.mission_dev
     execute_par: core
-    declencheurs: [mission control dev, mission-control-dev, mission control]
+    declencheurs: [mission control dev, mission-control-dev, mission ctrl dev]
   - id: crons
     nom: Crons
     statut: surface
@@ -186,14 +186,14 @@ apps:
     risque: info
     intention: hud.lock
     execute_par: core
-    declencheurs: [verrouille, verrouiller, verrouille la session, verrouillage, lock session, verrouille-toi]
+    declencheurs: [verrouille la session, verrouille-toi, verrouille toi, lock session, verrouille le hud]
   - id: hud-idle
     nom: Veille
     statut: live
     risque: info
     intention: hud.idle
     execute_par: core
-    declencheurs: [mode veille, mets-toi en veille, met toi en veille, veille, repos, standby]
+    declencheurs: [mode veille, mets-toi en veille, met toi en veille, repos, standby]
   - id: hud-close
     nom: Fermer espace
     statut: live
@@ -242,7 +242,7 @@ apps:
     risque: home
     intention: home.control
     execute_par: core
-    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant]
+    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant, home, ouvre home, affiche home, affiche-moi home, mission control home, mission contrôle home, mission controle home, ouvre la maison, affiche la maison]
   - id: music
     nom: Musique
     statut: surface

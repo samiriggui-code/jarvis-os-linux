@@ -227,7 +227,7 @@ interface AppContextType {
   /** Mode spécial : le HUD entier se retire pour afficher Dashboard Core (figma2) plein écran. */
   dashboardOpen: boolean;
   setDashboardOpen: (v: boolean) => void;
-  /** Session HUD déverrouillée (auth Holomat / PIN / dev) */
+  /** Session HUD déverrouillée (auth Holomat / face / dev) */
   sessionUnlocked: boolean;
   sessionWasUnlocked: boolean;
   /**
@@ -525,9 +525,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const lockSession = useCallback((mode?: 'soft' | 'hard') => {
-    // « Verrouille » / bouton = toujours soft (LockScene), jamais AuthScene+boot.
-    // Hard uniquement : fermeture onglet distant, idle remote, déconnexion explicite.
-    const resolved: 'soft' | 'hard' = mode === 'hard' ? 'hard' : 'soft';
+    // soft = kiosk / maison (LockScene, changer d’utilisateur).
+    // hard = portable / téléphone / déconnexion explicite (session morte).
+    const policy = getDevicePolicy();
+    const resolved: 'soft' | 'hard' =
+      mode === 'hard' || mode === 'soft'
+        ? mode
+        : policy.sessionSecurity === 'remote'
+          ? 'hard'
+          : 'soft';
 
     silenceAuthNarration();
     setWelcomeCinematic(false);
@@ -545,7 +551,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })();
       savePersistedSession(lastUser, { locked: true });
       void authLogout();
-      console.debug('[auth] soft lock → LockScene');
+      console.debug('[auth] soft lock → LockScene (changer utilisateur)');
       return;
     }
 
@@ -554,7 +560,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSessionWasUnlocked(false);
     setCoreAuthState(prev => ({ ...prev, user: null }));
     try { sessionStorage.removeItem('jarvis_boot_ok'); } catch { /* */ }
-    console.debug('[auth] hard logout');
+    console.debug('[auth] hard logout → Identification');
   }, []);
 
   const requestDashboard = useCallback(() => {

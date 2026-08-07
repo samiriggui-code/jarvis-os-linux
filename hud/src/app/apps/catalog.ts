@@ -247,12 +247,9 @@ export const HUD_APPS: HudApp[] = [
     id: 'mission-control-dev', name: 'Mission Ctrl DEV', icon: Radar, color: C.rose, cat: 'Agent',
     status: 'live', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Orchestration projet logiciel (ex. scénario Cursor)',
-    // « alertes » a été retiré : c'est un mot de la maison, il ouvrait le
-    // cockpit de développement. Les alertes relèvent de Mission Control HOME.
-    // « mission control » nu reste accepté à l'oral tant que le cockpit maison
-    // n'existe pas — le jour où il arrive, ce déclencheur devient ambigu et
-    // doit disparaître au profit de « mission control dev ».
-    voice: ['mission control dev', 'mission-control-dev', 'mission control'],
+    // Cockpit maison = triggers « mission control home » → home.control.
+    // Ici uniquement DEV explicite (évite de voler Home).
+    voice: ['mission control dev', 'mission-control-dev', 'mission ctrl dev'],
     intent: 'core.mission_dev',
   },
   {
@@ -271,9 +268,10 @@ export const HUD_APPS: HudApp[] = [
     id: 'hud-lock', name: 'Verrouiller', icon: Lock, color: C.rose, cat: 'Système',
     status: 'live', risk: 'info', owner: 'core',
     blurb: 'Verrouille la session HUD',
+    // Pas de « verrouillage » / « veille » nus : écho TTS → soft-lock en boucle.
     voice: [
-      'verrouille', 'verrouiller', 'verrouille la session',
-      'verrouillage', 'lock session', 'verrouille-toi',
+      'verrouille la session', 'verrouille-toi', 'verrouille toi',
+      'lock session', 'verrouille le hud',
     ],
     intent: 'hud.lock',
   },
@@ -283,7 +281,7 @@ export const HUD_APPS: HudApp[] = [
     blurb: 'Mode veille HUD',
     voice: [
       'mode veille', 'mets-toi en veille', 'met toi en veille',
-      'veille', 'repos', 'standby',
+      'repos', 'standby',
     ],
     intent: 'hud.idle',
   },
@@ -356,7 +354,12 @@ export const HUD_APPS: HudApp[] = [
     id: 'home', name: 'Maison', icon: Home, color: C.green, cat: 'Maison',
     status: 'surface', risk: 'home', owner: 'core',
     blurb: 'Lumières, capteurs, ouvrants',
-    voice: ['maison', 'domotique', 'lumière', 'lumières', 'lampe', 'home assistant'],
+    voice: [
+      'maison', 'domotique', 'lumière', 'lumières', 'lampe', 'home assistant',
+      'home', 'ouvre home', 'affiche home', 'affiche-moi home',
+      'mission control home', 'mission contrôle home', 'mission controle home',
+      'ouvre la maison', 'affiche la maison',
+    ],
     intent: 'home.control',
   },
   {

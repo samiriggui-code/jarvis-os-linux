@@ -1,0 +1,25 @@
+[Unit]
+Description=JARVIS Ear — micro/enceinte salon (Pi headless)
+After=network.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=JARVIS_EAR_DEVICE=plughw:CARD=Headphones,DEV=0
+Environment=JARVIS_EAR_MIC=plughw:CARD=Camera,DEV=0
+Environment=JARVIS_EAR_HOST=0.0.0.0
+Environment=JARVIS_EAR_PORT=8767
+Environment=JARVIS_CORE_SALON_URL=http://192.168.1.37:8080
+Environment=JARVIS_PLAYER_ADB=192.168.1.49:5555
+Environment=JARVIS_ADB=adb
+Environment=JARVIS_EAR_WAKE=1
+Environment=JARVIS_EAR_WAKE_MODEL=hey_jarvis
+Environment=JARVIS_EAR_WAKE_THRESHOLD=0.55
+Environment=JARVIS_EAR_ENERGY=700
+# Environment=JARVIS_SALON_TOKEN=
+ExecStart=/usr/bin/python3 /opt/jarvis/pi-salon/jarvis_ear.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

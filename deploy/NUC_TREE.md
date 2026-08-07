@@ -57,7 +57,8 @@ le tunnel sortant NUC → VPS, et rien n'est exposé sur le réseau local.
 | 8082 | Setup Center | *réservé — front non finalisé* |
 | 8642 | Hermes | `JARVIS_HERMES_URL` |
 | 8765 | Core WebSocket | `jarvis-core.service` |
-| 17600 | voicebox (TTS/STT) | `jarvis-voicebox.service` |
+| 8766 | Core salon ingest (HTTP loopback) | `jarvis-core` · nginx `/v1/salon/` |
+| 17600 | voicebox (TTS/STT) | `jarvis-voicebox.service` (ou tunnel VPS) |
 
 8080 figurait dans `jarvis-hud.service` depuis le début, mais **personne ne
 servait ce port** : Chromium démarrait sur « connexion refusée ». `file://`
@@ -74,6 +75,7 @@ ainsi, et le build Vite en produit.
 | futur `dashboard/dist` | `/opt/jarvis/dashboard/dist/` |
 | `assets/` | `/opt/jarvis/share/` (copie) |
 | `deploy/manifests/*.json` | `/etc/jarvis/manifest.json` |
+| `deploy/pi-salon/` | **Pi** `/opt/jarvis/pi-salon/` (pas sur le NUC) |
 | ~~`vendor/agents/hermes-agent/`~~ | **rien à déployer** — voir ci-dessous |
 | `vendor/**` (reste) | **ne pas déployer** : références de lecture uniquement |
 

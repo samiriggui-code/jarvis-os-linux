@@ -79,7 +79,7 @@ const POLICY_BY_PERSONA: Record<DevicePersona, Omit<DevicePolicy, 'persona' | 't
     gesturesAllowed: false,
     cinematicBoot: false,
     uiDensity: 'compact',
-    authFactors: { face: true, voice: false, pin: true },
+    authFactors: { face: true, voice: false, pin: false },
     unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
     sessionSecurity: 'remote',
     idleLockMinutes: 10,
@@ -87,10 +87,11 @@ const POLICY_BY_PERSONA: Record<DevicePersona, Omit<DevicePolicy, 'persona' | 't
   tablet: {
     micAlwaysReady: true,
     cameraSleepByDefault: true,
-    gesturesAllowed: true,
+    // MediaPipe sur tablette = freeze fréquent (CPU/GPU). Opt-in via ?gestures=1.
+    gesturesAllowed: false,
     cinematicBoot: true,
     uiDensity: 'comfortable',
-    authFactors: { face: true, voice: false, pin: true },
+    authFactors: { face: true, voice: false, pin: false },
     unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
     // Tablette murale maison : lock, pas de logout à la fermeture.
     sessionSecurity: 'household',
@@ -102,7 +103,7 @@ const POLICY_BY_PERSONA: Record<DevicePersona, Omit<DevicePolicy, 'persona' | 't
     gesturesAllowed: false, // faux positifs devant le portable
     cinematicBoot: true,
     uiDensity: 'comfortable',
-    authFactors: { face: true, voice: false, pin: true },
+    authFactors: { face: true, voice: false, pin: false },
     unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
     sessionSecurity: 'remote',
     idleLockMinutes: 10,
@@ -110,22 +111,23 @@ const POLICY_BY_PERSONA: Record<DevicePersona, Omit<DevicePolicy, 'persona' | 't
   desktop: {
     micAlwaysReady: true,
     cameraSleepByDefault: true,
-    gesturesAllowed: true,
+    gesturesAllowed: false, // gestes pas au point — faux positifs grille apps
     cinematicBoot: true,
     uiDensity: 'spacious',
-    authFactors: { face: true, voice: false, pin: true },
+    authFactors: { face: true, voice: false, pin: false },
     unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
     sessionSecurity: 'household',
     idleLockMinutes: 15,
   },
   kiosk: {
     micAlwaysReady: true,
-    // TV salon : caméra chaude (face + gestes), diode OK — c’est le poste maison.
-    cameraSleepByDefault: false,
-    gesturesAllowed: true,
+    // TV salon : micro wake OK ; caméra OFF hors auth/lock (Celeron 2 cœurs —
+    // flux + GPU Chromium à 70 %+ sinon). Gestes OFF.
+    cameraSleepByDefault: true,
+    gesturesAllowed: false,
     cinematicBoot: true,
     uiDensity: 'spacious',
-    authFactors: { face: true, voice: false, pin: true },
+    authFactors: { face: true, voice: false, pin: false },
     unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
     sessionSecurity: 'household',
     idleLockMinutes: 0, // écran allumé en permanence
@@ -159,7 +161,7 @@ export function resetDevicePolicy(): void {
   cached = null;
 }
 
-/** Gestes : persona autorise ET opt-in utilisateur (kiosk = ON par défaut). */
+/** Gestes : OFF par défaut. Opt-in uniquement `?gestures=1` ou localStorage `jarvis_gestures=1`. */
 export function gesturesPolicyEnabled(): boolean {
   if (!getDevicePolicy().gesturesAllowed) return false;
   if (typeof window === 'undefined') return false;
@@ -168,11 +170,10 @@ export function gesturesPolicyEnabled(): boolean {
   if (forced === '0') return false;
   try {
     const stored = window.localStorage.getItem('jarvis_gestures');
-    if (stored === '0') return false;
     if (stored === '1') return true;
+    if (stored === '0') return false;
   } catch { /* */ }
-  // TV / mur : gestes actifs sans réglage manuel.
-  return getDevicePolicy().persona === 'kiosk';
+  return false;
 }
 
 /** Pose `data-persona` + densité CSS sur <html> (échelle TV 40″). */
@@ -185,6 +186,8 @@ export function applyDevicePolicyToDom(): void {
   try {
     if (p.persona === 'kiosk') {
       window.localStorage.setItem('jarvis_kiosk', '1');
+      // Forcer OFF même si une ancienne session avait activé les gestes.
+      window.localStorage.setItem('jarvis_gestures', '0');
     }
   } catch { /* */ }
 }

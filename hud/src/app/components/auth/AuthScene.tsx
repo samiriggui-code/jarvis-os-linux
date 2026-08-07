@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Unlock, SkipForward, UserPlus } from 'lucide-react';
+import { SkipForward, UserPlus } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { FaceCamView } from './FaceCamView';
 import { EmmaHologram3D } from './EmmaHologram3D';
@@ -19,7 +19,7 @@ import {
   type OrchestratorState,
   type SceneStep,
 } from '../../engine/experienceOrchestrator';
-import { authLogin, authRecoveryLogin, getEnrollPin, getLastUsername } from '../../bridge/authClient';
+import { authLogin, getLastUsername } from '../../bridge/authClient';
 import { getCoreClient } from '../../bridge/coreClient';
 import { ensureCameraAndMic, ensureMic, getMediaState, withCamera } from '../../bridge/mediaDevices';
 import { isCoreOnline } from '../CoreBridge';
@@ -65,7 +65,7 @@ const BOOT_CHECKS_INIT: BootCheck[] = [
 /**
  * Délai d'attente du `boot_state` d'ouverture. Passé ce délai, le Core est
  * considéré comme absent : HERMES CORE au rouge, la séquence s'arrête, et on
- * bascule sur le PIN. Pas de caméra, pas de simulateur, pas d'annonce.
+ * face only. Pas de PIN (kiosk TV / Linux sans apps natives).
  *
  * Généreux exprès : le Core accepte les connexions immédiatement mais il y a
  * une reconnexion WS toutes les 2,5 s derrière (`coreClient`).
@@ -91,7 +91,6 @@ export function AuthScene({ onRequestEnroll }: Props) {
   const [checks, setChecks]         = useState<BootCheck[]>(BOOT_CHECKS_INIT.map(c => ({ ...c })));
   const [scanProgress, setScanProgress] = useState(0);
   const [factors, setFactors]       = useState({ face: false, voice: false });
-  const [pin, setPin]               = useState('');
   const [denied, setDenied]         = useState(false);
   const [faceHologram, setFaceHologram] = useState<FaceHologramState>({
     progress: 0,
@@ -121,8 +120,6 @@ export function AuthScene({ onRequestEnroll }: Props) {
   const [mediaHint, setMediaHint] = useState('');
   const [offerEnroll, setOfferEnroll] = useState(false);
   const [enrollHint, setEnrollHint] = useState('');
-  const [enrollGateOpen, setEnrollGateOpen] = useState(false);
-  const [enrollAdminPin, setEnrollAdminPin] = useState('');
   const [enrollGateBusy, setEnrollGateBusy] = useState(false);
   const [enrollGateError, setEnrollGateError] = useState('');
 
@@ -146,13 +143,13 @@ export function AuthScene({ onRequestEnroll }: Props) {
     const micOk = s.mic === 'granted';
     setMediaArmed(camOk || micOk);
     if (camOk && micOk) setMediaHint('');
-    else if (!camOk && !micOk) setMediaHint('Caméra et micro refusés — utilisez le PIN');
+    else if (!camOk && !micOk) setMediaHint('Caméra et micro refusés — autorisez les permissions');
     else if (!camOk) setMediaHint('Caméra refusée — micro OK');
     else setMediaHint('Micro refusé — caméra OK');
     return s;
   }, []);
 
-  const coreUnlock = useCallback(async (meta: { method: string; confidence?: number; pin?: string; user_id?: string; username?: string }) => {
+  const coreUnlock = useCallback(async (meta: { method: string; confidence?: number; user_id?: string; username?: string }) => {
     try {
       // Coupe le monologue AVANT le round-trip login — sinon WAV continue.
       try {
@@ -162,7 +159,6 @@ export function AuthScene({ onRequestEnroll }: Props) {
       const res = await authLogin({
         username: meta.username || getLastUsername() || undefined,
         user_id: meta.user_id,
-        pin: meta.pin,
         method: meta.method,
         confidence: meta.confidence ?? 0.95,
       });
@@ -186,26 +182,49 @@ export function AuthScene({ onRequestEnroll }: Props) {
     }
   }, []);
 
+  /** Enrôlement : visage admin connu — plus de PIN. */
   const requestEnroll = useCallback(async () => {
-    const pin = enrollAdminPin.trim();
-    if (!pin || enrollGateBusy) return;
+    if (enrollGateBusy) return;
     setEnrollGateBusy(true);
     setEnrollGateError('');
     try {
-      const res = await authRecoveryLogin({ pin });
+      if (!isCoreOnline()) {
+        setEnrollGateError('Core hors ligne');
+        return;
+      }
+      const result = await runFaceVerifyLive({
+        reason: 'enroll_admin',
+        isAlive: () => aliveRef.current,
+        patchHud: (hudText, hudSubtext) => {
+          orchRef.current?.patchHud({ hudText, hudSubtext });
+        },
+      });
+      if (!result.ok || !result.user_id) {
+        setEnrollGateError('Visage admin non reconnu — réessayez');
+        return;
+      }
+      const res = await authLogin({
+        user_id: result.user_id,
+        username: result.username,
+        method: 'face',
+        confidence: result.confidence ?? 0.95,
+      });
       if (!res.ok) {
         setEnrollGateError(res.error || 'Autorisation admin refusée');
         return;
       }
-      setEnrollGateOpen(false);
-      setEnrollAdminPin('');
+      const role = String(res.event?.user?.role || '').toUpperCase();
+      if (role && role !== 'ADMIN') {
+        setEnrollGateError('Seul un administrateur peut enrôler');
+        return;
+      }
       onRequestEnroll?.();
     } catch (e) {
-      setEnrollGateError(e instanceof Error ? e.message : 'Core offline');
+      setEnrollGateError(e instanceof Error ? e.message : 'Échec enrôlement');
     } finally {
       setEnrollGateBusy(false);
     }
-  }, [enrollAdminPin, enrollGateBusy, onRequestEnroll]);
+  }, [enrollGateBusy, onRequestEnroll]);
 
 
   /* — Skip dev — */
@@ -510,12 +529,12 @@ export function AuthScene({ onRequestEnroll }: Props) {
               setOfferEnroll(true);
               setEnrollHint('Profil absent sur ce Core. Validation admin requise avant enrôlement.');
             }
-            // Pas de throw : l'orchestrateur reste vivant, le PIN reste utilisable.
+            // Pas de throw : on reste sur face — pas de PIN de secours.
             orch.patchHud({
               hudText: canOfferEnroll ? 'PROFIL INCONNU' : 'AUTH LOCK TEMPORARY',
               hudSubtext: canOfferEnroll
                 ? (failHudSubtext || 'Profil absent sur ce Core — enrôlement proposé')
-                : 'Visage inconnu — PIN ou réessayez',
+                : 'Visage inconnu — placez-vous face à la caméra',
               avatarMode: 'denied',
             });
             setFaceHologram(prev => ({ ...prev, phase: 'locked' }));
@@ -610,14 +629,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── PIN backup → Core verify ────────────────────────────────────────────── */
-  const tryPin = useCallback(() => {
-    const v = pin.trim();
-    if (!v) return;
-    // Ancien magic "jarvis" → mappe sur PIN enrollé (0000 par défaut)
-    const pinCode = v.toLowerCase() === 'jarvis' ? getEnrollPin() : v;
-    void coreUnlock({ method: 'pin', confidence: 1, pin: pinCode });
-  }, [pin, coreUnlock]);
+  /* ── Plus de PIN session — visage uniquement ─────────────────────────────── */
 
   /* ── Dérivés visuels ─────────────────────────────────────────────────────── */
   // Boot bloqué : l'overlay RESTE, avec ses lignes rouges. L'orchestrateur est
@@ -686,32 +698,26 @@ export function AuthScene({ onRequestEnroll }: Props) {
           <BootOverlay
             checks={checks}
             msg={bootBlocked ?? orchState.hudText}
-            subtext={bootBlocked ? 'Utilisez le code de secours' : orchState.hudSubtext}
+            subtext={bootBlocked ? 'Rechargez le kiosk ou vérifiez jarvis-core' : orchState.hudSubtext}
             blocked={bootBlocked !== null}
             footer={
-              <div className="flex gap-2 w-full max-w-xs">
-                <input
-                  type="password"
-                  value={pin}
-                  onChange={e => setPin(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && tryPin()}
-                  placeholder="Code ACCESS"
-                  className="flex-1 rounded-xl px-3 py-2 outline-none text-center"
-                  style={{
-                    ...orbF, fontSize: 11, letterSpacing: '0.15em',
-                    color: denied ? '#ef4444' : '#cfeefb',
-                    background: '#06101c',
-                    border: `1px solid ${denied ? 'rgba(239,68,68,0.5)' : 'rgba(239,68,68,0.25)'}`,
-                  }}
-                />
+              bootBlocked ? (
                 <button
-                  type="button" onClick={tryPin}
-                  className="rounded-xl px-4 cursor-pointer"
-                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="rounded-xl px-4 py-2 cursor-pointer"
+                  style={{
+                    ...orbF,
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239,68,68,0.4)',
+                    background: 'rgba(239,68,68,0.08)',
+                  }}
                 >
-                  <Unlock className="w-4 h-4" style={{ color: '#ef4444' }} />
+                  RECHARGER
                 </button>
-              </div>
+              ) : undefined
             }
           />
         )}
@@ -806,65 +812,24 @@ export function AuthScene({ onRequestEnroll }: Props) {
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setEnrollGateOpen(true);
-                    setEnrollGateError('');
-                  }}
+                  onClick={() => void requestEnroll()}
+                  disabled={enrollGateBusy}
                   className="flex items-center gap-2 rounded-xl px-4 py-2 cursor-pointer"
                   style={{
                     background: 'rgba(25,240,216,0.1)',
                     border: '1px solid rgba(25,240,216,0.45)',
+                    opacity: enrollGateBusy ? 0.6 : 1,
                   }}
                 >
                   <UserPlus className="w-4 h-4" style={{ color: '#19f0d8' }} />
                   <span style={{ ...orbF, color: '#19f0d8', fontSize: 10, letterSpacing: '0.12em' }}>
-                    LANCER L&apos;ENRÔLEMENT
+                    {enrollGateBusy ? 'VISAGE ADMIN…' : 'ENRÔLER — VISAGE ADMIN'}
                   </span>
                 </button>
-                {enrollGateOpen && (
-                  <div
-                    className="w-full rounded-xl p-3 flex flex-col gap-2"
-                    style={{
-                      background: 'rgba(2,5,9,0.92)',
-                      border: '1px solid rgba(25,240,216,0.2)',
-                    }}
-                  >
-                    <p style={{ ...mono, color: 'rgba(255,255,255,0.72)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
-                      Autorisation admin requise pour créer un nouveau profil.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={enrollAdminPin}
-                        onChange={(e) => setEnrollAdminPin(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && void requestEnroll()}
-                        placeholder="PIN admin"
-                        className="flex-1 rounded-xl px-3 py-2 outline-none text-center"
-                        style={{
-                          ...orbF,
-                          fontSize: 11,
-                          letterSpacing: '0.12em',
-                          color: '#cfeefb',
-                          background: '#06101c',
-                          border: '1px solid rgba(25,240,216,0.25)',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void requestEnroll()}
-                        disabled={!enrollAdminPin.trim() || enrollGateBusy}
-                        className="rounded-xl px-4 cursor-pointer"
-                        style={{ background: 'rgba(25,240,216,0.08)', border: '1px solid rgba(25,240,216,0.25)' }}
-                      >
-                        <Unlock className="w-4 h-4" style={{ color: '#19f0d8' }} />
-                      </button>
-                    </div>
-                    {enrollGateError && (
-                      <p style={{ ...mono, color: 'rgba(239,68,68,0.85)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
-                        {enrollGateError}
-                      </p>
-                    )}
-                  </div>
+                {enrollGateError && (
+                  <p style={{ ...mono, color: 'rgba(239,68,68,0.85)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
+                    {enrollGateError}
+                  </p>
                 )}
               </div>
             )}
@@ -898,61 +863,26 @@ export function AuthScene({ onRequestEnroll }: Props) {
               hudText={orchState.hudText}
             />
 
-            {/* PIN collé en bas du viewport — toujours visible sur portable */}
-            {orchState.isRunning && orchState.hudText !== 'SYSTÈME PRÊT' && (
-              <div
-                className="w-full flex flex-col gap-2 shrink-0 sticky bottom-0 z-10 pt-2 pb-1"
-                style={{
-                  background: 'linear-gradient(180deg, transparent 0%, #020509 28%)',
-                }}
+            {/* Dev only — pas de PIN session */}
+            {DEV_BUILD && orchState.isRunning && orchState.hudText !== 'SYSTÈME PRÊT' && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.97 }}
+                onClick={() => unlockSession({ method: 'dev_skip' })}
+                className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2 cursor-pointer shrink-0"
+                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}
               >
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={pin}
-                    onChange={e => setPin(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && tryPin()}
-                    placeholder="Code ACCESS (dev: jarvis)"
-                    autoComplete="one-time-code"
-                    className="flex-1 rounded-xl px-3 py-2.5 outline-none text-center"
-                    style={{
-                      ...orbF, fontSize: 11, letterSpacing: '0.15em',
-                      color: denied ? '#ef4444' : '#cfeefb',
-                      background: '#06101c',
-                      border: `1px solid ${denied ? 'rgba(239,68,68,0.5)' : 'rgba(0,229,255,0.2)'}`,
-                    }}
-                  />
-                  <button
-                    type="button" onClick={tryPin}
-                    className="rounded-xl px-4 cursor-pointer"
-                    style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)' }}
-                  >
-                    <Unlock className="w-4 h-4" style={{ color: '#00e5ff' }} />
-                  </button>
-                </div>
-
-                {/* Déverrouillage local, sans le Core : un bouton d'écran de
-                    verrouillage qui ouvre le verrou. Retiré du bundle de prod. */}
-                {DEV_BUILD && (
-                  <motion.button
-                    type="button" whileTap={{ scale: 0.97 }}
-                    onClick={() => unlockSession({ method: 'dev_skip' })}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2 cursor-pointer"
-                    style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}
-                  >
-                    <SkipForward className="w-3.5 h-3.5" style={{ color: '#f59e0b' }} />
-                    <span style={{ ...mono, color: '#f59e0b', fontSize: 9, letterSpacing: '0.08em' }}>
-                      MODE DÉMO — PASSER L'AUTH
-                    </span>
-                  </motion.button>
-                )}
-              </div>
+                <SkipForward className="w-3.5 h-3.5" style={{ color: '#f59e0b' }} />
+                <span style={{ ...mono, color: '#f59e0b', fontSize: 9, letterSpacing: '0.08em' }}>
+                  MODE DÉMO — PASSER L&apos;AUTH
+                </span>
+              </motion.button>
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Orbe — masqué sur petits écrans pour ne pas chevaucher le PIN */}
+      {/* Orbe — desktop */}
       {isAuth && (
         <motion.div
           className="hidden md:flex absolute right-6 bottom-6 flex-col items-center gap-1 pointer-events-none"

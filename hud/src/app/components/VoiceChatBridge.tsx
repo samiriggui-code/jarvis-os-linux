@@ -157,7 +157,7 @@ export function VoiceChatBridge() {
       armIdleTimer(conversationOpen.current ? CONVERSATION_IDLE_MS : FIRST_LISTEN_MS);
       pauseWakeWord();
       setRightPanel('console');
-      setLiveTranscript((t) => t || 'À votre écoute…');
+      setLiveTranscript('À votre écoute…');
     }
 
     if (!isSttAvailable()) {

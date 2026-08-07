@@ -128,8 +128,13 @@ function MainLayout() {
   } = useApp();
   // Admin distant → overlay enrôlement sur kiosk déjà déverrouillé.
   const [remoteEnroll, setRemoteEnroll] = useState(false);
+  const [enrollPreset, setEnrollPreset] = useState<string | undefined>();
   useEffect(() => {
-    const onEnroll = () => setRemoteEnroll(true);
+    const onEnroll = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ display_name?: string; username?: string }>).detail;
+      setEnrollPreset((detail?.display_name || detail?.username || '').trim() || undefined);
+      setRemoteEnroll(true);
+    };
     window.addEventListener('jarvis:start-enrollment', onEnroll as EventListener);
     return () => window.removeEventListener('jarvis:start-enrollment', onEnroll as EventListener);
   }, []);
@@ -167,7 +172,11 @@ function MainLayout() {
         <SessionLifecycle />
         <FirstSetupScene
           mode="add_profile"
-          onComplete={() => setRemoteEnroll(false)}
+          presetName={enrollPreset}
+          onComplete={() => {
+            setRemoteEnroll(false);
+            setEnrollPreset(undefined);
+          }}
         />
         <NotificationSystem />
       </>

@@ -2,8 +2,10 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Radio } from 'lucide-react';
 import { Orb } from './orb';
+import { OrbLite } from './orb/OrbLite';
 import { useOrbHud } from './orb/useOrbHud';
 import { useApp } from '../context/AppContext';
+import { getDevicePolicy } from '../../ui/core/devicePolicy';
 
 const orbFont = { fontFamily: 'Orbitron, sans-serif' };
 
@@ -17,6 +19,7 @@ export function MiniOrb({ corner = 'right' }: { corner?: 'left' | 'right' }) {
   const { inputMode } = useApp();
   const sign = corner === 'left' ? 1 : -1;
   const canDrag = inputMode === 'recovery';
+  const lite = getDevicePolicy().persona === 'kiosk';
 
   return (
     <motion.div
@@ -34,12 +37,16 @@ export function MiniOrb({ corner = 'right' }: { corner?: 'left' | 'right' }) {
         className="overflow-visible"
         style={{ width: 112, height: 112, filter: `drop-shadow(0 0 14px ${meta.color}45)` }}
       >
-        <Orb
-          state={orbState}
-          volume={volume}
-          playbackVolume={playbackVolume}
-          size={112}
-        />
+        {lite ? (
+          <OrbLite state={orbState} size={112} />
+        ) : (
+          <Orb
+            state={orbState}
+            volume={volume}
+            playbackVolume={playbackVolume}
+            size={112}
+          />
+        )}
       </div>
       <div
         className="flex items-center gap-1.5 px-2.5 py-1 rounded-full -mt-2"

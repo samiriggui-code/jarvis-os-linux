@@ -27,14 +27,17 @@ SFACE = DATA / "face_recognition_sface_2021dec.onnx"
 ENROLL_SAMPLES_NEEDED = 8
 # SFace cosine : docs OpenCV ~0.363 pour match — on vise un peu plus strict
 VERIFY_THRESHOLD = 0.363
-# Présence auth = visage assez proche (pas ménage au fond), stable quelques frames.
-# Trop strict (0.18 + 5 hits) → une personne qui passe devant la cam ne déclenchait rien.
-MIN_FACE_SCORE = 0.72
-MIN_FACE_FRAC_W = 0.12
-MIN_FACE_FRAC_H = 0.14
-CENTER_TOL_X = 0.38
-CENTER_TOL_Y = 0.40
-PRESENCE_HITS_NEEDED = 3
+# Détection de base (enroll / verify) : visage YuNet crédible.
+# Le « champ auth » (présence) est plus souple : enfant devant TV + cam USB
+# large → visage souvent < 12 % et un peu bas dans le cadre.
+MIN_FACE_SCORE = 0.55
+MIN_FACE_PX = 28
+# Présence : assez visible pour parler, pas un point au fond du salon.
+PRESENCE_FRAC_W = 0.05
+PRESENCE_FRAC_H = 0.06
+PRESENCE_CENTER_TOL_X = 0.48
+PRESENCE_CENTER_TOL_Y = 0.48
+PRESENCE_HITS_NEEDED = 2
 
 
 @dataclass
@@ -63,8 +66,8 @@ class FaceEngine:
                 f"Modèles ONNX manquants sous {DATA} "
                 "(face_detection_yunet_*.onnx + face_recognition_sface_*.onnx)"
             )
-        # scoreThreshold : équilibre faux positifs salon / vrai passage devant la cam.
-        self._detector = cv2.FaceDetectorYN_create(str(YUNET), "", (320, 320), 0.75, 0.3, 5000)
+        # scoreThreshold bas : enfants / profil / lumière salon TV.
+        self._detector = cv2.FaceDetectorYN_create(str(YUNET), "", (320, 320), 0.55, 0.3, 5000)
         self._recognizer = cv2.FaceRecognizerSF_create(str(SFACE), "")
         self._enroll: dict[str, EnrollBuffer] = {}
         logger.info("FaceEngine prêt · YuNet + SFace")
@@ -79,7 +82,18 @@ class FaceEngine:
             logger.warning("decode jpeg failed: %s", exc)
             return None
 
-    def detect_and_embed(self, bgr: np.ndarray) -> FaceDetectResult:
+    def detect_and_embed(
+        self,
+        bgr: np.ndarray,
+        *,
+        for_presence: bool = False,
+    ) -> FaceDetectResult:
+        """Détecte un visage + embedding SFace.
+
+        `for_presence=True` : filtre « devant la cam » (annonce auth).
+        Sinon (enroll / verify) : tout visage YuNet crédible compte — un enfant
+        un peu bas / un peu loin doit quand même s'enrôler.
+        """
         h, w = bgr.shape[:2]
         self._detector.setInputSize((w, h))
         _, faces = self._detector.detect(bgr)
@@ -93,17 +107,16 @@ class FaceEngine:
         x, y, fw, fh = [int(v) for v in face[:4]]
         if score < MIN_FACE_SCORE:
             return FaceDetectResult(found=False, reason="low_score", box=(x, y, fw, fh))
-        if fw < 40 or fh < 40:
+        if fw < MIN_FACE_PX or fh < MIN_FACE_PX:
             return FaceDetectResult(found=False, reason="too_small", box=(x, y, fw, fh))
 
-        # Champ d’authentification : proche de la caméra + dans le cadre central.
-        # Une personne qui fait le ménage au fond de la pièce ne doit PAS déclencher.
-        if fw / max(w, 1) < MIN_FACE_FRAC_W or fh / max(h, 1) < MIN_FACE_FRAC_H:
-            return FaceDetectResult(found=False, reason="too_far", box=(x, y, fw, fh))
-        cx = (x + fw * 0.5) / max(w, 1)
-        cy = (y + fh * 0.5) / max(h, 1)
-        if abs(cx - 0.5) > CENTER_TOL_X or abs(cy - 0.5) > CENTER_TOL_Y:
-            return FaceDetectResult(found=False, reason="out_of_field", box=(x, y, fw, fh))
+        if for_presence:
+            if fw / max(w, 1) < PRESENCE_FRAC_W or fh / max(h, 1) < PRESENCE_FRAC_H:
+                return FaceDetectResult(found=False, reason="too_far", box=(x, y, fw, fh))
+            cx = (x + fw * 0.5) / max(w, 1)
+            cy = (y + fh * 0.5) / max(h, 1)
+            if abs(cx - 0.5) > PRESENCE_CENTER_TOL_X or abs(cy - 0.5) > PRESENCE_CENTER_TOL_Y:
+                return FaceDetectResult(found=False, reason="out_of_field", box=(x, y, fw, fh))
 
         aligned = self._recognizer.alignCrop(bgr, face)
         feat = self._recognizer.feature(aligned)

@@ -1,14 +1,12 @@
 /**
- * Kiosk salon — micro + caméra prêts dès le déverrouillage.
- *
- * Sur laptop / remote, la caméra dort hors besoin (privacy diode).
- * Sur TV kiosk, présence + gestes + auth face nécessitent un flux chaud
- * sans invite Chromium (flags --use-fake-ui-for-media-stream).
+ * Kiosk salon — micro prêt (wake) dès le déverrouillage.
+ * Caméra volontairement froide hors auth/lock : sur Celeron 2 cœurs le
+ * VideoCapture + GPU Chromium mangeaient 70–90 % CPU en continu.
  */
 import { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getDevicePolicy } from '../../ui/core/devicePolicy';
-import { acquireCamera, releaseCamera, ensureMic } from '../bridge/mediaDevices';
+import { forceReleaseCamera, ensureMic } from '../bridge/mediaDevices';
 import { startAudioBus } from '../bridge/audioBus';
 
 export function KioskMediaWarmup() {
@@ -18,25 +16,20 @@ export function KioskMediaWarmup() {
     const policy = getDevicePolicy();
     if (policy.persona !== 'kiosk') return;
     if (!sessionUnlocked) return;
-    if (policy.cameraSleepByDefault && !policy.micAlwaysReady) return;
 
     let alive = true;
 
     void (async () => {
-      if (policy.micAlwaysReady) {
+      // Coupe un éventuel warmup caméra d'une ancienne build.
+      forceReleaseCamera();
+      if (policy.micAlwaysReady && alive) {
         await ensureMic().catch(() => null);
         await startAudioBus().catch(() => false);
-      }
-      if (!policy.cameraSleepByDefault && alive) {
-        await acquireCamera('kiosk');
       }
     })();
 
     return () => {
       alive = false;
-      if (!getDevicePolicy().cameraSleepByDefault) {
-        releaseCamera('kiosk');
-      }
     };
   }, [sessionUnlocked]);
 
