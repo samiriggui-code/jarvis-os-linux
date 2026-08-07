@@ -4,6 +4,7 @@
  */
 import { handleTtsEvent, initTtsCore, stopTtsPlayback } from './ttsCore';
 import { initTtsDev, speakDev, stopDev } from './ttsDev';
+import { announceHudDevice, stopHudDeviceHeartbeat } from './deviceSatellite';
 
 /** Kiosk / Vite local → Core direct. Accès distant (Twingate, LAN) → même host `/ws` (nginx). */
 function resolveWsUrl(): string {
@@ -128,12 +129,17 @@ class CoreClient {
       this.flushOutbound();
       this.send({ type: 'ping' });
       this.send({ type: 'auth', action: 'status' });
+      // Device 1 — satellite navigateur → DeviceRegistry (discovery only).
+      void announceHudDevice((payload) => this.send(payload)).catch((err) => {
+        console.warn('[device] announce failed', err);
+      });
     };
 
     ws.onclose = () => {
       this.connected = false;
       this.notifyConnection(false);
       this.ws = null;
+      stopHudDeviceHeartbeat();
       this.flushPending(new Error('Core déconnecté'));
       if (!this.intentionalClose) {
         this.reconnectTimer = setTimeout(() => this.connect(), 2500);
@@ -164,6 +170,7 @@ class CoreClient {
     this.intentionalClose = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.flushPending(new Error('disconnect'));
+    stopHudDeviceHeartbeat();
     this.ws?.close();
     this.ws = null;
     this.connected = false;

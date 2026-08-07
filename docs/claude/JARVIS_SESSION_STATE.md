@@ -89,3 +89,17 @@ Env Pi (service) :
 - Chrome / Spotify sur Player si besoin
 - Zigbee / vraies commandes HA
 - Token `JARVIS_SALON_TOKEN` (optionnel)
+
+## Tool Bus (2026-08-07)
+
+- **Décision A** figée : boucle dans Hermes ; Core = events + périphériques.
+- Nomenclature : IntentCapability = `Capability` (+ alias) ; HostCapability = machine — pas de rename massif.
+- **Phase 2 implémentée** : `HermesBridge.ask` → `/v1/runs` + SSE events → `AgentToolEvent` → bus/`tool_event`/journal. Filtre CoT. Pas de package `tools/`, pas de changement HUD.
+- Contrat : `docs/architecture/JARVIS-Tool-Bus.md`.
+- **Surface Decision (preuve verticale)** : `surface_decision.py` — règle unique `core.monitor` / `system.cpu` → `surface_id=monitor` → `SystemMonitor` via `snapshot` + `open_space`. Branché depuis `_execute_intent` + `_on_hermes_agent_event`. Pas de nouveau protocole / pas de modif React.
+- **Device Capability Discovery Phase 0** : `devices.DeviceRegistry` (mémoire) ; NUC auto-register ; HTTP `/v1/devices` + WS `type=device` ; `capability_id` stable (`camera.capture`). Pas de router / Policy / HUD. Seed test : `deploy/scripts/seed-pi-device-caps.sh`.
+- **Device 1 VALIDÉ (2026-08-07)** : HUD → `device.*` → registre. Preuve NUC : `nuc-main` + UUID(s) `pc_client`/`web_hud` (portable + iPhone) avec caps confirmées. Identité UUID + label décoratif. Couche indépendante (pas Hermes / Surface / Intent / Auth / HA).
+- **Device 2 VALIDÉ (2026-08-07)** : `deploy/pi-salon/jarvis_device_announce.py` + systemd `jarvis-device-announce` — `pi-salon` online avec `camera.capture`, `audio.input`, `audio.output`, `home_assistant.gateway`, `freebox.player`. Discovery only.
+- **Stratégie Device Intelligence** : inventaire d’abord ; **pas** Capability Router / Agentic UI maintenant. HA = futur adaptateur (pas cerveau). Hermes = premier agent, pas dépendance absolue (Agent Registry plus tard).
+- **Services (2026-08-07 13:04)** : restart `jarvis-core` + `jarvis-hermes` — PG/nginx/ear/cam active ; Holomat FaceEngine prêt (~739 ms). Auth faciale HUD : retester après hard refresh (fix deny→allow déjà déployé).
+- **Prochaine** : Capability Router (étude) — après stabilisation auth faciale si besoin.

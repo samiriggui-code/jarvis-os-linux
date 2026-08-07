@@ -14,6 +14,11 @@ Runtime aligné local ↔ NUC ↔ Pi (hashes). Commit deploy + Core salon.
 - Freebox : TV Bro installé ; VLC / Netflix / YouTube / Disney / Plex
 - Accès hors maison : NUC WAN OK ; Pi via `jarvis-pi-via-nuc` si `:41223` HS
 - HUD : face-only lock (PIN retiré UI), gestes opt-in, allègements kiosk
+- **Tool Bus Phase 2** + **Surface Decision** (preuve) : `core.monitor` / `system.cpu` → `SURFACE_SNAPSHOT` SystemMonitor (Core only, pas de modif React)
+- **Device Capability Discovery Phase 0** : `DeviceRegistry` + NUC `nuc-main` + `GET /v1/devices`
+- **Device 1 VALIDÉ** : UUID `pc_client`/`web_hud` dans registre (portable + iPhone) ; caps honnêtes ; stratégie figée Device 2 Pi → puis Router (pas HA cerveau, pas Hermes unique)
+- **Device 2 VALIDÉ** : Pi `jarvis-device-announce` → `pi-salon` online (cam LG, audio, HA gateway, Freebox player)
+- Restart NUC Core/Hermes : FaceEngine Holomat prêt ; retester auth faciale HUD
 
 ## 2026-08-06 (midi) — Auth / device / agentic honesty
 

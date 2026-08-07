@@ -12,6 +12,8 @@ Pi = oreilles + bouche + relais ADB Freebox. NUC Core = cerveau. Pas de Chromium
 | `jarvis-ear.service` | systemd ear |
 | `jarvis_cam.py` | MJPEG `:8768` — Freebox / navigateur |
 | `jarvis-cam.service` | systemd cam |
+| `jarvis_device_announce.py` | **Device 2** — register/capabilities/heartbeat → Core |
+| `jarvis-device-announce.service` | systemd announcer |
 | `install_player_apps*.py` | sideload TV Bro / ouverture Play (one-shot) |
 | `test_push_beep.py` | test bouche depuis Core |
 
@@ -50,10 +52,10 @@ http://192.168.1.27:8768/ · flux `/stream.mjpg`
 
 ```bash
 sudo mkdir -p /opt/jarvis/pi-salon
-sudo cp jarvis_ear.py jarvis_cam.py /opt/jarvis/pi-salon/
-sudo cp jarvis-ear.service jarvis-cam.service /etc/systemd/system/
+sudo cp jarvis_ear.py jarvis_cam.py jarvis_device_announce.py /opt/jarvis/pi-salon/
+sudo cp jarvis-ear.service jarvis-cam.service jarvis-device-announce.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now jarvis-ear jarvis-cam
+sudo systemctl enable --now jarvis-ear jarvis-cam jarvis-device-announce
 # wake : pip3 install --break-system-packages --no-deps openwakeword
 #         + onnxruntime numpy scipy scikit-learn tqdm
 #         puis download modèles hey_jarvis (root une fois)

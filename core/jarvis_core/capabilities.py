@@ -22,6 +22,26 @@ Ce que ce module ne fait **pas** : exécuter. Il décrit. L'exécution passe par
 `available=False`. Elle n'est pas masquée : elle apparaît, et l'ouverture échoue avec
 sa raison. C'est le mode de panne que ce dépôt paie depuis le début — « déclaré, jamais
 appelé, et rien ne le signale » — et le seul remède est de rendre le trou visible.
+
+── Nommage — `Capability` ici = IntentCapability ───────────────────────────────
+
+Ce que ce module appelle `Capability` est une capacité **produit** : une intention
+offerte à l'utilisateur (« Maison », « Terminal »…), au grain d'une tuile HUD. Dans
+le vocabulaire du Tool Bus (audit 2026-08-07), c'est une **IntentCapability**.
+
+Un second concept existe dans la vision, pas encore dans le code : la
+**HostCapability** — une capacité au grain d'une *machine* (NUC, Pi, VPS, futur
+téléphone), du type `camera.capture`, `microphone.input`, `speaker.output`,
+`computer.screenshot`. Rien de tel n'existe ici : `Owner.DEVICE` déclare qu'un
+agent d'appareil devrait répondre, mais aucun Device Manager ne résout encore
+« quelle machine porte quelle capacité matérielle ».
+
+La liaison visée, pas construite : `IntentCapability → Tool → HostCapability →
+Device`. Ne pas renommer `Capability` en `IntentCapability` maintenant — le coût
+d'un renommage à travers le dépôt (HUD compris) dépasse la valeur tant que
+`HostCapability` n'existe pas pour justifier la distinction dans le code. Ce
+commentaire est la distinction, jusqu'à ce qu'elle ait un second type en face
+d'elle.
 """
 
 from __future__ import annotations
@@ -30,7 +50,7 @@ import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 
-from .policy import RiskLevel
+from .policy import Operation, RiskLevel
 
 
 def _fold(text: str) -> str:
@@ -78,7 +98,11 @@ class Display(str, Enum):
 
 @dataclass(frozen=True)
 class Capability:
-    """Une intention offerte à l'utilisateur, et tout ce qu'il faut pour la tenir."""
+    """IntentCapability — intention produit (tuile / voix).
+
+    Le symbole reste `Capability` (pas de rename massif). Alias : `IntentCapability`.
+    Ne pas confondre avec une **HostCapability** (capacité machine).
+    """
 
     app_id: str
     """Identifiant de la tuile HUD — miroir de `hud/src/app/apps/catalog.ts`."""
@@ -92,6 +116,14 @@ class Capability:
     """Permission de session exigée pour seulement *voir* le résultat."""
 
     display: Display
+
+    operation: Operation = Operation.READ
+    """Type d'opération technique — axe orthogonal à `risk` (voir `policy.py`).
+
+    `risk` dit la conséquence produit ; `operation` dit le geste technique.
+    Sert la Policy (ex. `DESTRUCTIVE` exige toujours confirmation) et le futur
+    journal de tool calls. Par défaut `READ` : la plupart des tuiles consultent
+    plus qu'elles n'agissent."""
 
     toolset: str | None = None
     """Nom du toolset Hermes (`GET /v1/toolsets`). `None` = rien ne l'exécute."""
@@ -126,6 +158,11 @@ class Capability:
         return False
 
 
+# Alias documentaire Tool Bus — même objet, pas un second type.
+# Capacités *physiques* (caméra, micro…) → `devices.HostCapability` / DeviceRegistry.
+IntentCapability = Capability
+
+
 # ── Le registre ──────────────────────────────────────────────────────────────
 #
 # Une ligne par tuile du volet Applications. L'ordre suit les catégories du HUD pour
@@ -136,6 +173,10 @@ class Capability:
 # video, image_gen, video_gen, bfl, x_search, tts, stt, skills, todo, memory,
 # context_engine, session_search, clarify, delegation, cronjob, homeassistant,
 # spotify, discord, discord_admin, yuanbao, computer_use, a2a.
+#
+# `operation` n'est explicite que là où elle diffère du défaut `Operation.READ`
+# (dataclass) — la majorité des tuiles consultent plus qu'elles n'agissent, et
+# le répéter partout aurait noyé les cas qui comptent (`WRITE`, `EXECUTE`).
 
 CAPABILITIES: dict[str, Capability] = {
     # —— Système — le Core, et rien d'autre ————————————————————————————————
@@ -147,6 +188,7 @@ CAPABILITIES: dict[str, Capability] = {
     "settings": Capability(
         app_id="settings", intent="core.preferences", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Route Core `preferences`.",
         triggers=("paramètres", "settings", "réglages"),
     ),
@@ -239,6 +281,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-lock": Capability(
         app_id="hud-lock", intent="hud.lock", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Verrouille la session HUD.",
         # Pas de « verrouillage » / « veille » nus : la phrase TTS
         # « Verrouillage automatique. Mise en veille… » était réécoutée par le
@@ -254,6 +297,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-idle": Capability(
         app_id="hud-idle", intent="hud.idle", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Mode veille HUD — ferme les espaces ouverts.",
         triggers=(
             "mode veille", "mets-toi en veille", "met toi en veille",
@@ -263,6 +307,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-close": Capability(
         app_id="hud-close", intent="hud.close_space", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Ferme l'espace (app) actif ou tous les espaces.",
         triggers=(
             "ferme l'espace", "ferme les espaces", "ferme la fenêtre",
@@ -273,6 +318,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-mute": Capability(
         app_id="hud-mute", intent="hud.mute", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Coupe micro + wake (écoute).",
         triggers=(
             "coupe le son", "coupe le micro", "mute", "mets en sourdine",
@@ -282,6 +328,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-unmute": Capability(
         app_id="hud-unmute", intent="hud.unmute", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Réactive micro + wake.",
         triggers=(
             "remets le son", "allume le micro", "unmute", "réactive le micro",
@@ -291,6 +338,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-camera-on": Capability(
         app_id="hud-camera-on", intent="hud.camera_on", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Réveille la caméra du navigateur (portable ou NUC).",
         triggers=(
             "allume la caméra", "allume la camera", "ouvre la caméra",
@@ -300,6 +348,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-camera-off": Capability(
         app_id="hud-camera-off", intent="hud.camera_off", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Coupe la caméra navigateur.",
         triggers=(
             "coupe la caméra", "coupe la camera", "éteins la caméra",
@@ -310,6 +359,7 @@ CAPABILITIES: dict[str, Capability] = {
     "hud-enroll": Capability(
         app_id="hud-enroll", intent="hud.enroll", owner=Owner.CORE,
         risk=RiskLevel.ADMIN, permission="dashboard.access", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Ouvre l'enrôlement sur le kiosk maison (Holomat face + voix).",
         triggers=(
             "enrôle", "enrole", "enrôler", "enroler", "inscris", "inscrit",
@@ -321,6 +371,7 @@ CAPABILITIES: dict[str, Capability] = {
     "media-pause": Capability(
         app_id="music", intent="media.pause", owner=Owner.CORE,
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.NATIVE,
+        operation=Operation.WRITE,
         note="Pause média via HA media_player (déterministe).",
         triggers=(
             "coupe la musique", "arrête la musique", "pause musique",
@@ -346,6 +397,7 @@ CAPABILITIES: dict[str, Capability] = {
     "home": Capability(
         app_id="home", intent="home.control", owner=Owner.CORE,
         risk=RiskLevel.HOME, permission="home.control", display=Display.GENERATED,
+        operation=Operation.WRITE,
         note="Adaptateur Core `homeassistant.py` — déterministe, sans LLM.",
         triggers=(
             "maison", "domotique", "lumière", "lumières", "lampe", "home assistant",
@@ -358,6 +410,7 @@ CAPABILITIES: dict[str, Capability] = {
     "music": Capability(
         app_id="music", intent="media.music", owner=Owner.HERMES, toolset="spotify",
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
+        operation=Operation.WRITE,
         note="Toolset spotify — 7 outils, désactivé côté Hermes aujourd'hui.",
         triggers=("musique", "spotify", "plex audio"),
     ),
@@ -371,6 +424,7 @@ CAPABILITIES: dict[str, Capability] = {
     "video": Capability(
         app_id="video", intent="media.video", owner=Owner.CORE,
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
+        operation=Operation.WRITE,
         note="Adaptateur Core `plex.py` — déterministe, sans LLM.",
         triggers=("vidéo", "video", "film", "plex", "série", "serie", "épisode", "episode", "regarde"),
     ),
@@ -395,18 +449,21 @@ CAPABILITIES: dict[str, Capability] = {
     "files": Capability(
         app_id="files", intent="files.browse", owner=Owner.HERMES, toolset="file",
         risk=RiskLevel.ADMIN, permission="files.read", display=Display.GENERATED,
+        operation=Operation.WRITE,
         note="read_file · write_file · patch · search_files.",
         triggers=("fichiers", "dossier", "explorer"),
     ),
     "terminal": Capability(
         app_id="terminal", intent="system.shell", owner=Owner.HERMES, toolset="terminal",
         risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
+        operation=Operation.EXECUTE,
         note="Allowlist appliquée par la Policy, pas par Hermes.",
         triggers=("terminal", "shell", "console ssh"),
     ),
     "analyze": Capability(
         app_id="analyze", intent="data.analyze", owner=Owner.HERMES, toolset="code_execution",
         risk=RiskLevel.ADMIN, permission="console.read", display=Display.GENERATED,
+        operation=Operation.EXECUTE,
         triggers=("analyse", "stats", "données"),
     ),
     "skills": Capability(
@@ -417,12 +474,14 @@ CAPABILITIES: dict[str, Capability] = {
     "outils": Capability(
         app_id="outils", intent="agent.tools", owner=Owner.HERMES, toolset="skills",
         risk=RiskLevel.ADMIN, permission="dashboard.access", display=Display.GENERATED,
+        operation=Operation.EXECUTE,
         note="skill_manage écrit des compétences — ADMIN.",
         triggers=("outils", "tools", "tool manager"),
     ),
     "crons": Capability(
         app_id="crons", intent="agent.cron", owner=Owner.HERMES, toolset="cronjob",
         risk=RiskLevel.ADMIN, permission="dashboard.access", display=Display.GENERATED,
+        operation=Operation.EXECUTE,
         triggers=("cron", "planifié", "schedule"),
     ),
     # —— Déclarées, sans exécutant. Visibles exprès ————————————————————————
@@ -432,18 +491,21 @@ CAPABILITIES: dict[str, Capability] = {
     "docker": Capability(
         app_id="docker", intent="vps.docker", owner=Owner.HERMES,
         risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
+        operation=Operation.EXECUTE,
         note="Aucun toolset docker chez Hermes — passerait par `terminal`, à trancher.",
         triggers=("docker", "conteneur", "containers"),
     ),
     "storage": Capability(
         app_id="storage", intent="vps.storage", owner=Owner.HERMES,
         risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
+        operation=Operation.EXECUTE,
         note="Idem docker.",
         triggers=("stockage", "disque", "volume"),
     ),
     "code": Capability(
         app_id="code", intent="vps.code", owner=Owner.DEVICE,
         risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
+        operation=Operation.WRITE,
         note="Éditeur distant — relève d'un agent d'appareil.",
         triggers=("code", "vscode", "éditeur"),
     ),

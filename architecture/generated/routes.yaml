@@ -30,73 +30,78 @@ routes:
     error_type: core_error
     handler_existe: true
     source: "core/jarvis_core/__init__.py:L99"
+  - message: device
+    core_handler: handle_device
+    error_type: device_error
+    handler_existe: true
+    source: "core/jarvis_core/__init__.py:L102"
   - message: preferences
     core_handler: handle_preferences
     error_type: preferences_result
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L100"
+    source: "core/jarvis_core/__init__.py:L103"
   - message: memory
     core_handler: handle_memory
     error_type: memory_result
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L101"
+    source: "core/jarvis_core/__init__.py:L104"
   - message: voice
     core_handler: handle_voice
     error_type: voice_error
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L102"
+    source: "core/jarvis_core/__init__.py:L105"
   - message: agent_reach
     core_handler: handle_agent_reach
     error_type: agent_reach_status
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L103"
+    source: "core/jarvis_core/__init__.py:L106"
   - message: supervisor
     core_handler: handle_supervisor
     error_type: supervisor_status
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L104"
+    source: "core/jarvis_core/__init__.py:L107"
   - message: usage
     core_handler: handle_usage
     error_type: usage_result
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L105"
+    source: "core/jarvis_core/__init__.py:L108"
   - message: boot
     core_handler: handle_boot
     error_type: core_error
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L109"
+    source: "core/jarvis_core/__init__.py:L112"
   - message: surface
     core_handler: handle_surface
     error_type: surface_error
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L110"
+    source: "core/jarvis_core/__init__.py:L113"
   - message: user_event
     core_handler: handle_chat
     error_type: core_error
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L111"
+    source: "core/jarvis_core/__init__.py:L114"
   - message: stop_run
     core_handler: handle_stop_run
     error_type: core_error
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L112"
+    source: "core/jarvis_core/__init__.py:L115"
   - message: mission_dev
     core_handler: handle_mission_dev
     error_type: mission_dev_error
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L113"
+    source: "core/jarvis_core/__init__.py:L116"
   - message: save_hud_preferences
     core_handler: handle_preferences
     error_type: preferences_result
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L115"
+    source: "core/jarvis_core/__init__.py:L118"
   - message: save_gesture_profile
     core_handler: handle_preferences
     error_type: preferences_result
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L125"
+    source: "core/jarvis_core/__init__.py:L128"
   - message: holomat_calibrate_start
     core_handler: handle_holomat
     error_type: holomat_error
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L135"
+    source: "core/jarvis_core/__init__.py:L138"

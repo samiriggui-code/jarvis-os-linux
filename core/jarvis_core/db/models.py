@@ -50,6 +50,35 @@ class UsageEventRow(Base):
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
+class ToolEventRow(Base):
+    """Journal des tool calls — Core (déterministe) et délégués (Hermes).
+
+    Distinct de `UsageEventRow` : celui-là mesure des complétions LLM (tokens,
+    coût) ; celui-ci mesure des actions (quelle intention, par qui, avec quel
+    résultat). Voir `tool_events.py`.
+    """
+    __tablename__ = "tool_events"
+    __table_args__ = (
+        Index("ix_tool_events_created", "created_at"),
+        Index("ix_tool_events_intent", "intent"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    intent: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    owner: Mapped[str] = mapped_column(String(16), nullable=False)
+    toolset: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    risk: Mapped[int] = mapped_column(Integer, nullable=False)
+    operation: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    role: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    device_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class ProjectRow(Base):
     """Mémoire projet Mission Control DEV (§15.4 Phase A)."""
     __tablename__ = "projects"

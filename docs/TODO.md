@@ -8,7 +8,10 @@
 
 - [ ] Rétablir Freebox WAN **41223** (Pi) — secours actuel `jarvis-pi-via-nuc`
 - [ ] Chrome / Spotify Freebox si besoin (TV Bro OK pour le web)
-- [ ] Hard refresh HUD + autoriser cam/micro sur origine HTTPS LAN
+- [x] **Device 1** — HUD satellites dans `GET /v1/devices` (UUID + caps) — validé 2026-08-07
+- [x] **Device 2** — Pi salon → DeviceRegistry (`pi-salon` + 5 caps) — validé 2026-08-07
+- [ ] Retester **auth faciale** HUD après restart Core (FaceEngine prêt)
+- [ ] **Capability Router** — étude après Device 2
 - [ ] **Bascule accès LAN** — `architecture/JARVIS-Acces-Reseau.md` §6
 - [ ] **P3 HUD** — `compose` depuis le navigateur
 - [ ] Zigbee / vraies commandes HA (aujourd’hui surtout monitoring)
@@ -23,9 +26,12 @@
 - [ ] Inventaire HA au-delà des ping LAN
 
 ### Session 3 — HUD / Agentic UI
+- [x] Preuve Surface Decision : `monitor` → SystemMonitor (Core)
+- [ ] Étendre règles Surface Decision (autres app_id)
 - [ ] Câbler exécuteurs SOON (docker/storage/devices/missions/network)
 - [ ] Câbler `hud/src/agentic/composer.ts` → WS `surface/compose`
 - [ ] Valider `ApprovalCard` + exécution bout en bout
+- [ ] Timeline HUD consommant `tool_event` (Phase 3 UI)
 
 ### Session 4 — Code ciblé
 - [ ] Appel vocal → Hermes (après P3 HUD)

@@ -261,6 +261,11 @@ class FaceEngine:
             }
 
         matches = self._load_candidates(username=username, user_id=user_id)
+        # Filtre username/user_id trop strict (dernier login HUD, flag DB
+        # face_enrolled désynchronisé) → aucun candidat alors qu'un profil
+        # existe. Retombe sur tous les embeddings disque.
+        if not matches and (username or user_id):
+            matches = self._load_candidates(username=None, user_id=None)
         if not matches:
             return {
                 "type": "FACE_FAILED",
@@ -346,12 +351,24 @@ class FaceEngine:
                     if emb is not None:
                         out.append((u.id, u.username, emb))
             else:
+                # Inventaire : tout utilisateur avec un embedding disque valide.
+                # Ne pas exiger face_enrolled (flag DB souvent en retard sur le
+                # fichier face_profile après enroll / migration).
                 for u in users.list_users():
-                    if not u.face_enrolled:
-                        continue
                     emb = self._load_embedding(u.id)
                     if emb is not None:
                         out.append((u.id, u.username, emb))
+                # Profils orphelins (dossier users/<id>/face_profile sans row) :
+                # rare, mais on ne bloque pas l'auth pour autant.
+                if not out:
+                    root = default_data_dir() / "users"
+                    if root.is_dir():
+                        for d in root.iterdir():
+                            if not d.is_dir():
+                                continue
+                            emb = self._load_embedding(d.name)
+                            if emb is not None:
+                                out.append((d.name, d.name, emb))
         finally:
             users.close()
         return out

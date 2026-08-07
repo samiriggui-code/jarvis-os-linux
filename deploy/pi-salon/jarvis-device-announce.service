@@ -1,0 +1,27 @@
+[Unit]
+Description=JARVIS Pi device announcer (Device 2 — discovery only)
+After=network-online.target jarvis-ear.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/jarvis/pi-salon
+Environment=JARVIS_DEVICE_ID=pi-salon
+Environment=JARVIS_DEVICE_TYPE=raspberry_pi
+Environment=JARVIS_RUNTIME_KIND=jarvis_satellite
+Environment=JARVIS_DEVICE_LABEL=Salon
+Environment=JARVIS_CORE_DEVICES_URL=http://192.168.1.37:8080/v1/devices
+Environment=JARVIS_CORE_SALON_URL=http://192.168.1.37:8080
+Environment=JARVIS_HA_URL=http://127.0.0.1:8123
+Environment=JARVIS_EAR_HEALTH=http://127.0.0.1:8767/health
+Environment=JARVIS_CAM_URL=http://127.0.0.1:8768/
+Environment=JARVIS_PLAYER_ADB=192.168.1.49:5555
+Environment=JARVIS_DEVICE_HEARTBEAT_S=45
+ExecStart=/usr/bin/python3 /opt/jarvis/pi-salon/jarvis_device_announce.py
+Restart=always
+RestartSec=8
+
+[Install]
+WantedBy=multi-user.target

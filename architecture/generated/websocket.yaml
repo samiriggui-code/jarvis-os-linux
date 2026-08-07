@@ -74,6 +74,21 @@ evenements_emis:
   - type: core_error
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
+  - type: device_capabilities_ack
+    sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
+  - type: device_error
+    sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
+  - type: device_heartbeat_ack
+    sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
+  - type: device_list
+    sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
+  - type: device_registered
+    sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
   - type: face_enroll_commit_result
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
@@ -110,6 +125,9 @@ evenements_emis:
   - type: preferences_result
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
+  - type: raspberry_pi
+    sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
   - type: supervisor_status
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
@@ -122,6 +140,9 @@ evenements_emis:
   - type: surface_result
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: true
+  - type: tool_event
+    sources: [core/jarvis_core/__init__.py]
+    ecoute_par_le_hud: false
   - type: tts_audio
     sources: [core/jarvis_core/__init__.py, core/jarvis_core/voice/cache.py, core/jarvis_core/voice/manager.py]
     ecoute_par_le_hud: true
@@ -170,12 +191,22 @@ signaux_bus:
     sources: [core/jarvis_core/gestures.py]
   - signal: SYSTEM_METRICS
     sources: [core/jarvis_core/metrics.py]
+  - signal: completed
+    sources: [core/jarvis_core/__init__.py]
   - signal: component_state
     sources: [core/jarvis_core/supervisor.py]
+  - signal: failed
+    sources: [core/jarvis_core/__init__.py]
+  - signal: not_executable
+    sources: [core/jarvis_core/__init__.py]
+  - signal: started
+    sources: [core/jarvis_core/__init__.py]
 hud_envoie:
   - type: auth
     route_core_existe: true
   - type: boot
+    route_core_existe: true
+  - type: device
     route_core_existe: true
   - type: holomat
     route_core_existe: true

@@ -69,6 +69,11 @@ class Step:
     timeout_s: float = 8.0
     #: Événement de repli si le signal n'arrive jamais.
     on_timeout: str | None = None
+    #: Si vrai : un timeout joue `on_timeout` puis RE-ATTEND le même signal,
+    #: sans tuer la branche. Utile pour `face.presence` : la caméra navigateur
+    #: peut démarrer après la séquence ; un échec définitif ici bloquait tout
+    #: le reste de la narration face alors que le scan HUD continue.
+    soft_timeout: bool = False
     #: Phrase de patience jouée pendant l'attente, aux instants
     #: `WAIT_RELANCES_S`. Ne remplace pas la ligne d'étape : quand le signal
     #: arrive, l'annonce prévue sort et la séquence reprend où elle en était.
@@ -203,8 +208,8 @@ AUTH = Sequence(
         Step("environment_scan", when="face_ready", branch="face", announce="never"),
         # « Présence humaine détectée » n'est dite QU'APRÈS la détection réelle.
         Step("presence_detected", awaits="face.presence", timeout_s=45.0,
-             on_timeout="face_scan_prompt", when="face_ready", branch="face",
-             announce="after"),
+             on_timeout="face_scan_prompt", soft_timeout=True,
+             when="face_ready", branch="face", announce="after"),
         Step("face_scan_active", awaits="face.scanning", timeout_s=10.0,
              when="face_ready", branch="face", announce="after"),
         Step("face_embedding", when="face_ready", branch="face"),
@@ -676,6 +681,31 @@ class SequenceRunner:
                 return False
 
             ok = outcome == "ok"
+
+            # ── Timeout souple (présence caméra, etc.) ──────────────────
+            # La caméra est côté navigateur : elle peut arriver après le
+            # démarrage de la séquence. On invite, puis on reprend l'attente
+            # sans marquer la branche en échec.
+            while (
+                not ok
+                and step.soft_timeout
+                and step.on_timeout
+                and not self._abort
+            ):
+                logger.info(
+                    "attente soft « %s » — délai dépassé, relance",
+                    step.awaits,
+                )
+                await self._say(step.on_timeout, **say_kwargs)
+                self.signal_clear(step.awaits)
+                if step.fails_on:
+                    self.signal_clear(step.fails_on)
+                outcome = await self._wait_outcome(
+                    step.awaits, step.fails_on, step.timeout_s
+                )
+                if outcome == "abort" or self._abort:
+                    return False
+                ok = outcome == "ok"
 
             # ── Seconde chance ──────────────────────────────────────────
             # Une brique qui n'a pas répondu n'est pas encore perdue : on

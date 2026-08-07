@@ -21,7 +21,13 @@ import {
 } from '../../engine/experienceOrchestrator';
 import { authLogin, getLastUsername } from '../../bridge/authClient';
 import { getCoreClient } from '../../bridge/coreClient';
-import { ensureCameraAndMic, ensureMic, getMediaState, withCamera } from '../../bridge/mediaDevices';
+import {
+  ensureCameraAndMic,
+  ensureMic,
+  getCameraStream,
+  getMediaState,
+  withCamera,
+} from '../../bridge/mediaDevices';
 import { isCoreOnline } from '../CoreBridge';
 import { DEV_BUILD, isAuthBypassEnabled } from '../../bridge/devAuthBypass';
 import { isBootAlreadyOk, markBootOk } from './SystemBootGate';
@@ -117,6 +123,10 @@ export function AuthScene({ onRequestEnroll }: Props) {
   const [bootBlocked, setBootBlocked] = useState<string | null>(null);
   /** Permissions caméra + micro obtenues (gesture utilisateur ou auto). */
   const [mediaArmed, setMediaArmed] = useState(false);
+  /** Caméra live — le bouton « Autoriser » reste tant que faux (micro seul ne suffit pas). */
+  const [cameraGranted, setCameraGranted] = useState(false);
+  /** Remonte FaceCamView après grant (réattache le flux). */
+  const [camEpoch, setCamEpoch] = useState(0);
   const [mediaHint, setMediaHint] = useState('');
   const [offerEnroll, setOfferEnroll] = useState(false);
   const [enrollHint, setEnrollHint] = useState('');
@@ -132,22 +142,43 @@ export function AuthScene({ onRequestEnroll }: Props) {
   const faceUserRef      = useRef<{ user_id?: string; username?: string; confidence: number } | null>(null);
   const unlockRef        = useRef(unlockSession);
   const coreAuthRef      = useRef(coreAuth);
+  /** Attentes `no_camera` — résolues au grant (évite de marteler getUserMedia). */
+  const camWaitersRef    = useRef<Array<(ok: boolean) => void>>([]);
   unlockRef.current      = unlockSession;
   coreAuthRef.current    = coreAuth;
+
+  const resolveCamWaiters = useCallback((ok: boolean) => {
+    const waiters = camWaitersRef.current.splice(0, camWaitersRef.current.length);
+    waiters.forEach((w) => w(ok));
+  }, []);
+
+  const waitForCameraGrant = useCallback((): Promise<boolean> => {
+    const live = getCameraStream()?.getVideoTracks().some((t) => t.readyState === 'live');
+    if (getMediaState().camera === 'granted' && live) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      camWaitersRef.current.push(resolve);
+    });
+  }, []);
 
   /** Login User Manager puis unlock HUD — plus de unlock local seul. */
   const armMedia = useCallback(async () => {
     setMediaHint('Demande caméra + micro…');
     const s = await ensureCameraAndMic();
-    const camOk = s.camera === 'granted';
+    const camOk = s.camera === 'granted'
+      && Boolean(getCameraStream()?.getVideoTracks().some((t) => t.readyState === 'live'));
     const micOk = s.mic === 'granted';
     setMediaArmed(camOk || micOk);
+    setCameraGranted(camOk);
+    if (camOk) {
+      setCamEpoch((e) => e + 1);
+      resolveCamWaiters(true);
+    }
     if (camOk && micOk) setMediaHint('');
     else if (!camOk && !micOk) setMediaHint('Caméra et micro refusés — autorisez les permissions');
-    else if (!camOk) setMediaHint('Caméra refusée — micro OK');
+    else if (!camOk) setMediaHint('Caméra refusée — autorisez-la puis réessayez');
     else setMediaHint('Micro refusé — caméra OK');
     return s;
-  }, []);
+  }, [resolveCamWaiters]);
 
   const coreUnlock = useCallback(async (meta: { method: string; confidence?: number; user_id?: string; username?: string }) => {
     try {
@@ -356,21 +387,11 @@ export function AuthScene({ onRequestEnroll }: Props) {
             .filter(c => c.status === 'pending')
             .forEach(c => setCheckStatus(c.component, 'skipped'));
 
-          // Le boot est fini : on demande au Core de NARRER l'identification.
-          //
-          // ⚠ Sans ce message, la séquence `auth` de `sequences.py` ne se
-          // lançait jamais. Le Core l'attendait derrière `action:
-          // "sequence_start"` et personne ne l'envoyait : la caméra s'allumait,
-          // scannait, et JARVIS ne disait pas un mot. On n'envoie évidemment
-          // rien si le démarrage a échoué — annoncer une identification
-          // par-dessus une panne serait la contradiction d'origine.
-          if (data.ok !== false) {
-            try {
-              client.send({ type: 'auth', action: 'sequence_start', sequence: 'auth' });
-            } catch {
-              // Core injoignable : le HUD continue, l'écran restera muet.
-            }
-          }
+          // Le boot est fini. On N'envoie PAS encore `sequence_start` auth :
+          // la caméra HUD ne s'ouvre qu'à `face_auth_flow`. Lancer la séquence
+          // ici faisait attendre `face.presence` 45 s à vide, tuait la branche
+          // face, puis annonçait « Je n'ai personne devant le capteur » alors
+          // que le scan n'avait même pas commencé.
           finish(data.ok === false ? 'DÉMARRAGE INTERROMPU' : null);
         }
       });
@@ -442,9 +463,10 @@ export function AuthScene({ onRequestEnroll }: Props) {
         hudSubtext: 'Initialisation capteurs',
         orbState: 'processing' as const,
         avatarMode: 'scanning' as const,
-        onEnter: () => {
-          void armMedia();
-        },
+        // Pas d'armMedia() ici : waitForAsync() l'appelle déjà, attendu, juste
+        // en dessous. Un second appel non attendu ici court-circuitait le
+        // premier — deux getUserMedia() concurrents sur le même périphérique,
+        // cause plausible de « Timeout starting video source ».
         waitForAsync: async () => {
           const orch = orchRef.current;
           if (!orch) return;
@@ -456,78 +478,127 @@ export function AuthScene({ onRequestEnroll }: Props) {
 
           await armMedia();
 
+          // Caméra armée (ou refusée) : maintenant seulement on démarre la
+          // narration Core. Les frames `face_frame` partent juste après.
+          if (isCoreOnline() && !faceFailDemo) {
+            try {
+              getCoreClient().send({ type: 'auth', action: 'sequence_start', sequence: 'auth' });
+            } catch {
+              // Core injoignable : le HUD continue, l'écran restera muet.
+            }
+          }
+
           const useLive = isCoreOnline() && !faceFailDemo;
           let ok = false;
           let failReason = '';
           let failHudSubtext = '';
 
-          if (useLive) {
-            const result = await runFaceVerifyLive({
-              username: getLastUsername() || undefined,
-              isAlive: () => aliveRef.current,
-              speak: async (text) => {
-                orch.patchHud({ isSpeaking: true, avatarMode: 'speaking' });
-                if (ttsEnabled) await speakDev(text, { rate: 0.92, pitch: 0.85 });
-                orch.patchHud({ isSpeaking: false, avatarMode: 'scanning' });
-              },
-              patchHud: (hudText, hudSubtext) => {
-                orch.patchHud({ hudText, hudSubtext, orbState: 'processing', avatarMode: 'scanning' });
-              },
-              patchFace: (update) => {
-                setFaceHologram(prev => {
-                  const next = { ...prev, ...update };
-                  if (update.progress !== undefined) setScanProgress(update.progress);
-                  return next;
-                });
-              },
-            });
-            ok = result.ok;
-            if (result.ok) {
-              faceUserRef.current = {
-                user_id: result.user_id,
-                username: result.username,
-                confidence: result.confidence,
-              };
-            } else {
+          // Soft-fail (pas de caméra / pas de visage / timeout) → réessai,
+          // comme LockScene. Un seul échec ne doit pas coller l'écran sur
+          // AUTH LOCK tant que l'utilisateur peut encore s'approcher.
+          while (aliveRef.current && !ok) {
+            if (useLive) {
+              const result = await runFaceVerifyLive({
+                // Pas de filtre last-username : un mauvais souvenir localStorage
+                // montrait « no_profile » alors qu'un autre visage était enrôlé.
+                isAlive: () => aliveRef.current,
+                speak: async (text) => {
+                  orch.patchHud({ isSpeaking: true, avatarMode: 'speaking' });
+                  if (ttsEnabled) await speakDev(text, { rate: 0.92, pitch: 0.85 });
+                  orch.patchHud({ isSpeaking: false, avatarMode: 'scanning' });
+                },
+                patchHud: (hudText, hudSubtext) => {
+                  orch.patchHud({ hudText, hudSubtext, orbState: 'processing', avatarMode: 'scanning' });
+                },
+                patchFace: (update) => {
+                  setFaceHologram(prev => {
+                    const next = { ...prev, ...update };
+                    if (update.progress !== undefined) setScanProgress(update.progress);
+                    return next;
+                  });
+                },
+              });
+              if (result.ok) {
+                ok = true;
+                faceUserRef.current = {
+                  user_id: result.user_id,
+                  username: result.username,
+                  confidence: result.confidence,
+                };
+                break;
+              }
               failReason = result.reason || '';
               failHudSubtext = result.hudSubtext || '';
-            }
-          } else {
-            ok = await runFaceAuthFlow({
-              ttsEnabled,
-              simulateFailOnce: faceFailDemo,
-              maxRetries: faceFailDemo ? 2 : 1,
-              recoverySeconds: faceFailDemo ? 8 : 0,
-              isAlive: () => aliveRef.current,
-              speak: async (text) => {
-                orch.patchHud({ isSpeaking: true, avatarMode: 'speaking' });
-                if (ttsEnabled) await speakDev(text, { rate: 0.92, pitch: 0.85 });
-                else await new Promise(r => setTimeout(r, Math.max(700, text.split(' ').length * 110)));
-                orch.patchHud({ isSpeaking: false, avatarMode: 'scanning' });
-              },
-              patchHud: (hudText, hudSubtext, orbState = 'processing') => {
+              const soft =
+                failReason === 'no_face' ||
+                failReason === 'timeout' ||
+                failReason === 'no_camera';
+              if (soft) {
                 orch.patchHud({
-                  hudText,
-                  hudSubtext,
-                  orbState,
-                  avatarMode: orbState === 'listening' ? 'listening' : 'scanning',
+                  hudText: failReason === 'no_camera' ? 'CAMÉRA REQUISE' : 'PRÉSENCE REQUISE',
+                  hudSubtext:
+                    failReason === 'no_camera'
+                      ? (getMediaState().cameraError || 'Autorisez la caméra dans le navigateur')
+                      : 'Placez-vous face à la caméra',
+                  orbState: 'listening',
+                  avatarMode: 'listening',
                 });
-              },
-              patchFace: (update) => {
-                setFaceHologram(prev => {
-                  const next = { ...prev, ...update };
-                  if (update.progress !== undefined) setScanProgress(update.progress);
-                  return next;
-                });
-              },
-            });
+                if (failReason === 'no_camera') {
+                  // Ne pas marteler getUserMedia (bloque le re-prompt Chrome).
+                  // Attendre le clic « Autoriser » / grant réel.
+                  setMediaHint('Autorisez la caméra, puis cliquez le bouton');
+                  setCameraGranted(false);
+                  const granted = await waitForCameraGrant();
+                  if (!aliveRef.current || !granted) break;
+                  continue;
+                }
+                await new Promise(r => setTimeout(r, 900));
+                continue;
+              }
+              // Échec dur (inconnu / no_profile) : sortir de la boucle.
+              break;
+            } else {
+              ok = await runFaceAuthFlow({
+                ttsEnabled,
+                simulateFailOnce: faceFailDemo,
+                maxRetries: faceFailDemo ? 2 : 1,
+                recoverySeconds: faceFailDemo ? 8 : 0,
+                isAlive: () => aliveRef.current,
+                speak: async (text) => {
+                  orch.patchHud({ isSpeaking: true, avatarMode: 'speaking' });
+                  if (ttsEnabled) await speakDev(text, { rate: 0.92, pitch: 0.85 });
+                  else await new Promise(r => setTimeout(r, Math.max(700, text.split(' ').length * 110)));
+                  orch.patchHud({ isSpeaking: false, avatarMode: 'scanning' });
+                },
+                patchHud: (hudText, hudSubtext, orbState = 'processing') => {
+                  orch.patchHud({
+                    hudText,
+                    hudSubtext,
+                    orbState,
+                    avatarMode: orbState === 'listening' ? 'listening' : 'scanning',
+                  });
+                },
+                patchFace: (update) => {
+                  setFaceHologram(prev => {
+                    const next = { ...prev, ...update };
+                    if (update.progress !== undefined) setScanProgress(update.progress);
+                    return next;
+                  });
+                },
+              });
+              break;
+            }
           }
 
           if (!ok) {
-            const canOfferEnroll = failReason === 'no_profile' && coreAuthRef.current.userCount > 0;
+            const canOfferEnroll = failReason === 'no_profile';
             if (canOfferEnroll) {
               setOfferEnroll(true);
-              setEnrollHint('Profil absent sur ce Core. Validation admin requise avant enrôlement.');
+              setEnrollHint(
+                coreAuthRef.current.userCount > 0
+                  ? 'Profil facial absent ou non reconnu. Validation admin requise avant enrôlement.'
+                  : 'Aucun profil facial sur ce Core — premier enrôlement.',
+              );
             }
             // Pas de throw : on reste sur face — pas de PIN de secours.
             orch.patchHud({
@@ -617,6 +688,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
 
     return () => {
       aliveRef.current = false;
+      resolveCamWaiters(false);
       unsub();
       orch.stop();
       orchRef.current = null;
@@ -757,8 +829,9 @@ export function AuthScene({ onRequestEnroll }: Props) {
             <div className="flex items-end justify-center w-full shrink-0">
               <div className="relative w-full flex justify-center" style={{ maxHeight: '40dvh' }}>
                 <FaceCamView
+                  key={`face-cam-${camEpoch}`}
                   progress={scanProgress}
-                  active={inFaceFlow || scanProgress > 0 || mediaArmed}
+                  active={inFaceFlow || scanProgress > 0 || mediaArmed || cameraGranted}
                   label={factors.face ? 'HOLOMAT · OK' : 'HOLOMAT · CAM'}
                 />
                 {(inFaceFlow || forceHolo) && (
@@ -783,7 +856,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
               </div>
             </div>
 
-            {!mediaArmed && (
+            {!cameraGranted && (
               <button
                 type="button"
                 onClick={() => void armMedia()}

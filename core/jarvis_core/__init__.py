@@ -97,6 +97,9 @@ ROUTES: dict[str, Route] = {
     # le reste. À 30 fps, répondre par frame doublerait le trafic pour rien.
     "gesture": Route("handle_gesture", "core_error"),
     "peripheral": Route("handle_peripheral", "core_error"),
+    # Device Capability Discovery (Phase 0) — annonce / heartbeat / list.
+    # Toute la logique vit dans `devices.DeviceRegistry`.
+    "device": Route("handle_device", "device_error"),
     "preferences": Route("handle_preferences", "preferences_result", {"ok": False}),
     "memory": Route("handle_memory", "memory_result", {"ok": False}),
     "voice": Route("handle_voice", "voice_error"),
@@ -190,6 +193,8 @@ class Orchestrator:
         from .hermes import HermesBridge
 
         self.hermes = HermesBridge()
+        # Phase 2 : cycle de vie outils Hermes → bus / WS / journal (pas de HUD dédié encore).
+        self.hermes.on_event = self._on_hermes_agent_event
         # Domotique — adaptateur DIRECT, sans agent ni modèle. Le contrat écrit
         # `Core → Home Assistant Adapter → HA API` ; le §11 du cahier des charges
         # exige que la maison réponde même sans LLM. Passer par Hermes violait les
@@ -212,6 +217,12 @@ class Orchestrator:
         # sans exécutant reste refusée bruyamment — c'est l'invariant, pas un
         # défaut à masquer.
         self._register_capabilities()
+        # Device Capability Discovery (Phase 0) — registre mémoire.
+        # IntentCapability inchangé ; HostCapability vit dans devices.py.
+        from .devices import DeviceRegistry
+
+        self.devices = DeviceRegistry()
+        self.devices.register_local_core()
         # Auth / User Manager — optionnel, ne doit jamais empêcher le boot Core
         self.auth = None
         try:
@@ -489,13 +500,22 @@ class Orchestrator:
         self._start_salon_ingest()
 
     def _start_salon_ingest(self) -> None:
-        """HTTP Pi → Core (loopback :8766, nginx proxifie `/v1/salon/`)."""
+        """HTTP Pi → Core (loopback :8766, nginx proxifie `/v1/salon/` + `/v1/devices/`)."""
         try:
             from .salon_ingest import start_salon_ingest
 
-            start_salon_ingest(asyncio.get_running_loop(), self.handle_salon_utterance)
+            start_salon_ingest(
+                asyncio.get_running_loop(),
+                self.handle_salon_utterance,
+                devices=self.devices,
+            )
         except Exception:  # noqa: BLE001
             logger.warning("salon ingest non démarré", exc_info=True)
+
+    async def handle_device(self, ws: Any, data: dict[str, Any]) -> None:
+        """WS ``type=device`` — délègue au DeviceRegistry (discovery only)."""
+        result = self.devices.handle_message(data if isinstance(data, dict) else {})
+        await ws.send(json.dumps(result))
 
     def _register_components(self) -> None:
         """Ce que le superviseur surveille. Une brique absente n'est pas
@@ -2107,16 +2127,55 @@ class Orchestrator:
         le mode de panne que ce projet paie depuis le début : déclaré, jamais
         appelé, et rien ne le signale.
         """
+        from .capabilities import for_intent
         from .surface import IntentNotExecutable
+        from .tool_events import ToolEvent, record_tool_event
 
         base: dict[str, Any] = {"type": "surface_result", "intent": intent}
         if granted is not None:
             base["granted"] = granted
 
+        # Observabilité intention — coarse (started/completed de l'IntentExecutor).
+        # Le détail tool.started/completed arrive via Hermes SSE → `_on_hermes_agent_event`
+        # (Phase 2 Tool Bus), pas depuis ce site.
+        cap = for_intent(intent)
+        role = self._session_role()
+        user_id = self._session_user_id()
+        started = time.monotonic()
+
+        # `device_id` : la seule machine connue aujourd'hui par `Owner`, pas un
+        # routage — `homeassistant.py`/`plex.py` (CORE) tournent où tourne ce
+        # process ; Hermes (`hermes-agent`) tourne sur le NUC (déploiement
+        # actuel, cf. `deploy/systemd/jarvis-hermes.service`). Aucun Device
+        # Manager ne choisit encore entre plusieurs machines pour une même
+        # capacité — voir `capabilities.py` pour la distinction IntentCapability
+        # (ceci) / future HostCapability (caméra, micro... par appareil).
+        _DEVICE_BY_OWNER = {"core": "core", "hermes": "nuc"}
+
+        async def _emit(stage: str, *, reason: str | None = None, duration_ms: float | None = None) -> None:
+            fields = dict(
+                intent=intent,
+                stage=stage,
+                owner=cap.owner.value if cap else "?",
+                toolset=cap.toolset if cap else None,
+                risk=int(cap.risk) if cap else 0,
+                operation=cap.operation.value if cap else None,
+                role=role,
+                user_id=user_id,
+                duration_ms=duration_ms,
+                reason=reason,
+                device_id=_DEVICE_BY_OWNER.get(cap.owner.value) if cap else None,
+            )
+            await self.broadcast({"type": "tool_event", **fields})
+            record_tool_event(ToolEvent(**fields))
+
+        await _emit("started")
+
         try:
             result = await self.intents.execute(intent, payload)
         except IntentNotExecutable as exc:
             logger.error("intention NON EXÉCUTÉE · %s — %s", intent, exc)
+            await _emit("not_executable", reason=str(exc), duration_ms=(time.monotonic() - started) * 1000)
             await ws.send(
                 json.dumps(
                     {
@@ -2133,15 +2192,97 @@ class Orchestrator:
             # L'exécutant a échoué. C'est distinct de « pas d'exécutant » : là
             # quelqu'un a essayé et n'a pas pu, et le HUD doit pouvoir le dire.
             logger.exception("intention EN ÉCHEC · %s", intent)
+            await _emit("failed", reason=str(exc), duration_ms=(time.monotonic() - started) * 1000)
             await ws.send(
                 json.dumps({**base, "ok": False, "executed": True, "reason": f"échec : {exc}"})
             )
             return
 
         logger.info("intention EXÉCUTÉE · %s", intent)
+        await _emit("completed", duration_ms=(time.monotonic() - started) * 1000)
+        # Surface Decision (preuve verticale) : intent → surface_id → SURFACE_SNAPSHOT.
+        await self._maybe_publish_surface_decision(
+            intent=intent,
+            debounce_key=f"intent:{intent}",
+        )
         await ws.send(
             json.dumps({**base, "ok": True, "executed": True, "result": result if isinstance(result, (str, int, float, bool, list, dict, type(None))) else str(result)})
         )
+
+    async def _maybe_publish_surface_decision(
+        self,
+        *,
+        intent: str | None = None,
+        tool: str | None = None,
+        debounce_key: str | None = None,
+    ) -> bool:
+        """ToolEvent / intent → surface_id → open_space + SURFACE_SNAPSHOT.
+
+        Une seule règle initiale (`surface_decision.py`) : monitor → SystemMonitor.
+        Réutilise `validate_document` + `SurfaceBroadcaster.snapshot` (pas de nouveau
+        protocole WS). Retourne True si un snapshot a été diffusé.
+        """
+        from .surface import SurfaceRejected, validate_document
+        from .surface_decision import (
+            MONITOR_SURFACE_ID,
+            decide_surface_id,
+            monitor_document,
+        )
+
+        surface_id = decide_surface_id(intent=intent, tool=tool)
+        if surface_id is None:
+            return False
+
+        key = debounce_key or f"{intent or ''}:{tool or ''}:{surface_id}"
+        now = time.monotonic()
+        last_at: dict[str, float] = getattr(self, "_surface_decision_at", {})
+        if key in last_at and (now - last_at[key]) < 5.0:
+            return False
+
+        if surface_id != MONITOR_SURFACE_ID:
+            return False
+        document = monitor_document()
+
+        try:
+            permissions, context = self._surface_guards()
+            document = validate_document(
+                document,
+                self.surfaces.catalog,
+                permissions=permissions,
+                context=context,
+                bindings=self.bindings,
+            )
+        except SurfaceRejected as exc:
+            logger.warning("surface decision refusée · %s — %s", surface_id, exc)
+            return False
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("surface decision impossible · %s", exc)
+            return False
+
+        event = self.surfaces.snapshot(document)
+        await self.broadcast(
+            {
+                "type": "hud_command",
+                "action": "open_space",
+                "app": surface_id,
+            }
+        )
+        await asyncio.sleep(0.25)
+        await self.broadcast(event)
+        await asyncio.sleep(0.15)
+        again = self.surfaces.resnapshot()
+        if again is not None:
+            await self.broadcast(again)
+
+        last_at[key] = time.monotonic()
+        self._surface_decision_at = last_at
+        logger.info(
+            "surface decision · intent=%s tool=%s → surface_id=%s",
+            intent,
+            tool,
+            surface_id,
+        )
+        return True
 
     def _say_context(self) -> dict[str, Any]:
         """Qui écoute — rôle, adresse et prénom de la session active.
@@ -2168,6 +2309,44 @@ class Orchestrator:
         # négociée (cf. dialogues/README.md).
         ctx["address"] = getattr(user, "address", None) or "vous"
         return ctx
+
+    async def _on_hermes_agent_event(self, ev: Any) -> None:
+        """Hermes SSE → bus Core + broadcast WS + journal (filtre CoT déjà fait).
+
+        Ne touche pas au rendu HUD : le client peut ignorer `tool_event` jusqu'à
+        ce qu'une timeline soit branchée. Jamais de `reasoning` ici.
+        """
+        from .tool_events import AgentToolEvent, record_tool_event
+
+        if not isinstance(ev, AgentToolEvent):
+            return
+        payload = ev.to_payload()
+        self.emit("TOOL_EVENT", payload, source="hermes")
+        await self.broadcast({"type": "tool_event", **payload})
+        try:
+            from .capabilities import for_intent
+
+            cap = for_intent(ev.intent) if ev.intent else None
+            record_tool_event(
+                ev.to_journal(
+                    owner="hermes",
+                    risk=int(cap.risk) if cap else 0,
+                    operation=cap.operation.value if cap else None,
+                    role=self._session_role(),
+                    user_id=self._session_user_id(),
+                )
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("journal AgentToolEvent ignoré", exc_info=True)
+
+        # Surface Decision — uniquement sur démarrage tool/agent (évite double
+        # snapshot started+completed). Règle initiale : monitor / system.cpu.
+        if ev.event in ("tool.started", "agent.started"):
+            await self._maybe_publish_surface_decision(
+                intent=ev.intent,
+                tool=ev.tool,
+                debounce_key=f"hermes:{ev.run_id or ''}:{ev.intent or ''}:{ev.tool or ''}",
+            )
 
     async def broadcast(self, payload: dict[str, Any]) -> None:
         text = json.dumps(payload)
