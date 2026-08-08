@@ -43,6 +43,13 @@ if [[ -d "${ROOT}/assets" ]]; then
   rsync -av "${ROOT}/assets/" "${USER}@${HOST}:${OPT}/share/"
 fi
 
+# Agent Windows — téléchargement auto depuis le HUD (:8080/v1/agent/)
+if [[ -d "${ROOT}/deploy/windows-agent" ]]; then
+  rsync -av \
+    --exclude '__pycache__' --exclude 'data/' --exclude '.venv' \
+    "${ROOT}/deploy/windows-agent/" "${USER}@${HOST}:${OPT}/share/windows-agent/"
+fi
+
 # Configuration nginx du HUD. Poussée dans share/, PUIS installée dans
 # /etc/nginx/conf.d/ par bootstrap-nuc-tree.sh — pour que la version de
 # référence reste celle du dépôt et non une copie éditée sur le NUC.

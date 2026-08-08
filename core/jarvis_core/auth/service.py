@@ -37,6 +37,7 @@ import uuid
 from typing import Any
 
 from .models import AuthSession, Role, User
+from .session_store import ConnectionSessionStore
 from .user_manager import UserManager, verify_pin
 
 logger = logging.getLogger("jarvis.auth.service")
@@ -68,20 +69,47 @@ class AuthService:
         self._sessions: dict[str, AuthSession] = {}
         self._recovery_fails = 0
         self._recovery_locked_until = 0.0
-        # Une session HUD active par connexion logique (simplifié)
-        self.active: AuthSession | None = None
+        self._conn_sessions = ConnectionSessionStore()
         #: Attestations biométriques en attente : user_id → (péremption,
         #: confiance, méthode). Alimenté par le Core sur un vrai verdict,
         #: jamais par un message du HUD.
         self._proofs: dict[str, tuple[float, float, str]] = {}
 
+    @property
+    def active(self) -> AuthSession | None:
+        """Compat legacy — une seule connexion ou smokes sans connection_id."""
+        return self._conn_sessions.active_compat()
+
+    @active.setter
+    def active(self, session: AuthSession | None) -> None:
+        if session is None:
+            self._conn_sessions.pop(None)
+        else:
+            self._conn_sessions.set(session, connection_id=None)
+
+    def session_for(self, connection_id: str | None) -> AuthSession | None:
+        return self._conn_sessions.get(connection_id)
+
+    def _attach_session(
+        self, session: AuthSession, *, connection_id: str | None
+    ) -> None:
+        self._sessions[session.session_id] = session
+        self._conn_sessions.set(session, connection_id=connection_id)
+
+    def on_disconnect(self, connection_id: str) -> None:
+        sess = self._conn_sessions.drop_connection(connection_id)
+        if sess:
+            self._sessions.pop(sess.session_id, None)
+            self.users._audit(sess.user_id, "logout", method="ws_disconnect")
+            logger.info("Session fermée · disconnect · %s", sess.username)
+
     # ── attestation biométrique ──────────────────────────────────────────
 
     def attest_biometric(self, user_id: str, method: str, confidence: float) -> None:
-        """Le Core a reconnu quelqu'un. Seul appelant légitime : `handle_holomat`.
+        """Le Core a reconnu quelqu'un (phrase vocale / futur speaker-ID).
 
-        Ne PAS exposer cette méthode via une route WS : elle deviendrait le
-        contournement exact qu'elle est censée fermer.
+        Appelants légitimes : `handle_voice` (verify_phrase), éventuellement
+        Holomat hors auth. Ne PAS exposer via une route WS HUD libre.
         """
         self._proofs[user_id] = (time.time() + PROOF_TTL_S, confidence, method)
         logger.info("attestation biométrique · %s · %s (%.2f)", user_id, method, confidence)
@@ -103,9 +131,12 @@ class AuthService:
             uid: p for uid, p in self._proofs.items() if p[0] > maintenant
         }
 
-    def status(self) -> dict[str, Any]:
+    def status(self, *, connection_id: str | None = None) -> dict[str, Any]:
         base = self.users.status()
-        base["session"] = self.active.to_event() if self.active else None
+        sess = self.session_for(connection_id)
+        base["session"] = sess.to_event() if sess else None
+        if connection_id:
+            base["connection_id"] = connection_id
         return base
 
     def enroll(
@@ -133,6 +164,52 @@ class AuthService:
         )
         return {"ok": True, "user": user.to_public_dict(), "first_admin": user.role == Role.ADMIN and self.users.count_users() == 1}
 
+    def ensure_member(
+        self,
+        username: str,
+        *,
+        display_name: str | None = None,
+        pin: str | None = None,
+        role: str | None = None,
+    ) -> dict[str, Any]:
+        """Compte foyer pour enrôlement face — sans ordre imposé.
+
+        Utilisateur déjà connu → retourne son id (ré-enrôlement face).
+        Sinon → crée le profil (1er du système = ADMIN, ensuite USER/CHILD).
+        """
+        key = username.strip()
+        if not key:
+            return {"ok": False, "error": "username requis"}
+
+        existing = self.users.get_by_username(key)
+        if existing:
+            return {
+                "ok": True,
+                "user": existing.to_public_dict(),
+                "created": False,
+                "re_enroll": True,
+            }
+
+        if self.users.is_first_run():
+            enroll_role = Role.ADMIN
+        else:
+            requested = str(role or "USER").upper()
+            enroll_role = Role.CHILD if requested == "CHILD" else Role.USER
+
+        user = self.users.create_user(
+            key,
+            display_name=display_name,
+            role=enroll_role,
+            pin=pin,
+        )
+        return {
+            "ok": True,
+            "user": user.to_public_dict(),
+            "created": True,
+            "re_enroll": False,
+            "first_admin": user.role == Role.ADMIN and self.users.count_users() == 1,
+        }
+
     def login(
         self,
         *,
@@ -141,6 +218,7 @@ class AuthService:
         method: str = "stub",
         confidence: float = 0.0,
         pin: str | None = None,
+        connection_id: str | None = None,
     ) -> dict[str, Any]:
         user: User | None = None
         # Le PIN est le seul facteur que `login()` vérifie lui-même — et il le
@@ -205,14 +283,13 @@ class AuthService:
             admin_elevated=False,
             permissions=user.permissions(),
         )
-        self._sessions[session.session_id] = session
-        self.active = session
+        self._attach_session(session, connection_id=connection_id)
         self.users._audit(user.id, "login", method=method, detail=f"conf={confidence}")
-        logger.info("Login %s method=%s", user.username, method)
+        logger.info("Login %s method=%s conn=%s", user.username, method, connection_id or "global")
         return {"ok": True, "event": session.to_event()}
 
     def recovery_login(
-        self, pin: str, *, username: str | None = None
+        self, pin: str, *, username: str | None = None, connection_id: str | None = None
     ) -> dict[str, Any]:
         """Entrée de secours par PIN seul — **niveau 0** (docs/RECOVERY.md).
 
@@ -292,43 +369,53 @@ class AuthService:
             permissions=user.permissions(),
             expires_at=time.time() + RECOVERY_TTL_S,
         )
-        self._sessions[session.session_id] = session
-        self.active = session
+        self._attach_session(session, connection_id=connection_id)
         self.users._audit(user.id, "recovery_login", method="recovery_pin", detail=f"ttl={RECOVERY_TTL_S}s")
         logger.warning("SESSION DE SECOURS ouverte pour %s (TTL %s s)", user.username, RECOVERY_TTL_S)
         return {"ok": True, "event": session.to_event(), "line": "admin_mode"}
 
     def purge_expired(self) -> bool:
-        """Ferme la session active si son TTL de secours est dépassé."""
-        if self.active and self.active.expired:
-            self.users._audit(self.active.user_id, "recovery_expired", method="recovery_pin")
-            logger.info("Session de secours expirée — fermeture")
-            self._sessions.pop(self.active.session_id, None)
-            self.active = None
-            return True
-        return False
+        """Ferme les sessions dont le TTL de secours est dépassé."""
+        closed = False
+        for cid, sess in list(self._conn_sessions.all_bindings()):
+            if not sess.expired:
+                continue
+            self.users._audit(sess.user_id, "recovery_expired", method="recovery_pin")
+            self._sessions.pop(sess.session_id, None)
+            if cid:
+                self._conn_sessions.drop_connection(cid)
+            else:
+                self._conn_sessions.pop(None)
+            closed = True
+        if closed:
+            logger.info("Session(s) de secours expirée(s) — fermeture")
+        return closed
 
-    def elevate_admin(self, *, method: str = "stub") -> dict[str, Any]:
+    def elevate_admin(
+        self, *, method: str = "stub", connection_id: str | None = None
+    ) -> dict[str, Any]:
         """Re-auth élevée Dashboard — exige dashboard_access (ADMIN)."""
-        if not self.active:
+        sess = self.session_for(connection_id)
+        if not sess:
             return {"ok": False, "error": "aucune session HUD"}
-        user = self.users.get_by_id(self.active.user_id)
+        user = self.users.get_by_id(sess.user_id)
         if not user or not user.has("dashboard_access"):
             return {"ok": False, "error": "permission dashboard_access refusée"}
-        self.active.admin_elevated = True
-        self.active.method = f"{self.active.method}+{method}"
+        sess.admin_elevated = True
+        sess.method = f"{sess.method}+{method}"
         self.users._audit(user.id, "admin_elevate", method=method)
-        return {"ok": True, "event": self.active.to_event()}
+        return {"ok": True, "event": sess.to_event()}
 
-    def revoke_admin(self) -> dict[str, Any]:
-        if self.active:
-            self.active.admin_elevated = False
-            self.users._audit(self.active.user_id, "admin_revoke", method="ui")
-        return {"ok": True, "session": self.active.to_event() if self.active else None}
+    def revoke_admin(self, *, connection_id: str | None = None) -> dict[str, Any]:
+        sess = self.session_for(connection_id)
+        if sess:
+            sess.admin_elevated = False
+            self.users._audit(sess.user_id, "admin_revoke", method="ui")
+        return {"ok": True, "session": sess.to_event() if sess else None}
 
-    def logout(self) -> dict[str, Any]:
-        if self.active:
-            self.users._audit(self.active.user_id, "logout", method="lock")
-            self._sessions.pop(self.active.session_id, None)
-            self.active = None
+    def logout(self, *, connection_id: str | None = None) -> dict[str, Any]:
+        sess = self._conn_sessions.pop(connection_id)
+        if sess:
+            self.users._audit(sess.user_id, "logout", method="lock")
+            self._sessions.pop(sess.session_id, None)
         return {"ok": True}

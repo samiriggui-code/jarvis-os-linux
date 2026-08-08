@@ -48,7 +48,7 @@ async def main() -> int:
     check("`DESTRUCTIVE` reste autorisée (juste confirmée, pas bloquée)",
           destructive.allowed)
 
-    print("\n\033[1m2. `capabilities.py` — 21 capacités classées hors défaut READ\033[0m")
+    print("\n\033[1m2. `capabilities.py` — 23 capacités classées hors défaut READ\033[0m")
     check("`home` est WRITE (domotique — état modifié, réversible)",
           CAPABILITIES["home"].operation is Operation.WRITE)
     check("`terminal` est EXECUTE (lance une commande)",
@@ -56,7 +56,7 @@ async def main() -> int:
     check("`monitor` reste READ (défaut, consultation seule)",
           CAPABILITIES["monitor"].operation is Operation.READ)
     non_default = sum(1 for c in CAPABILITIES.values() if c.operation is not Operation.READ)
-    check("21 capacités explicitement non-READ", non_default == 21, f"trouvé {non_default}")
+    check("23 capacités explicitement non-READ", non_default == 23, f"trouvé {non_default}")
 
     print("\n\033[1m3. `tool_events.py` — journal non bloquant, sur DB isolée\033[0m")
     tmp_dir = Path(tempfile.mkdtemp(prefix="jarvis_tool_events_"))

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS Agent — Config</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #171a22;
+      --border: #2a3140;
+      --text: #e8ecf4;
+      --muted: #8b95a8;
+      --ok: #3dd68c;
+      --warn: #f5c542;
+      --err: #ff6b6b;
+      --accent: #5b9dff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: Segoe UI, system-ui, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.45;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; margin-bottom: 14px;
+    }
+    .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted); margin: 0 0 12px; }
+    .row { display: flex; justify-content: space-between; gap: 12px;
+      padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+    .row:last-child { border-bottom: none; }
+    .label { color: var(--muted); }
+    .val { text-align: right; word-break: break-all; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 600;
+    }
+    .badge.ok { background: rgba(61,214,140,.15); color: var(--ok); }
+    .badge.err { background: rgba(255,107,107,.15); color: var(--err); }
+    .badge.neutral { background: rgba(139,149,168,.15); color: var(--muted); }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin: 10px 0 4px; }
+    input[type=text], input[type=url] {
+      width: 100%; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid var(--border); background: #0c0e14; color: var(--text);
+    }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.9rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    button {
+      border: 1px solid var(--border); background: #1e2430; color: var(--text);
+      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.88rem;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #041018; font-weight: 600; }
+    button:hover { filter: brightness(1.08); }
+    .probe { font-size: 0.85rem; padding: 4px 0; }
+    .note { font-size: 0.8rem; color: var(--muted); margin-top: 16px; }
+    #toast { position: fixed; bottom: 16px; right: 16px; background: #1e2430;
+      border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px;
+      display: none; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>JARVIS Agent Windows</h1>
+    <p class="sub">Panneau config local · habillage glass à brancher plus tard sur le HUD</p>
+
+    <div class="card">
+      <h2>Connexion Core</h2>
+      <div class="row"><span class="label">Agent WebSocket</span><span class="val" id="wsConnected">—</span></div>
+      <div class="row"><span class="label">Core HTTP</span><span class="val" id="coreReach">—</span></div>
+      <div class="row"><span class="label">Mode réseau</span><span class="val" id="modeLabel">—</span></div>
+      <div class="row"><span class="label">URL WebSocket</span><span class="val" id="wsUrl">—</span></div>
+      <div class="row"><span class="label">HUD</span><span class="val" id="hudUrl">—</span></div>
+      <div class="row"><span class="label">Device ID</span><span class="val" id="deviceId">—</span></div>
+      <div class="row"><span class="label">Inventaire</span><span class="val" id="inventory">—</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Tests réseau</h2>
+      <div id="probes">Chargement…</div>
+      <div class="actions">
+        <button type="button" id="btnProbe">Retester</button>
+        <button type="button" class="primary" id="btnDiscover">Auto-découverte</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Paramètres</h2>
+      <label for="cfgWs">JARVIS_WS_URL</label>
+      <input type="url" id="cfgWs" placeholder="ws://192.168.1.37:8080/ws" />
+      <label for="cfgHud">JARVIS_HUD_URL</label>
+      <input type="url" id="cfgHud" placeholder="http://192.168.1.37:8080" />
+      <label for="cfgLabel">JARVIS_AGENT_LABEL</label>
+      <input type="text" id="cfgLabel" />
+      <label for="cfgNuc">JARVIS_NUC_HOST</label>
+      <input type="text" id="cfgNuc" placeholder="192.168.1.37" />
+      <div class="check">
+        <input type="checkbox" id="cfgForce" />
+        <label for="cfgForce" style="margin:0">Forcer l'URL (ignorer auto-découverte)</label>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" id="btnSave">Enregistrer</button>
+        <button type="button" id="btnOpenHud">Ouvrir HUD</button>
+      </div>
+      <p class="note">Config : <span id="configPath">—</span><br>
+      Redémarrez l'agent après changement (tâche planifiée ou relance manuelle).</p>
+    </div>
+  </div>
+  <div id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const toast = (msg) => {
+      const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 2800);
+    };
+    const badge = (ok, yes, no) => `<span class="badge ${ok ? 'ok' : 'err'}">${ok ? yes : no}</span>`;
+
+    function renderProbes(probes) {
+      $('probes').innerHTML = (probes || []).map(p =>
+        `<div class="probe">${badge(p.ok, 'OK', 'KO')} <strong>${p.mode}</strong> · ${p.probe_url}</div>`
+      ).join('') || '<span class="muted">Aucun probe</span>';
+    }
+
+    async function refresh() {
+      const r = await fetch('/api/status');
+      const d = await r.json();
+      $('wsConnected').innerHTML = badge(d.agent.connected, 'Connecté', 'Déconnecté');
+      $('coreReach').innerHTML = badge(d.core.reachable, 'Joignable', 'Injoignable');
+      $('modeLabel').textContent = d.core.mode_label + (d.core.forced ? ' (forcé)' : '');
+      $('wsUrl').textContent = d.core.ws_url || '—';
+      $('hudUrl').textContent = d.core.hud_url || '—';
+      $('deviceId').textContent = d.agent.device_id || '—';
+      $('inventory').textContent = d.inventory.total
+        ? `${d.inventory.launchable} lançables / ${d.inventory.total} apps`
+        : '—';
+      $('configPath').textContent = d.config_path || '—';
+      renderProbes(d.probes);
+
+      const c = d.config || {};
+      $('cfgWs').value = c.JARVIS_WS_URL || d.core.ws_url || '';
+      $('cfgHud').value = c.JARVIS_HUD_URL || d.core.hud_url || '';
+      $('cfgLabel').value = c.JARVIS_AGENT_LABEL || d.agent.label || '';
+      $('cfgNuc').value = c.JARVIS_NUC_HOST || '192.168.1.37';
+      $('cfgForce').checked = ['1','true','yes'].includes(String(c.JARVIS_WS_URL_FORCE || '').toLowerCase());
+    }
+
+    $('btnProbe').onclick = async () => {
+      const r = await fetch('/api/probe', { method: 'POST' });
+      const d = await r.json();
+      renderProbes(d.probes);
+      toast('Tests réseau terminés');
+    };
+
+    $('btnDiscover').onclick = async () => {
+      const r = await fetch('/api/discover', { method: 'POST' });
+      const d = await r.json();
+      if (!d.ok) { toast(d.error || 'Échec'); return; }
+      toast(`Core · ${d.mode_label}`);
+      await refresh();
+    };
+
+    $('btnSave').onclick = async () => {
+      const body = {
+        JARVIS_WS_URL: $('cfgWs').value.trim(),
+        JARVIS_HUD_URL: $('cfgHud').value.trim(),
+        JARVIS_AGENT_LABEL: $('cfgLabel').value.trim(),
+        JARVIS_NUC_HOST: $('cfgNuc').value.trim(),
+        JARVIS_WS_URL_FORCE: $('cfgForce').checked ? '1' : '0',
+      };
+      const r = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (d.ok) toast('Config enregistrée');
+      await refresh();
+    };
+
+    $('btnOpenHud').onclick = () => {
+      const url = $('cfgHud').value.trim();
+      if (url) window.open(url, '_blank');
+    };
+
+    refresh();
+    setInterval(refresh, 8000);
+
+    fetch('/api/probe', { method: 'POST' }).then(r => r.json()).then(d => renderProbes(d.probes));
+  </script>
+</body>
+</html>

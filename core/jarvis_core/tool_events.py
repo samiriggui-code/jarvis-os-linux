@@ -66,16 +66,7 @@ class ToolEvent:
     meta: dict[str, Any] = field(default_factory=dict)
 
 
-# ── Cycle de vie outil Hermes (Phase 2) ──────────────────────────────────────
-
-
-# Events Hermes qu'on ne relaie JAMAIS (CoT / tokens / internes).
-_DROP_HERMES_EVENTS = frozenset({
-    "reasoning.available",
-    "message.delta",
-    "approval.requested",
-    "approval.responded",
-})
+# ── Cycle de vie outil Hermes (Phase 2) — mapping dans hermes/events.py ─────
 
 
 @dataclass(frozen=True)
@@ -144,162 +135,147 @@ class AgentToolEvent:
         )
 
 
-def map_hermes_run_event(
-    raw: dict[str, Any],
+from .hermes.events import map_hermes_chat_progress, map_hermes_run_event  # noqa: E402
+
+
+# ── Timeline HUD (P2) — payload WS unifié ────────────────────────────────────
+
+_STAGE_TO_EVENT = {
+    "started": "intent.started",
+    "completed": "intent.completed",
+    "failed": "intent.failed",
+    "not_executable": "intent.failed",
+}
+
+_STAGE_TO_STATUS = {
+    "started": "running",
+    "completed": "success",
+    "failed": "failed",
+    "not_executable": "failed",
+}
+
+
+def timeline_payload(
+    event: ToolEvent,
     *,
-    intent: str | None = None,
-    toolset: str | None = None,
-    device_id: str | None = "nuc",
-) -> AgentToolEvent | None:
-    """Hermes `/v1/runs/{id}/events` → AgentToolEvent, ou None si filtré.
-
-    Ne relaie pas `reasoning.*`, deltas de tokens, ni outils internes (`_…`).
-    """
-    if not isinstance(raw, dict):
-        return None
-    kind = str(raw.get("event") or "").strip()
-    if not kind or kind in _DROP_HERMES_EVENTS:
-        return None
-    if kind.startswith("reasoning.") or kind.startswith("message."):
-        return None
-    if kind.startswith("subagent.") or kind.startswith("approval."):
-        return None
-
-    run_id = str(raw.get("run_id") or "") or None
-    tool = raw.get("tool")
-    tool_name = str(tool).strip() if tool else None
-    if tool_name and tool_name.startswith("_"):
-        return None
-
-    preview = raw.get("preview")
-    summary = str(preview).strip() if preview not in (None, "") else None
-
-    if kind == "tool.started":
-        return AgentToolEvent(
-            event="tool.started",
-            run_id=run_id,
-            tool=tool_name,
-            tool_call_id=_call_id(raw),
-            status="running",
-            summary=summary,
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    if kind == "tool.completed":
-        is_err = bool(raw.get("error") or raw.get("is_error"))
-        duration = raw.get("duration")
-        duration_ms = float(duration) * 1000.0 if isinstance(duration, (int, float)) else None
-        return AgentToolEvent(
-            event="tool.failed" if is_err else "tool.completed",
-            run_id=run_id,
-            tool=tool_name,
-            tool_call_id=_call_id(raw),
-            status="failed" if is_err else "success",
-            duration_ms=duration_ms,
-            summary=summary,
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    if kind == "tool.failed":
-        return AgentToolEvent(
-            event="tool.failed",
-            run_id=run_id,
-            tool=tool_name,
-            tool_call_id=_call_id(raw),
-            status="failed",
-            summary=summary or str(raw.get("error") or "") or None,
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    if kind == "run.completed":
-        return AgentToolEvent(
-            event="agent.completed",
-            run_id=run_id,
-            status="success",
-            summary=None,
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    if kind in {"run.failed", "run.cancelled"}:
-        return AgentToolEvent(
-            event="agent.failed",
-            run_id=run_id,
-            status="failed",
-            summary=str(raw.get("error") or kind),
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    return None
+    route: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Format unique Core → HUD pour la timeline (`type: tool_event`)."""
+    out: dict[str, Any] = {
+        "type": "tool_event",
+        "event": _STAGE_TO_EVENT.get(event.stage, f"intent.{event.stage}"),
+        "intent": event.intent,
+        "stage": event.stage,
+        "owner": event.owner,
+        "status": _STAGE_TO_STATUS.get(event.stage, event.stage),
+    }
+    if event.toolset:
+        out["toolset"] = event.toolset
+    if event.toolset and event.owner == "hermes":
+        out["tool"] = event.toolset
+    if event.duration_ms is not None:
+        out["duration_ms"] = event.duration_ms
+    if event.reason:
+        out["summary"] = event.reason[:500]
+    if event.device_id:
+        out["device_id"] = event.device_id
+    if event.user_id:
+        out["user_id"] = event.user_id
+    if event.role:
+        out["role"] = event.role
+    if route:
+        out["route"] = route
+    if event.meta:
+        for key in ("event", "run_id", "tool", "tool_call_id", "status", "summary"):
+            if key in event.meta and event.meta[key] is not None:
+                out[key] = event.meta[key]
+    return out
 
 
-def map_hermes_chat_progress(
-    raw: dict[str, Any],
-    *,
-    run_id: str | None = None,
-    intent: str | None = None,
-    toolset: str | None = None,
-    device_id: str | None = "nuc",
-) -> AgentToolEvent | None:
-    """SSE `hermes.tool.progress` (chat/completions stream) → AgentToolEvent."""
-    if not isinstance(raw, dict):
-        return None
-    tool_name = str(raw.get("tool") or "").strip()
-    if not tool_name or tool_name.startswith("_"):
-        return None
-    status = str(raw.get("status") or "").strip().lower()
-    call_id = str(raw.get("toolCallId") or raw.get("tool_call_id") or "") or None
-    label = raw.get("label")
-    summary = str(label).strip() if label not in (None, "") else None
-    if status == "running":
-        return AgentToolEvent(
-            event="tool.started",
-            run_id=run_id,
-            tool=tool_name,
-            tool_call_id=call_id,
-            status="running",
-            summary=summary,
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    if status == "completed":
-        return AgentToolEvent(
-            event="tool.completed",
-            run_id=run_id,
-            tool=tool_name,
-            tool_call_id=call_id,
-            status="success",
-            summary=summary,
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    if status in {"failed", "error"}:
-        return AgentToolEvent(
-            event="tool.failed",
-            run_id=run_id,
-            tool=tool_name,
-            tool_call_id=call_id,
-            status="failed",
-            summary=summary,
-            device_id=device_id,
-            intent=intent,
-            toolset=toolset,
-        )
-    return None
+def timeline_payload_agent(ev: AgentToolEvent) -> dict[str, Any]:
+    """AgentToolEvent → même canal WS que les intentions Core."""
+    return {"type": "tool_event", **ev.to_payload()}
 
 
-def _call_id(raw: dict[str, Any]) -> str | None:
-    for key in ("tool_call_id", "toolCallId", "call_id"):
-        val = raw.get(key)
-        if val:
-            return str(val)
-    return None
+def row_to_timeline(row: ToolEventRow) -> dict[str, Any]:
+    """Rejoue une ligne journal → payload timeline."""
+    meta: dict[str, Any] = {}
+    if row.meta_json:
+        try:
+            parsed = json.loads(row.meta_json)
+            if isinstance(parsed, dict):
+                meta = parsed
+        except json.JSONDecodeError:
+            meta = {}
+
+    if meta.get("event"):
+        out: dict[str, Any] = {
+            "type": "tool_event",
+            "intent": row.intent,
+            "owner": row.owner,
+        }
+        for key in (
+            "event",
+            "run_id",
+            "tool",
+            "tool_call_id",
+            "status",
+            "summary",
+            "toolset",
+        ):
+            if meta.get(key) is not None:
+                out[key] = meta[key]
+        if row.duration_ms is not None:
+            out["duration_ms"] = row.duration_ms
+        if row.device_id:
+            out["device_id"] = row.device_id
+        if row.reason and "summary" not in out:
+            out["summary"] = row.reason[:500]
+        return out
+
+    ev = ToolEvent(
+        intent=row.intent,
+        stage=row.stage,
+        owner=row.owner,
+        toolset=row.toolset,
+        risk=int(row.risk or 0),
+        operation=row.operation,
+        role=row.role,
+        user_id=row.user_id,
+        duration_ms=row.duration_ms,
+        reason=row.reason,
+        device_id=row.device_id,
+        meta=meta,
+    )
+    return timeline_payload(ev)
+
+
+def fetch_recent_timeline(limit: int = 50) -> list[dict[str, Any]]:
+    """Derniers événements pour bootstrap HUD / GET /v1/tool-events."""
+    limit = max(1, min(int(limit), 200))
+    try:
+        from sqlalchemy import desc, select
+
+        with session_scope() as s:
+            rows = list(
+                s.scalars(
+                    select(ToolEventRow)
+                    .order_by(desc(ToolEventRow.id))
+                    .limit(limit)
+                ).all()
+            )
+        rows.reverse()
+        return [row_to_timeline(r) for r in rows]
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("timeline fetch indisponible · %s", exc)
+        return []
+
+
+def timeline_snapshot_payload(limit: int = 50) -> dict[str, Any]:
+    return {
+        "type": "tool_timeline_snapshot",
+        "events": fetch_recent_timeline(limit),
+    }
 
 
 _QUEUE_MAX = 512

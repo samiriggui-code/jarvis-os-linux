@@ -1,0 +1,7 @@
+{
+  "agent_version": "0.4.0-windows",
+  "ws_url": "ws://192.168.1.37:8080/ws",
+  "hud_url": "http://192.168.1.37:8080",
+  "files_base": "/v1/agent/",
+  "install_note": "Servi par nginx depuis /opt/jarvis/share/windows-agent/ après sync-to-nuc"
+}

@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS — Identification faciale</title>
+  <style>
+    :root {
+      --bg: #050810;
+      --panel: #0e1520;
+      --line: #1a2840;
+      --text: #c8d6e5;
+      --muted: #5a6d85;
+      --cyan: #00e5ff;
+      --green: #39ff14;
+      --red: #ff4757;
+      --amber: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 50% 0%, #0a1830 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 0.95rem;
+      letter-spacing: 0.12em;
+      color: var(--cyan);
+    }
+    header a {
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-decoration: none;
+      margin-left: auto;
+    }
+    header a:hover { color: var(--cyan); }
+    .pill {
+      font-size: 0.7rem;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .pill.ok { border-color: var(--green); color: var(--green); }
+    .pill.err { border-color: var(--red); color: var(--red); }
+    .pill.warn { border-color: var(--amber); color: var(--amber); }
+    .flow {
+      display: flex;
+      gap: 6px;
+      padding: 8px 18px;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+    .flow span.active { color: var(--cyan); font-weight: 600; }
+    .flow span.done { color: var(--green); }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      min-height: calc(100vh - 80px);
+    }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .stage-wrap { position: relative; padding: 16px; }
+    .vault-frame {
+      position: relative;
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 0 40px rgba(0, 229, 255, 0.08);
+      transition: border-color 0.4s, box-shadow 0.4s;
+    }
+    .vault-frame.unlocked {
+      border-color: var(--green);
+      box-shadow: 0 0 60px rgba(57, 255, 20, 0.25);
+    }
+    .vault-frame.locked { border-color: var(--red); }
+    .vault-frame.scanning { border-color: var(--cyan); }
+    .stage { position: relative; min-height: 380px; display: flex; align-items: center; justify-content: center; }
+    video, canvas { max-width: 100%; max-height: 65vh; transform: scaleX(-1); }
+    canvas { position: absolute; inset: 0; margin: auto; pointer-events: none; }
+    .scanline {
+      position: absolute;
+      left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .scanline.active {
+      opacity: 0.85;
+      animation: scan 2.2s linear infinite;
+    }
+    @keyframes scan {
+      0% { top: 8%; }
+      100% { top: 92%; }
+    }
+    .overlay-card {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 8, 16, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 8;
+      padding: 24px;
+      text-align: center;
+    }
+    .overlay-card.hidden { display: none; }
+    .overlay-icon { font-size: 2.8rem; }
+    .overlay-title {
+      font-size: 1rem;
+      letter-spacing: 0.18em;
+      font-weight: 600;
+      color: var(--cyan);
+    }
+    .overlay-sub { color: var(--muted); font-size: 0.85rem; max-width: 300px; line-height: 1.45; }
+    aside {
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+    }
+    .panel { padding: 16px; border-bottom: 1px solid var(--line); }
+    .panel.hidden { display: none; }
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+    .panel p { margin: 0 0 12px; font-size: 0.82rem; color: var(--muted); line-height: 1.45; }
+    label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+    input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      margin-bottom: 10px;
+    }
+    button {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.82rem;
+      margin-bottom: 8px;
+    }
+    button:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
+    button.primary {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      font-weight: 600;
+    }
+    button.danger { border-color: var(--red); color: var(--red); }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+    .progress-wrap {
+      height: 6px;
+      background: var(--bg);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 8px 0 12px;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      transition: width 0.25s;
+    }
+    .log {
+      flex: 1;
+      overflow: auto;
+      padding: 10px 12px;
+      font-family: ui-monospace, monospace;
+      font-size: 0.65rem;
+      line-height: 1.4;
+    }
+    .log .line { margin-bottom: 5px; word-break: break-all; }
+    .log .ts { color: var(--muted); }
+    .log .ok { color: var(--green); }
+    .log .warn { color: var(--amber); }
+    .log .err { color: var(--red); }
+    .log .info { color: var(--cyan); }
+    #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 99; }
+    .cam-go {
+      position: absolute;
+      z-index: 30;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 20px 32px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      background: rgba(0, 229, 255, 0.25);
+      border: 2px solid var(--cyan);
+      color: var(--cyan);
+      border-radius: 10px;
+      cursor: pointer;
+      width: auto;
+    }
+    .cam-go.hidden { display: none; }
+    .audio-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(5, 8, 16, 0.92);
+      cursor: pointer;
+    }
+    .audio-gate.hidden { display: none; }
+    .audio-gate-card {
+      text-align: center;
+      padding: 28px 36px;
+      border: 1px solid var(--cyan);
+      border-radius: 14px;
+      background: var(--panel);
+      max-width: 420px;
+    }
+    .audio-gate-card h2 {
+      margin: 0 0 10px;
+      color: var(--cyan);
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+    }
+    .audio-gate-card p { margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+    .dev-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .dev-row button { flex: 1; min-width: 140px; font-size: 0.72rem; }
+    .voice-box {
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(0, 229, 255, 0.04);
+    }
+    .voice-phrase {
+      font-size: 1.15rem;
+      color: var(--cyan);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin: 8px 0;
+      text-align: center;
+    }
+    .voice-sub { font-size: 0.72rem; color: var(--muted); line-height: 1.45; }
+    .mic-meter {
+      height: 28px;
+      margin: 10px 0;
+      border-radius: 6px;
+      background: #0a1020;
+      border: 1px solid var(--line);
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      padding: 4px;
+    }
+    .mic-meter span {
+      flex: 1;
+      background: var(--cyan);
+      opacity: 0.25;
+      border-radius: 2px;
+      min-height: 4px;
+      transition: height 0.05s, opacity 0.05s;
+    }
+    .voice-take { font-size: 0.75rem; color: var(--amber); margin-top: 6px; }
+    .voice-take.recording { color: var(--green); font-weight: 600; animation: pulse 0.8s ease infinite; }
+    @keyframes pulse { 50% { opacity: 0.55; } }
+    .voice-steps {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .voice-steps li.done { color: var(--green); }
+    .voice-steps li.active { color: var(--cyan); font-weight: 600; }
+    .enroll-banner {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 12;
+      padding: 14px 18px;
+      background: linear-gradient(transparent, rgba(5, 8, 16, 0.95));
+      text-align: center;
+      pointer-events: none;
+    }
+    .enroll-banner.hidden { display: none; }
+    .enroll-banner .big {
+      font-size: 1.25rem;
+      color: var(--cyan);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+    .enroll-banner .sub { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div id="audioGate" class="audio-gate">
+    <div class="audio-gate-card">
+      <h2>DÉMARRER JARVIS</h2>
+      <p>Cliquez pour activer le <b>son</b>, le <b>micro</b> et la <b>caméra</b>.<br>(Le navigateur bloque l'audio sans interaction.)</p>
+    </div>
+  </div>
+  <audio id="ttsPlayer" preload="auto" style="display:none"></audio>
+  <canvas id="confetti"></canvas>
+  <header>
+    <h1>JARVIS · AUTH FACIALE</h1>
+    <span id="wsPill" class="pill">WS —</span>
+    <span id="camPill" class="pill">Cam —</span>
+    <span id="audioPill" class="pill">Audio —</span>
+    <span id="statePill" class="pill warn">VERROUILLÉ</span>
+    <a href="face_smoke.html">Smoke test technique →</a>
+  </header>
+
+  <div class="flow">
+    <span id="flowAuth" class="active">1 · Identification</span>
+    <span>→</span>
+    <span id="flowEnroll">2 · Enregistrement</span>
+    <span>→</span>
+    <span id="flowWelcome">3 · Déverrouillé</span>
+    <span>→</span>
+    <span id="flowLock">4 · Verrouillage</span>
+  </div>
+
+  <main>
+    <div class="stage-wrap">
+      <div id="vaultFrame" class="vault-frame locked scanning">
+        <div class="stage">
+          <video id="video" playsinline muted autoplay></video>
+          <canvas id="overlay"></canvas>
+          <button type="button" id="camGo" class="cam-go">ACTIVER LA CAMÉRA</button>
+          <div class="scanline" id="scanline"></div>
+
+          <div id="enrollBanner" class="enroll-banner hidden">
+            <div class="big" id="enrollBannerBig">« Jarvis, active-toi »</div>
+            <div class="sub" id="enrollBannerSub">Prise 1 / 3 — parle maintenant</div>
+          </div>
+
+          <div id="overlayDenied" class="overlay-card hidden">
+            <div class="overlay-icon">🔒</div>
+            <div class="overlay-title">ACCÈS REFUSÉ</div>
+            <div id="deniedReason" class="overlay-sub">Visage non reconnu.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <!-- Phase 1 : Auth -->
+      <div id="panelAuth" class="panel">
+        <h2>Identification</h2>
+        <p id="authHint">Identification faciale — regarde la caméra.</p>
+        <div class="progress-wrap"><div id="authProgress" class="progress-bar"></div></div>
+        <button id="btnRetryAuth" class="primary" disabled>Réessayer le scan</button>
+        <div class="dev-row">
+          <button id="btnResetFaces" type="button">Effacer mon profil facial</button>
+          <button id="btnTestSound" type="button">Test son JARVIS</button>
+        </div>
+      </div>
+
+      <!-- Phase 2 : Enroll -->
+      <div id="panelEnroll" class="panel hidden">
+        <h2>Enregistrement facial</h2>
+        <div class="voice-sub">Scan automatique (~8 captures). Voix hors scope — auth faciale uniquement.</div>
+        <div class="voice-box hidden" id="voiceBox" aria-hidden="true"></div>
+        <label>Identifiant</label>
+        <input id="username" value="samir" placeholder="samir, ines, zahra…" />
+        <label>Rôle (membres suivants)</label>
+        <select id="memberRole">
+          <option value="USER">Adulte (USER)</option>
+          <option value="CHILD">Enfant (CHILD)</option>
+        </select>
+        <label>PIN secours (optionnel)</label>
+        <input id="pin" type="password" placeholder="1234" maxlength="8" />
+        <div class="progress-wrap"><div id="enrollProgress" class="progress-bar"></div></div>
+        <button id="btnStartEnroll" class="primary">Commencer l'enregistrement</button>
+        <button id="btnCancelEnroll">Annuler — retour identification</button>
+      </div>
+
+      <!-- Phase 2b : denied → propose enroll -->
+      <div id="panelDenied" class="panel hidden">
+        <h2>Accès refusé</h2>
+        <p id="deniedText">Aucun profil facial trouvé sur ce système.</p>
+        <button id="btnGoEnroll" class="primary">S'enregistrer (première fois)</button>
+        <button id="btnRetryFromDenied">Réessayer l'identification</button>
+      </div>
+
+      <!-- Phase 3 : Welcome -->
+      <div id="panelWelcome" class="panel hidden">
+        <h2>Accès accordé</h2>
+        <p id="welcomeText">Bienvenue.</p>
+        <button id="btnAddMember" class="primary">Enrôler un autre membre</button>
+        <button id="btnLogout" class="danger">Verrouiller et se déconnecter</button>
+      </div>
+
+      <div id="log" class="log"></div>
+    </aside>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const WS_URL = "ws://127.0.0.1:8765";
+    const TTS_BASE = `${location.protocol}//${location.hostname}:${location.port || "8770"}/tts/`;
+    const VERIFY_THRESHOLD = 0.88;
+    const UNKNOWN_STREAK = 4;
+    /** Smoke vault — auth/enroll faciaux uniquement (Phase 1 Core). */
+    const TTS_SPEAK_FALLBACK = {
+      enrollment_start: "Enregistrement facial. Regarde la caméra.",
+      face_scan_init: "Scan facial. Regarde la caméra.",
+      face_scan_prompt: "Identification faciale. Regarde la caméra.",
+      face_no_profile: "Aucun profil enregistré. Procédons à l'enregistrement.",
+      enrollment_done: "Enregistrement terminé.",
+      face_scan_done: "Profil facial enregistré.",
+    };
+
+    const Phase = { AUTH: "auth", DENIED: "denied", ENROLL: "enroll", WELCOME: "welcome" };
+
+    const video = $("video");
+    const canvas = $("overlay");
+    const ctx = canvas.getContext("2d");
+
+    let ws = null;
+    let stream = null;
+    let camBusy = null;
+    let camGen = 0;
+    let msgWaiters = [];
+    let lastBox = null;
+    let userId = sessionStorage.getItem("vault_user_id") || "";
+    let authAvailable = false;
+    let phase = Phase.AUTH;
+    let verifyTimer = null;
+    let enrollTimer = null;
+    let scanBusy = false;
+    let unknownStreak = 0;
+    let lastMatch = null;
+    let landmarker = null;
+    let lastLandmarks = null;
+    let meshTimer = null;
+    let bootDone = false;
+    let audioPlaying = false;
+    let audioUnlocked = false;
+    let audioCtx = null;
+    let currentSource = null;
+    let voiceMode = null;
+    const ttsPlayer = $("ttsPlayer");
+
+    // Seuls ces events sont joués — pas boot, pas reliques, pas le reste du cache.
+    const VOICE_EVENTS = {
+      auth: new Set([
+        "face_scan_prompt", "face_scan_active", "face_embedding", "face_match_search",
+        "face_authenticated", "face_denied", "face_no_profile", "access_granted",
+      ]),
+      enroll: new Set([
+        "enrollment_start", "enrollment_ask_name", "enrollment_name_saved",
+        "enrollment_ask_profile_type", "enrollment_profile_adult", "enrollment_profile_child",
+        "face_scan_init", "face_scan_landmarks", "face_scan_features", "face_scan_model", "face_scan_done",
+        "enrollment_configuring", "enrollment_security_check", "enrollment_done",
+        "ack_working",
+      ]),
+      unlock: new Set(["session_opened", "session_welcome_back"]),
+      lock: new Set(["session_locked_manual", "session_closed", "session_locked_auto", "session_goodbye"]),
+    };
+    const SEQ_VOICE_MODE = { enrollment: "enroll", unlock: "unlock", lock: "lock" };
+    const LOCAL_SEQUENCES = {
+      unlock: ["session_opened", "session_welcome_back"],
+      lock: ["session_locked_manual", "session_closed"],
+    };
+    let enrollLandmarksPlayed = false;
+
+    function slugUsername() {
+      return $("username").value.trim().toLowerCase().replace(/\s+/g, "_").slice(0, 24) || "vault_pilot";
+    }
+
+    function log(msg, cls = "info") {
+      const line = document.createElement("div");
+      line.className = "line " + cls;
+      line.innerHTML = `<span class="ts">${new Date().toLocaleTimeString()}</span> ${msg}`;
+      $("log").prepend(line);
+    }
+
+    function setPill(id, text, ok) {
+      const el = $(id);
+      el.textContent = text;
+      el.className = "pill" + (ok === true ? " ok" : ok === false ? " err" : ok === "warn" ? " warn" : "");
+    }
+
+    function setFlow(step) {
+      $("flowAuth").className = step === "auth" ? "active" : step === "enroll" ? "done" : "done";
+      $("flowEnroll").className = step === "enroll" ? "active" : step === "welcome" ? "done" : "";
+      $("flowWelcome").className = step === "welcome" ? "active" : step === "lock" ? "done" : "";
+      $("flowLock").className = step === "lock" ? "active" : "";
+    }
+
+    function showPhase(next) {
+      phase = next;
+      $("panelAuth").classList.toggle("hidden", next !== Phase.AUTH);
+      $("panelEnroll").classList.toggle("hidden", next !== Phase.ENROLL);
+      $("panelDenied").classList.toggle("hidden", next !== Phase.DENIED);
+      $("panelWelcome").classList.toggle("hidden", next !== Phase.WELCOME);
+      $("overlayDenied").classList.toggle("hidden", next !== Phase.DENIED);
+
+      const frame = $("vaultFrame");
+      frame.classList.toggle("locked", next !== Phase.WELCOME);
+      frame.classList.toggle("unlocked", next === Phase.WELCOME);
+      frame.classList.toggle("scanning", next === Phase.AUTH || next === Phase.ENROLL);
+
+      setPill("statePill", next === Phase.WELCOME ? "DÉVERROUILLÉ" : "VERROUILLÉ", next === Phase.WELCOME ? true : "warn");
+
+      if (next === Phase.AUTH) setFlow("auth");
+      else if (next === Phase.ENROLL) setFlow("enroll");
+      else if (next === Phase.WELCOME) setFlow("welcome");
+      else if (next === Phase.WELCOME) setFlow("welcome");
+      else setFlow("auth");
+    }
+
+    function setVoiceMode(mode) {
+      voiceMode = mode || null;
+    }
+
+    function stopVoiceLocal() {
+      if (currentSource) {
+        try { currentSource.stop(); } catch (_) { /* ignore */ }
+        currentSource = null;
+      }
+      try { ttsPlayer.pause(); ttsPlayer.removeAttribute("src"); } catch (_) { /* ignore */ }
+      speechSynthesis.cancel();
+      audioPlaying = false;
+    }
+
+    function silenceCore() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      try {
+        wsSend({ type: "boot", action: "skip" });
+        wsSend({ type: "auth", action: "sequence_stop" });
+        wsSend({ type: "voice", action: "cancel" });
+      } catch (_) { /* ignore */ }
+    }
+
+    function shouldPlayEvent(event) {
+      if (!voiceMode || !audioUnlocked) return false;
+      const ev = String(event || "").trim();
+      if (!ev) return false;
+      if (VOICE_EVENTS[voiceMode]?.has(ev)) return true;
+      if (voiceMode === "auth" && ev.startsWith("face_")) return true;
+      if (voiceMode === "enroll" && (ev.startsWith("enrollment_") || ev.startsWith("voice_") || ev.startsWith("face_scan_"))) return true;
+      return false;
+    }
+
+    async function waitVoiceIdle(maxMs = 8000) {
+      const t0 = Date.now();
+      while (audioPlaying && Date.now() - t0 < maxMs) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+
+    function stopVerifyLoop() {
+      if (verifyTimer) {
+        clearInterval(verifyTimer);
+        verifyTimer = null;
+      }
+      $("scanline").classList.remove("active");
+    }
+
+    function stopEnrollLoop() {
+      if (enrollTimer) {
+        clearInterval(enrollTimer);
+        enrollTimer = null;
+      }
+    }
+
+    function handleSideEffects(data) {
+      if ((data.type || "").startsWith("FACE_") && data.box) lastBox = data.box;
+      if (data.type === "hud_command" && data.action === "start_enrollment") {
+        queueEnrollmentFromCore(data);
+      }
+    }
+
+    let pendingEnrollment = null;
+
+    function queueEnrollmentFromCore(data) {
+      pendingEnrollment = {
+        username: String(data.username || data.display_name || "").trim(),
+        display_name: String(data.display_name || data.username || "").trim(),
+        role: String(data.role || "USER").toUpperCase(),
+      };
+      log(`Enrôlement demandé par le Core → ${pendingEnrollment.username || "?"}`, "info");
+      if (bootDone && stream) {
+        startEnrollmentForMember(pendingEnrollment).catch((e) => log(e.message, "err"));
+        pendingEnrollment = null;
+      }
+    }
+
+    async function prepareMemberAccount() {
+      const username = slugUsername();
+      if (!username) throw new Error("Identifiant requis");
+      if (authAvailable) {
+        const role = $("memberRole").value || "USER";
+        wsSend({
+          type: "auth",
+          action: "enroll_member",
+          username,
+          display_name: username.replace(/_/g, " "),
+          role,
+          pin: $("pin").value.trim() || undefined,
+        });
+        const er = await waitFor((d) => d.type === "auth_enroll_member_result", 8000);
+        if (!er.ok || !er.user?.id) throw new Error(er.error || "Compte refusé");
+        userId = er.user.id;
+        const tag = er.created ? "créé" : "existant — ré-enrôlement face";
+        log(`Membre ${username} (${tag})`, "ok");
+      } else {
+        userId = crypto.randomUUID();
+        log("Auth SQL off — UUID local", "warn");
+      }
+      sessionStorage.setItem("vault_user_id", userId);
+      return userId;
+    }
+
+    async function startEnrollmentForMember(opts = null) {
+      const o = opts || {};
+      if (o.username) $("username").value = o.username;
+      if (o.role) $("memberRole").value = o.role === "CHILD" ? "CHILD" : "USER";
+      stopVerifyLoop();
+      setVoiceMode("enroll");
+      showPhase(Phase.ENROLL);
+      $("btnStartEnroll").disabled = true;
+      $("btnCancelEnroll").disabled = true;
+      try {
+        await unlockAudio();
+        await connectWs().catch(() => {});
+        await checkAuthAvailable().catch(() => { authAvailable = false; });
+        if (!stream) await startCamera();
+        silenceCore();
+        stopVoiceLocal();
+        await sequenceStart("enrollment");
+        enrollSignal("name");
+        enrollSignal("profile");
+        await prepareMemberAccount();
+        await runEnrollScan();
+        goAuth(true);
+      } finally {
+        $("btnStartEnroll").disabled = false;
+        $("btnCancelEnroll").disabled = false;
+      }
+    }
+
+    function speakFallback(text) {
+      if (!text?.trim() || !window.speechSynthesis) return;
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text.trim());
+        u.lang = "fr-FR";
+        speechSynthesis.speak(u);
+        log(`🔈 ${text.trim().slice(0, 56)}`, "info");
+      } catch (_) { /* ignore */ }
+    }
+
+    function speakFallbackAsync(text) {
+      return new Promise((resolve) => {
+        if (!text?.trim() || !window.speechSynthesis) {
+          resolve();
+          return;
+        }
+        try {
+          speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(text.trim());
+          u.lang = "fr-FR";
+          u.onend = () => resolve();
+          u.onerror = () => resolve();
+          speechSynthesis.speak(u);
+          log(`🔈 ${text.trim().slice(0, 56)}`, "info");
+        } catch (_) {
+          resolve();
+        }
+      });
+    }
+
+    async function playEvent(event) {
+      if (!shouldPlayEvent(event)) return;
+      audioPlaying = true;
+      setPill("audioPill", "🔊 …", "warn");
+      try {
+        const r = await fetch(`${TTS_BASE}${encodeURIComponent(event)}`);
+        if (!r.ok) {
+          const fb = TTS_SPEAK_FALLBACK[event];
+          if (fb) {
+            log(`TTS local absent (${event}) — synthèse navigateur`, "warn");
+            await speakFallbackAsync(fb);
+            return;
+          }
+          log(`TTS absent: ${event} (${r.status}) — redémarre face_smoke_serve.py`, "err");
+          return;
+        }
+        const buf = await r.arrayBuffer();
+        const ctx = await ensureAudioCtx();
+        const decoded = await ctx.decodeAudioData(buf.slice(0));
+        const src = ctx.createBufferSource();
+        src.buffer = decoded;
+        src.connect(ctx.destination);
+        currentSource = src;
+        await new Promise((res) => {
+          src.onended = () => {
+            currentSource = null;
+            res();
+          };
+          src.start(0);
+        });
+        log(`🔊 ${event}`, "ok");
+      } catch (e) {
+        log(`Son ${event}: ${e.message}`, "err");
+      } finally {
+        audioPlaying = false;
+        setPill("audioPill", "Audio OK", true);
+      }
+    }
+
+    async function playSequenceLocal(name) {
+      const clips = LOCAL_SEQUENCES[name];
+      if (!clips) return;
+      stopVoiceLocal();
+      const mode = SEQ_VOICE_MODE[name];
+      if (mode) setVoiceMode(mode);
+      for (const ev of clips) {
+        await playEvent(ev);
+      }
+    }
+
+    async function sequenceStart(name) {
+      silenceCore();
+      stopVoiceLocal();
+      if (name === "enrollment") {
+        setVoiceMode("enroll");
+        await playEvent("enrollment_start");
+        log("Enroll · son local", "info");
+        return;
+      }
+      if (name === "unlock" || name === "lock") {
+        await playSequenceLocal(name);
+        log(`Séquence « ${name} » · son local`, "info");
+        return;
+      }
+    }
+
+    function jarvisSay(event) {
+      playEvent(event);
+    }
+
+    function handleVoiceWs(_data) {
+      /* Son = cache local /tts/ — pas le flood WS Core */
+    }
+
+    async function ensureAudioCtx() {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) throw new Error("Web Audio indisponible");
+        audioCtx = new Ctx();
+      }
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+      return audioCtx;
+    }
+
+    async function playBeep() {
+      const ctx = await ensureAudioCtx();
+      const sr = ctx.sampleRate;
+      const len = Math.floor(sr * 0.18);
+      const buf = ctx.createBuffer(1, len, sr);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        ch[i] = Math.sin((2 * Math.PI * 440 * i) / sr) * 0.35;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    async function unlockAudio() {
+      if (audioUnlocked) return true;
+      try {
+        await playBeep();
+        audioUnlocked = true;
+        $("audioGate").classList.add("hidden");
+        setPill("audioPill", "Audio OK", true);
+        log("Audio débloqué", "ok");
+        return true;
+      } catch (e) {
+        setPill("audioPill", "Audio bloqué", false);
+        log(`Audio bloqué: ${e.message}`, "err");
+        return false;
+      }
+    }
+
+    function enrollSignal(step) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      try {
+        wsSend({ type: "auth", action: "enroll_signal", step });
+      } catch (_) { /* ignore */ }
+    }
+
+    function dispatchWs(data) {
+      handleVoiceWs(data);
+      msgWaiters = msgWaiters.filter((w) => {
+        try {
+          if (w.test(data)) {
+            w.resolve(data);
+            return false;
+          }
+        } catch (_) { /* ignore */ }
+        return true;
+      });
+      handleSideEffects(data);
+    }
+
+    function waitFor(testFn, timeoutMs = 20000) {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          msgWaiters = msgWaiters.filter((w) => w.resolve !== resolve);
+          reject(new Error("Timeout WS"));
+        }, timeoutMs);
+        msgWaiters.push({
+          test: testFn,
+          resolve: (data) => {
+            clearTimeout(timer);
+            resolve(data);
+          },
+        });
+      });
+    }
+
+    function wsSend(obj) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error("WS fermé");
+      ws.send(JSON.stringify(obj));
+    }
+
+    function connectWs() {
+      return new Promise((resolve, reject) => {
+        if (ws && ws.readyState === WebSocket.OPEN) return resolve();
+        ws = new WebSocket(WS_URL);
+        ws.onopen = () => {
+          setPill("wsPill", "WS OK", true);
+          try {
+            ws.send(JSON.stringify({ type: "boot", action: "skip" }));
+            ws.send(JSON.stringify({ type: "auth", action: "sequence_stop" }));
+            ws.send(JSON.stringify({ type: "voice", action: "cancel" }));
+          } catch (_) { /* ignore */ }
+          resolve();
+        };
+        ws.onerror = () => reject(new Error("WS erreur"));
+        ws.onclose = () => setPill("wsPill", "WS off", false);
+        ws.onmessage = (ev) => {
+          if (typeof ev.data !== "string") return;
+          try {
+            dispatchWs(JSON.parse(ev.data));
+          } catch (_) { /* ignore */ }
+        };
+      });
+    }
+
+    async function startCamera() {
+      if (camBusy) return camBusy;
+      camBusy = (async () => {
+        camGen += 1;
+        const gen = camGen;
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop());
+          stream = null;
+        }
+        const attempts = [
+          { video: { facingMode: "user" }, audio: true },
+          { video: { facingMode: "user" }, audio: false },
+          { video: true, audio: true },
+          { video: true, audio: false },
+        ];
+        for (const c of attempts) {
+          if (gen !== camGen) throw new DOMException("abort", "AbortError");
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(c);
+            break;
+          } catch (e) {
+            if (e.name === "NotAllowedError") throw e;
+            log(`getUserMedia: ${e.name}`, "warn");
+          }
+        }
+        if (!stream) throw new Error("Caméra refusée ou occupée");
+        video.srcObject = stream;
+        await new Promise((res, rej) => {
+          const t = setTimeout(() => rej(new Error("Caméra lente")), 8000);
+          const go = () => {
+            if (video.videoWidth) {
+              clearTimeout(t);
+              video.removeEventListener("loadedmetadata", go);
+              res();
+            }
+          };
+          video.addEventListener("loadedmetadata", go);
+          go();
+        });
+        await video.play();
+        setPill("camPill", `${video.videoWidth}×${video.videoHeight}`, true);
+        if (stream.getAudioTracks().length) {
+          setPill("audioPill", "Micro OK", true);
+        }
+        $("camGo").classList.add("hidden");
+        if (meshTimer) clearInterval(meshTimer);
+        meshTimer = setInterval(detectLocalMesh, 100);
+        requestAnimationFrame(drawLoop);
+        initLandmarker().catch((e) => log(`Mesh: ${e.message}`, "warn"));
+      })();
+      try {
+        await camBusy;
+      } finally {
+        camBusy = null;
+      }
+    }
+
+    function stopCamera() {
+      camGen += 1;
+      stopVerifyLoop();
+      stopEnrollLoop();
+      if (meshTimer) {
+        clearInterval(meshTimer);
+        meshTimer = null;
+      }
+      lastLandmarks = null;
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+      setPill("camPill", "Cam off", false);
+      $("camGo").classList.remove("hidden");
+    }
+
+    function captureJpegB64() {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw) throw new Error("Caméra pas prête");
+      const off = document.createElement("canvas");
+      off.width = vw;
+      off.height = vh;
+      const o = off.getContext("2d");
+      o.translate(vw, 0);
+      o.scale(-1, 1);
+      o.drawImage(video, 0, 0, vw, vh);
+      return off.toDataURL("image/jpeg", 0.88).split(",")[1];
+    }
+
+    function coreBoxToCanvas(box, cw, ch) {
+      return {
+        x: (1 - box.x - box.w) * cw,
+        y: box.y * ch,
+        w: box.w * cw,
+        h: box.h * ch,
+      };
+    }
+
+    async function initLandmarker() {
+      if (landmarker) return landmarker;
+      const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm");
+      const resolver = await vision.FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      );
+      const modelAssetPath =
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+      const opts = {
+        baseOptions: { modelAssetPath },
+        runningMode: "VIDEO",
+        numFaces: 1,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+      };
+      try {
+        landmarker = await vision.FaceLandmarker.createFromOptions(resolver, {
+          ...opts,
+          baseOptions: { ...opts.baseOptions, delegate: "GPU" },
+        });
+      } catch (_) {
+        landmarker = await vision.FaceLandmarker.createFromOptions(resolver, {
+          ...opts,
+          baseOptions: { ...opts.baseOptions, delegate: "CPU" },
+        });
+      }
+      return landmarker;
+    }
+
+    async function detectLocalMesh() {
+      if (!landmarker || video.readyState < 2) return;
+      try {
+        const result = landmarker.detectForVideo(video, performance.now());
+        lastLandmarks = result.faceLandmarks || null;
+      } catch (_) { /* frame drop */ }
+    }
+
+    function boxFromLandmarks(lm) {
+      let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+      for (const p of lm) {
+        x0 = Math.min(x0, p.x);
+        y0 = Math.min(y0, p.y);
+        x1 = Math.max(x1, p.x);
+        y1 = Math.max(y1, p.y);
+      }
+      const pad = 0.015;
+      return {
+        x: Math.max(0, x0 - pad),
+        y: Math.max(0, y0 - pad),
+        w: Math.min(1, x1 + pad) - Math.max(0, x0 - pad),
+        h: Math.min(1, y1 + pad) - Math.max(0, y0 - pad),
+      };
+    }
+
+    function drawLoop() {
+      if (!stream) return;
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      canvas.width = w;
+      canvas.height = h;
+      ctx.clearRect(0, 0, w, h);
+
+      if (lastLandmarks && lastLandmarks.length) {
+        ctx.fillStyle = "rgba(0, 229, 255, 0.85)";
+        const lm = lastLandmarks[0];
+        for (const p of lm) {
+          ctx.beginPath();
+          ctx.arc(p.x * w, p.y * h, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        const contours = [
+          [33, 133, 362, 263, 33],
+          [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 61],
+        ];
+        ctx.strokeStyle = "rgba(57, 255, 20, 0.7)";
+        ctx.lineWidth = 1.5;
+        for (const ring of contours) {
+          ctx.beginPath();
+          for (let i = 0; i < ring.length; i++) {
+            const p = lm[ring[i]];
+            const x = p.x * w;
+            const y = p.y * h;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+      }
+
+      if (lastBox) {
+        const b = coreBoxToCanvas(lastBox, w, h);
+        ctx.strokeStyle = "#39ff14";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(b.x, b.y, b.w, b.h);
+      } else if (lastLandmarks && lastLandmarks.length) {
+        const lb = boxFromLandmarks(lastLandmarks[0]);
+        ctx.strokeStyle = "rgba(57, 255, 20, 0.45)";
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(lb.x * w, lb.y * h, lb.w * w, lb.h * h);
+        ctx.setLineDash([]);
+      }
+
+      requestAnimationFrame(drawLoop);
+    }
+
+    async function sendFaceFrame(mode) {
+      const jpeg_b64 = captureJpegB64();
+      const payload = { type: "holomat", action: "face_frame", mode, jpeg_b64 };
+      if (mode === "enroll") {
+        payload.user_id = userId;
+        payload.username = slugUsername();
+      }
+      wsSend(payload);
+      return waitFor((d) => d.type?.startsWith("FACE_") || d.type === "holomat_error", 6000);
+    }
+
+    async function checkAuthAvailable() {
+      wsSend({ type: "auth", action: "status" });
+      const st = await waitFor((d) => d.type === "auth_status" || d.type === "auth_error", 5000);
+      authAvailable = st.type === "auth_status";
+      return authAvailable;
+    }
+
+    async function resetCurrentUserFace() {
+      await connectWs().catch(() => {});
+      const uid = userId || lastMatch?.user_id || "";
+      if (ws?.readyState === 1 && uid) {
+        wsSend({ type: "holomat", action: "face_reset_user", user_id: uid });
+        const r = await waitFor((d) => d.type === "face_reset_user_result", 8000).catch(() => ({}));
+        log(`Profil facial effacé · user=${uid.slice(0, 8)}…`, r.ok ? "ok" : "warn");
+      }
+      sessionStorage.removeItem("vault_user_id");
+      userId = "";
+      lastMatch = null;
+      stopVerifyLoop();
+      stopEnrollLoop();
+      silenceCore();
+      stopVoiceLocal();
+      setVoiceMode("enroll");
+      showPhase(Phase.ENROLL);
+      $("authHint").textContent = "Profil effacé. Saisis l'identifiant puis « Commencer l'enregistrement ».";
+      await playEvent("face_no_profile");
+    }
+
+    async function createAccount() {
+      return prepareMemberAccount();
+    }
+
+    async function loginWithMatch(ev) {
+      let unlocked = false;
+      if (authAvailable) {
+        wsSend({
+          type: "auth",
+          action: "login",
+          user_id: ev.user_id,
+          method: "face",
+          confidence: ev.confidence || 0,
+        });
+        const login = await waitFor((d) => d.type === "auth_login_result", 8000);
+        if (login.ok) {
+          unlocked = true;
+          log("Session ouverte", "ok");
+        } else {
+          log(`Login: ${login.error}`, "warn");
+        }
+      }
+      if (!unlocked && (ev.confidence || 0) >= 0.85) {
+        unlocked = true;
+        log("Accès face-only (dev)", "warn");
+      }
+      if (!unlocked) throw new Error("Connexion refusée");
+      return unlocked;
+    }
+
+    function burstConfetti() {
+      const c = $("confetti");
+      const cx = c.getContext("2d");
+      c.width = innerWidth;
+      c.height = innerHeight;
+      const parts = Array.from({ length: 60 }, () => ({
+        x: Math.random() * c.width,
+        y: -20 - Math.random() * 80,
+        vx: (Math.random() - 0.5) * 3,
+        vy: 2 + Math.random() * 3,
+        color: ["#00e5ff", "#39ff14", "#ffb020"][Math.floor(Math.random() * 3)],
+      }));
+      let frame = 0;
+      const tick = () => {
+        cx.clearRect(0, 0, c.width, c.height);
+        for (const p of parts) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.05;
+          cx.fillStyle = p.color;
+          cx.fillRect(p.x, p.y, 5, 5);
+        }
+        if (++frame < 100) requestAnimationFrame(tick);
+        else cx.clearRect(0, 0, c.width, c.height);
+      };
+      tick();
+    }
+
+    function goDenied(reason, message, offerEnroll) {
+      stopVerifyLoop();
+      unknownStreak = 0;
+      $("deniedReason").textContent = message;
+      $("deniedText").textContent = message;
+      $("btnGoEnroll").style.display = offerEnroll ? "block" : "none";
+      showPhase(Phase.DENIED);
+      log(`Refus: ${reason}`, "warn");
+      jarvisSay(reason === "no_profile" ? "face_no_profile" : "face_denied");
+    }
+
+    async function onVerifyTick() {
+      if (scanBusy || phase !== Phase.AUTH) return;
+      if (!stream || ws?.readyState !== 1) return;
+      scanBusy = true;
+      try {
+        const ev = await sendFaceFrame("verify");
+        if (ev.box) lastBox = ev.box;
+
+        if (ev.type === "holomat_error") {
+          $("authHint").textContent = ev.error || "Erreur Core";
+          return;
+        }
+
+        if (ev.type === "FACE_FAILED" && ev.reason === "no_profile") {
+          goDenied("no_profile", "Aucun profil facial enregistré sur ce système.", true);
+          return;
+        }
+
+        if (ev.type === "FACE_SUCCESS" && ev.user_id) {
+          stopVerifyLoop();
+          $("authProgress").style.width = "100%";
+          $("authHint").textContent = "Visage reconnu — ouverture session…";
+          log(`Reconnu ${ev.username || ev.user_id.slice(0, 8)} conf=${(ev.confidence || 0).toFixed(2)}`, "ok");
+          await loginWithMatch(ev);
+          lastMatch = ev;
+          $("welcomeText").textContent = `Bienvenue ${ev.username || slugUsername()}.`;
+          stopVoiceLocal();
+          await sequenceStart("unlock");
+          showPhase(Phase.WELCOME);
+          burstConfetti();
+          return;
+        }
+
+        const conf = ev.confidence || 0;
+        const prog = ev.progress || 0;
+        $("authProgress").style.width = `${Math.min(prog, 99)}%`;
+
+        if (ev.face_found && conf > 0 && conf < VERIFY_THRESHOLD) {
+          unknownStreak += 1;
+          $("authHint").textContent = `Analyse… ${Math.round(prog)}%`;
+          if (unknownStreak >= UNKNOWN_STREAK) {
+            goDenied("unknown_face", "Visage détecté mais non reconnu. Accès refusé.", false);
+          }
+        } else if (ev.face_found) {
+          unknownStreak = 0;
+          $("authHint").textContent = "Visage détecté — analyse en cours…";
+        } else {
+          $("authHint").textContent = ev.hudSubtext || "Placez votre visage face à la caméra.";
+        }
+      } catch (e) {
+        log(`Scan: ${e.message}`, "warn");
+      } finally {
+        scanBusy = false;
+      }
+    }
+
+    function startVerifyLoop() {
+      stopVerifyLoop();
+      unknownStreak = 0;
+      $("authProgress").style.width = "0%";
+      $("authHint").textContent = "Scan automatique — regarde la caméra.";
+      $("btnRetryAuth").disabled = true;
+      $("scanline").classList.add("active");
+      verifyTimer = setInterval(onVerifyTick, 700);
+      onVerifyTick();
+    }
+
+    function goAuth(afterEnroll = false) {
+      stopEnrollLoop();
+      showPhase(Phase.AUTH);
+      if (afterEnroll) {
+        log("Enregistrement terminé — retour identification", "ok");
+        $("authHint").textContent = "Profil enregistré. Identification en cours…";
+      }
+      silenceCore();
+      stopVoiceLocal();
+      setVoiceMode("auth");
+      jarvisSay("face_scan_prompt");
+      startVerifyLoop();
+    }
+
+    function setEnrollBanner(show) {
+      $("enrollBanner").classList.toggle("hidden", !show);
+    }
+
+    async function runEnrollScan() {
+      stopVerifyLoop();
+      lastBox = null;
+      enrollLandmarksPlayed = false;
+      $("enrollProgress").style.width = "0%";
+      await playEvent("face_scan_init");
+      wsSend({ type: "holomat", action: "face_enroll_begin", user_id: userId, username: slugUsername() });
+      await waitFor((d) => d.type === "FACE_PROGRESS" || d.type === "holomat_error", 5000);
+
+      return new Promise((resolve, reject) => {
+        let done = false;
+        enrollTimer = setInterval(async () => {
+          if (done) return;
+          try {
+            const ev = await sendFaceFrame("enroll");
+            if (ev.box) lastBox = ev.box;
+            $("enrollProgress").style.width = `${Math.min(ev.progress || 0, 100)}%`;
+            if (ev.face_found && !enrollLandmarksPlayed) {
+              enrollLandmarksPlayed = true;
+              playEvent("face_scan_landmarks");
+            }
+            if (ev.type === "FACE_SUCCESS" && ev.mode === "enroll") {
+              done = true;
+              stopEnrollLoop();
+              log("Samples OK — commit…", "ok");
+              wsSend({ type: "holomat", action: "face_enroll_commit", user_id: userId, username: slugUsername() });
+              const commit = await waitFor((d) => d.type === "face_enroll_commit_result", 8000);
+              if (!commit.ok) throw new Error(commit.error || "Commit refusé");
+              log(`Profil enregistré (${commit.samples} samples)`, "ok");
+              await playEvent("face_scan_done");
+              await playEvent("enrollment_done");
+              resolve();
+            }
+          } catch (e) {
+            if (!done) {
+              done = true;
+              stopEnrollLoop();
+              reject(e);
+            }
+          }
+        }, 450);
+        setTimeout(() => {
+          if (!done) {
+            done = true;
+            stopEnrollLoop();
+            reject(new Error("Timeout enregistrement — réessayez"));
+          }
+        }, 20000);
+      });
+    }
+
+    async function bootstrap() {
+      if (bootDone) return;
+      try {
+        $("authHint").textContent = "Connexion au Core…";
+        await connectWs();
+        await checkAuthAvailable().catch(() => { authAvailable = false; });
+        $("authHint").textContent = "Activation caméra…";
+        await startCamera();
+        bootDone = true;
+        log("Prêt — scan identification", "ok");
+        if (pendingEnrollment) {
+          const pe = pendingEnrollment;
+          pendingEnrollment = null;
+          await startEnrollmentForMember(pe);
+        } else {
+          goAuth();
+        }
+      } catch (e) {
+        $("authHint").textContent = `Erreur: ${e.message}. Core lancé ? Cliquez la caméra.`;
+        log(`Boot: ${e.message}`, "err");
+        $("btnRetryAuth").disabled = false;
+      }
+    }
+
+    $("audioGate").onclick = async () => {
+      await unlockAudio();
+      bootstrap();
+    };
+
+    $("camGo").onclick = async () => {
+      try {
+        await connectWs().catch(() => {});
+        await startCamera();
+        if (phase === Phase.AUTH && ws?.readyState === 1) goAuth();
+      } catch (e) {
+        alert("Caméra: " + e.message);
+      }
+    };
+
+    $("btnRetryAuth").onclick = () => {
+      if (ws?.readyState === 1 && stream) goAuth();
+      else bootstrap();
+    };
+
+    $("btnGoEnroll").onclick = () => {
+      stopVerifyLoop();
+      setVoiceMode("enroll");
+      showPhase(Phase.ENROLL);
+    };
+
+    $("btnRetryFromDenied").onclick = () => goAuth();
+
+    $("btnCancelEnroll").onclick = () => goAuth();
+
+    $("btnStartEnroll").onclick = async () => {
+      try {
+        await startEnrollmentForMember();
+      } catch (e) {
+        log(`Enregistrement: ${e.message}`, "err");
+        setEnrollBanner(false);
+        alert("Enregistrement: " + e.message);
+      }
+    };
+
+    $("btnAddMember").onclick = async () => {
+      try {
+        await unlockAudio();
+        stopVerifyLoop();
+        $("username").value = "";
+        $("pin").value = "";
+        setVoiceMode("enroll");
+        showPhase(Phase.ENROLL);
+        log("Enrôlement membre — saisis prénom/identifiant", "info");
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    $("btnLogout").onclick = async () => {
+      try {
+        await unlockAudio();
+        stopVerifyLoop();
+        setFlow("lock");
+        setPill("statePill", "VERROUILLAGE", "warn");
+        $("authHint").textContent = "Verrouillage de session…";
+        showPhase(Phase.AUTH);
+        if (authAvailable && ws?.readyState === 1) {
+          wsSend({ type: "auth", action: "logout" });
+          await waitFor((d) => d.type === "auth_logout_result", 5000).catch(() => {});
+        }
+        await sequenceStart("lock");
+        await waitVoiceIdle(7000);
+        lastMatch = null;
+        log("Session verrouillée", "ok");
+        goAuth();
+      } catch (e) {
+        log(`Logout: ${e.message}`, "err");
+        goAuth();
+      }
+    };
+
+    $("btnTestSound").onclick = async () => {
+      try {
+        await unlockAudio();
+        stopVoiceLocal();
+        setVoiceMode("auth");
+        await playEvent("face_scan_prompt");
+      } catch (e) {
+        alert("Son: " + e.message);
+      }
+    };
+
+    $("btnResetFaces").onclick = async () => {
+      if (!confirm("Effacer uniquement TON profil facial et le ré-enregistrer ? (Les autres membres du foyer restent intacts.)")) return;
+      try {
+        await unlockAudio();
+        await resetCurrentUserFace();
+      } catch (e) {
+        alert("Reset: " + e.message);
+      }
+    };
+
+    if (!window.isSecureContext) {
+      alert("Ouvre http://127.0.0.1:8770/face_vault.html (pas file://)");
+    }
+
+    showPhase(Phase.AUTH);
+    $("authHint").textContent = "Cliquez « DÉMARRER JARVIS » pour activer le son et la caméra.";
+  </script>
+</body>
+</html>

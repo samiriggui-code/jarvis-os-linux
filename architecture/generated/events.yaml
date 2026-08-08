@@ -9,12 +9,12 @@ bus_publies:
     politique_debit: PASS
     sources: [core/jarvis_core/gestures.py]
 publications_dynamiques:  # type passé en variable, invisible à l'AST
-  - "core/jarvis_core/__init__.py:L2794"
-  - "core/jarvis_core/__init__.py:L2939"
-  - "core/jarvis_core/__init__.py:L346"
-  - "core/jarvis_core/__init__.py:L348"
-  - "core/jarvis_core/__init__.py:L635"
-  - "core/jarvis_core/__init__.py:L655"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L211"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L213"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L481"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L500"
+  - "core/jarvis_core/ws/handlers/auth.py:L123"
+  - "core/jarvis_core/ws/handlers/system.py:L125"
 politiques_sans_emetteur_STATIQUE:  # peuvent être publiées dynamiquement, cf. ci-dessus
   - BODY_POSE
   - EYE_GAZE
@@ -28,29 +28,32 @@ politiques_sans_emetteur_STATIQUE:  # peuvent être publiées dynamiquement, cf.
 signaux_sequence:
   - signal: enroll.name
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/intents/executors_hud.py]
   - signal: enroll.profile
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/intents/executors_hud.py]
   - signal: enroll.voice
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/ws/handlers/voice.py]
   - signal: face.landmarks
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/ws/handlers/holomat.py]
   - signal: face.matched
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/ws/handlers/holomat.py]
   - signal: face.model
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/ws/handlers/holomat.py]
   - signal: face.presence
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/ws/handlers/holomat.py]
   - signal: face.scanning
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/ws/handlers/holomat.py]
   - signal: voice.captured
     attendu_par_une_sequence: false
-    sources: [core/jarvis_core/__init__.py]
+    sources: [core/jarvis_core/ws/handlers/voice.py]
+  - signal: voice.matched
+    attendu_par_une_sequence: false
+    sources: [core/jarvis_core/ws/handlers/voice.py]
 attendus_jamais_emis:

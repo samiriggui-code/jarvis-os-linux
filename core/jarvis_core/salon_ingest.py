@@ -88,6 +88,20 @@ class _Handler(BaseHTTPRequestHandler):
             code = 200 if result.get("ok", True) else (404 if result.get("error") == "not found" else 400)
             self._json(code, result)
             return
+        if path.rstrip("/") in ("/v1/tool-events", "/v1/tool-events.json"):
+            from jarvis_core.tool_events import fetch_recent_timeline
+
+            limit = 50
+            if "?" in self.path:
+                qs = self.path.split("?", 1)[1]
+                for part in qs.split("&"):
+                    if part.startswith("limit="):
+                        try:
+                            limit = int(part.split("=", 1)[1])
+                        except ValueError:
+                            pass
+            self._json(200, {"ok": True, "events": fetch_recent_timeline(limit)})
+            return
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802

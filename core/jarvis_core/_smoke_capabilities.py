@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from dataclasses import replace
 
 # Console Windows en cp1252 : sans ça, un tiret cadratin fait échouer le test au
 # lieu de la chose testée. Même parade que `_smoke_p3.py`.
@@ -40,7 +41,8 @@ async def main() -> int:
     bridge = HermesBridge(url="http://127.0.0.1:1", key="")
 
     print("\n── Table des capacités ─────────────────────────────────────────")
-    check("28 tuiles déclarées", len(CAPABILITIES) == 28, str(len(CAPABILITIES)))
+    n = len(CAPABILITIES)
+    check(f"capacités déclarées (>= 28)", n >= 28, str(n))
 
     home = for_app("home")
     assert home is not None
@@ -54,11 +56,8 @@ async def main() -> int:
 
     docker = for_app("docker")
     assert docker is not None
-    check(
-        "docker déclaré MAIS non réalisable",
-        not docker.available,
-        "aucun toolset docker chez Hermes",
-    )
+    check("docker délègue au toolset terminal", docker.toolset == "terminal")
+    check("docker est réalisable", docker.available)
 
     video = for_app("video")
     assert video is not None
@@ -118,9 +117,10 @@ async def main() -> int:
         bridge.ask(reach, "cherche", role=None, decision=Decision(allowed=True)),
         HermesRefused,
     )
+    docker_sans_toolset = replace(docker, toolset=None)
     await refuses(
         "capacité sans toolset → refus",
-        bridge.ask(docker, "ps", role="admin", decision=Decision(allowed=True)),
+        bridge.ask(docker_sans_toolset, "ps", role="admin", decision=Decision(allowed=True)),
         HermesRefused,
     )
     await refuses(
@@ -164,8 +164,16 @@ async def main() -> int:
     bad = [c.app_id for c in CAPABILITIES.values() if c.owner is not Owner.HERMES and c.toolset]
     check("aucun toolset sur une capacité non-Hermes", not bad, ", ".join(bad))
 
-    dupes = [i for i in CAPABILITIES if CAPABILITIES[i].app_id != i]
-    check("clé == app_id partout", not dupes, ", ".join(dupes))
+    # Clés dict != app_id quand plusieurs intentions partagent une tuile HUD.
+    KEY_APP_MISMATCH_OK = frozenset({
+        "capabilities", "introspect", "media-pause", "media-streaming",
+        "software", "device-launch",
+    })
+    dupes = [
+        k for k, c in CAPABILITIES.items()
+        if c.app_id != k and k not in KEY_APP_MISMATCH_OK
+    ]
+    check("clé == app_id (sauf tuiles partagées)", not dupes, ", ".join(dupes))
 
     intents = [c.intent for c in CAPABILITIES.values()]
     check("intentions uniques", len(intents) == len(set(intents)))

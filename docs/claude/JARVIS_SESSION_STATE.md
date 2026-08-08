@@ -1,6 +1,6 @@
 # État de session — JARVIS OS
 
-> **Dernière mise à jour :** 2026-08-07  
+> **Dernière mise à jour :** 2026-08-08 (P3 Core local — missions, vps.code, gate Spotify)  
 > **À lire en premier** dans toute nouvelle conversation Claude/Cursor.  
 > Runtime vérifié aligné avec le **working tree local** (hashes) ; commit = ce fichier + deploy.
 
@@ -83,6 +83,43 @@ Env Pi (service) :
 
 - http://192.168.1.27:8123 · user `admin` (mdp hors git)
 
+## Modèle foyer — devices & sessions (vision 2026-08-08)
+
+**Un seul Core** (NUC). Tout le reste = **satellites**. Pas d’enroll urgent tant que la famille est absente ; c’est la cible produit.
+
+### Trois types de satellite
+
+| Type | Exemples | Utilisateur | Comportement auth |
+|------|----------|-------------|-------------------|
+| **Partagé foyer** | Pi salon, tablette murale | Aucun fixe | Tout le monde interagit ; le Core **identifie** (face / voix) ou session ouverte par un membre |
+| **Personnel** | Tablette fille, iPhone, PC portable | **1 profil** appairé | Connexion = **son** profil (session persistante sur l’appareil) |
+| **Gateway** | Pi (capteurs, jack, ADB) | Aucun UI | Prête micro/cam/speaker au Core ; pas de session propre |
+
+### Membres & appareils visés
+
+| Personne | Appareils personnels (profil fixe) |
+|----------|-------------------------------------|
+| Samir (ADMIN) | PC portable, desktop, iPhone |
+| Ines, Yasmine | Leur tablette |
+| Zahra | Tablette + téléphone |
+| Malika | Ses appareils |
+
+**Partagés** (toute la famille) : **Pi salon** + **tablette murale** — interaction Jarvis pour tous.
+
+### Règles session (intent produit)
+
+1. **Satellite partagé** : n’importe qui peut parler / se montrer à la cam → Jarvis répond **au nom du profil reconnu** (face multi-profil, voix plus tard).
+2. **Samir admin sur partagé** : session **ADMIN** ouverte → peut agir pour le foyer (domotique, media, chat…) ; le **Dashboard admin** reste **renforcé** (`elevate_admin` / PIN — pas la même porte que « être admin dans le salon »).
+3. **Satellite personnel** : appairage device → `user_id` ; pas besoin de rescanner à chaque fois ; permissions = rôle du profil (CHILD vs USER vs ADMIN).
+
+### Écart Core actuel (à combler avant prod)
+
+- ~~`AuthService.active` = une session globale~~ → **Phase 3 (2026-08-08)** : session par `connection_id` WS ; logout/disconnect scoped.
+- ~~`DeviceRegistry` sans `device_mode`~~ → **Phase 3** : `personal|shared|gateway` + `bound_user_id` (discovery only, pas encore routing intent).
+- Face multi-profil offline OK ; appairage device → session perso = **Phase 4+**.
+
+Réf. architecture : `docs/architecture/JARVIS-Satellites.md` §9 point 7.
+
 ## Suite
 
 - Freebox redirect WAN **41223** à rétablir (secours = via-nuc)
@@ -101,5 +138,48 @@ Env Pi (service) :
 - **Device 1 VALIDÉ (2026-08-07)** : HUD → `device.*` → registre. Preuve NUC : `nuc-main` + UUID(s) `pc_client`/`web_hud` (portable + iPhone) avec caps confirmées. Identité UUID + label décoratif. Couche indépendante (pas Hermes / Surface / Intent / Auth / HA).
 - **Device 2 VALIDÉ (2026-08-07)** : `deploy/pi-salon/jarvis_device_announce.py` + systemd `jarvis-device-announce` — `pi-salon` online avec `camera.capture`, `audio.input`, `audio.output`, `home_assistant.gateway`, `freebox.player`. Discovery only.
 - **Stratégie Device Intelligence** : inventaire d’abord ; **pas** Capability Router / Agentic UI maintenant. HA = futur adaptateur (pas cerveau). Hermes = premier agent, pas dépendance absolue (Agent Registry plus tard).
-- **Services (2026-08-07 13:04)** : restart `jarvis-core` + `jarvis-hermes` — PG/nginx/ear/cam active ; Holomat FaceEngine prêt (~739 ms). Auth faciale HUD : retester après hard refresh (fix deny→allow déjà déployé).
-- **Prochaine** : Capability Router (étude) — après stabilisation auth faciale si besoin.
+- **Services (2026-08-07 13:04)** : restart `jarvis-core` + `jarvis-hermes` — PG/nginx/ear/cam active ; Holomat FaceEngine prêt (~739 ms).
+- **UI auth HUD** : **repoussé** — pas de travail HUD tant que Core face/auth n’est pas figé. Référence dev : `core/tools/face_vault.html` + `ws_cli.py`. **Smoke = auth faciale seule** (voix auth hors scope jusqu’à service speaker-ID dédié).
+- **Core Phase 5 TERMINÉE (2026-08-08)** : Capability Router + routing intent ; gate `_smoke_phase5`. Doc `docs/audit/CORE_PHASE5.md`.
+- **Core Phase 4 TERMINÉE (2026-08-08)** : package `vision/` ; lifecycle découpé ; gate `_smoke_phase4`.
+- **Core Phase 3 TERMINÉE (2026-08-08)** : sessions WS isolées ; `device_mode` ; gate `_smoke_phase3`.
+- **Tests enroll réels** : **REPORTÉS** — foyer vide (webcam uniquement). Refactor Core continue.
+- **Core Phase 6 TERMINÉE (2026-08-08)** : circuit intent unifié ; gate `_smoke_phase6`.
+- **Core P0 executors TERMINÉ (2026-08-08)** : tuiles système — `executors/system.py` ; docker/storage → toolset `terminal` ; gate `_smoke_p0_executors`.
+- **Core P1 TERMINÉ (2026-08-08)** : mission dev ↔ kanban Hermes ; entrée unique `_start_mission_dev_run` ; chat `JARVIS_CHAT_PROVIDER=hermes|llm` ; `surface_decision` étendu ; gate `_smoke_p1` · doc `docs/audit/CORE_P1.md`.
+- **Face Auth Core VALIDÉ (2026-08-08)** : MediaPipe Face Mesh dans `vision/face_mesh.py` + `vision/face_engine.py` ; contrat WS inchangé (`FACE_AUTH_CONTRACT.md`).
+
+## Exploitation — latence & « Hermes indisponible » (2026-08-08)
+
+**Symptôme utilisateur :** Jarvis « réfléchit » longtemps, parfois ne répond pas, ou affiche  
+`Hermes indisponible — réponse locale. (délai SSE dépassé pour run run_…)`
+
+**Cause technique (figée) :**
+
+| Couche | Comportement |
+|--------|----------------|
+| **Hermes** | Run agent démarré (`POST /v1/runs`) — boucle LLM + outils (`web_search`, etc.) souvent **> 45 s** sur NUC |
+| **Core** | Écoute SSE `/v1/runs/{id}/events` — **`DEFAULT_TIMEOUT = 120 s`** (`hermes/bridge.py`, env `JARVIS_HERMES_TIMEOUT`) |
+| **Timeout** | `HermesUnavailable("délai SSE dépassé pour run …")` — phrase vocale explicite + Google (`_fallback_web_surface`) |
+| **Fallback web** | `web.search` → message distinct **timeout** vs **panne**, puis lien Google |
+| **Chat libre** | **OpenRouter cloud** par défaut (boot NUC : « mode IA : cloud ») — timeout HTTP **60 s** |
+| **Voix** | voicebox sans profil `jarvis-fr` → **repli ElevenLabs** (logs NUC) = TTS lent en plus du LLM |
+
+**Ce n’est pas :** Hermes down (supervisor `hermes: ready`, `/health` 200).
+
+**Tests live NUC (sans sync obligatoire) :**
+
+- WS prod : `wss://jarvis.global-it-ss.com/ws` · LAN : `ws://192.168.1.37:8080/ws`
+- Script : `core/tools/nuc_p1_live.py` (défaut = domaine prod)
+- Session HUD admin **≠** session `ws_cli` : pour Hermes en admin via script → `JARVIS_TEST_PIN` + `JARVIS_TEST_USER=samir`
+- **Ne pas sync** le Core juste pour observer l’existant ; P1 local pas encore sur `/opt/jarvis/core` au 2026-08-08
+
+**P3 Core (local, 2026-08-08) :** `core.missions` (magasin JSON) · `vps.code` (projets) · `JARVIS_SPOTIFY_ENABLED` · gate `_smoke_p3_tiles`.
+
+**Tests live — À FAIRE plus tard (Samir) :** voir checklist `docs/audit/CORE_P3.md` § ops.
+
+1. Lancer `setup-voicebox-profiles.sh` sur le NUC (profils `jarvis-fr` / `jarvis-en` / `jarvis-soft`)
+2. Sync Core P0+P1+P2a → `/opt/jarvis/core` quand Samir valide
+3. Requêtes web plus courtes / modèle plus rapide côté Hermes
+
+**Diag run bloqué :** `journalctl -u jarvis-hermes -n 50 | grep <run_id>`

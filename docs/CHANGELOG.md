@@ -4,6 +4,70 @@
 
 ---
 
+## 2026-08-08 — Core P3 (tuiles restantes)
+
+- `core.missions` — magasin `data/missions.json`, exécuteur vocal liste/ajout/clôture
+- `vps.code` — owner CORE, liste projets `JARVIS_PROJECTS_ROOT`
+- `media.music` — disponible si `JARVIS_SPOTIFY_ENABLED=1` (+ Hermes spotify)
+- Gate : `_smoke_p3_tiles` · doc `docs/audit/CORE_P3.md`
+
+## 2026-08-08 — Core P2b (contrat HUD — segmentation)
+
+- `surfaces/admission.py` — validateur + catalogue (extrait de `surface.py`)
+- `hermes/events.py` — mapping SSE → `AgentToolEvent`
+- `surface_decision.py` — mappings skills / cron / outils / cursor
+- Gates : `_smoke_p2b`, `_smoke_hermes_events` (inclus `_smoke_phase6`)
+
+## 2026-08-08 — Core P2a (timeout Hermes + fallback vocal)
+
+- `JARVIS_HERMES_TIMEOUT` · défaut SSE **120 s** (était 45 s) · `resolve_hermes_timeout()` dans `hermes/bridge.py`
+- `web.search` timeout → phrase vocale explicite + Google (`_fallback_web_surface`)
+- Script ops : `deploy/scripts/setup-voicebox-profiles.sh` (jarvis-fr / jarvis-en / jarvis-soft)
+- Gate : `python -m jarvis_core._smoke_p2a` (inclus dans `_smoke_phase6`)
+
+## 2026-08-08 — Diag latence Hermes (NUC live)
+
+- Timeout Core SSE Hermes **45 s** vs runs web souvent **> 60 s** → message « Hermes indisponible — réponse locale »
+- Tests live : `wss://jarvis.global-it-ss.com/ws` · `core/tools/nuc_p1_live.py` · pas de sync requise pour observer
+- Mémo : `docs/claude/JARVIS_SESSION_STATE.md` § Exploitation latence
+
+## 2026-08-08 — Core Phase 5 terminée
+
+- **CapabilityRouter** : origine + device_mode ; HostCapability scoring ; refus personal mismatch
+- **Intent routing** : `executors_routing.py` ; tool_event `device_id` ; `surface_result.route`
+- **Gate** : `python -m jarvis_core._smoke_phase5` ; doc `docs/audit/CORE_PHASE5.md`
+
+## 2026-08-08 — Core Phase 4 terminée
+
+- **Rename Python** : `jarvis_core.holomat` → `jarvis_core.vision` ; shim deprecated ; protocole WS `type: holomat` inchangé
+- **Lifecycle split** : `orchestrator_speech.py`, `orchestrator_boot.py`, `orchestrator_session.py`
+- **Device hint** : WS ↔ `device_id` ; `auth_status.device_hint` pour appareils `personal`
+- **Gate** : `python -m jarvis_core._smoke_phase4` ALL PASS ; scripts `deploy/scripts/core-phase4-smoke.*`
+- **Doc** : `docs/audit/CORE_PHASE4.md`
+
+## 2026-08-08 — Core Phase 3 terminée
+
+- **Sessions WS** : `ConnectionRegistry` + `ConnectionSessionStore` ; login/logout/status scoped par connexion ; `on_disconnect` ferme la session du client
+- **Device mode** : `personal|shared|gateway` + `bound_user_id` sur `DeviceRegistry`
+- **Refactor** : `intents/executors_hud.py` (HUD + enrollment kiosk)
+- **Gate** : `python -m jarvis_core._smoke_phase3` ALL PASS (+ régression Phase 2) ; scripts `deploy/scripts/core-phase3-smoke.*`
+- **Doc** : `docs/audit/CORE_PHASE3.md`
+
+## 2026-08-08 — Core Phase 2 terminée
+
+- **Gate** : `python -m jarvis_core._smoke_phase2` ALL PASS ; scripts `deploy/scripts/core-phase2-smoke.*`
+- **Multi-profil offline** : `_smoke_face_multi` ; `enroll_member` + `face_reset_user`
+- **Refactor WS** : `ws/peripherals.py` ; imports morts retirés des mixins handlers
+- **Doc** : `docs/audit/CORE_PHASE2.md` — tests enroll réels reportés (foyer vide)
+
+## 2026-08-08 — Face Auth Core + page dev auth-first
+
+- **Face Mesh Core** : `holomat/face_mesh.py` (468 landmarks → embedding) ; verify disque-first sans PostgreSQL
+- **Contrat WS** : enroll/verify/login aligné `docs/architecture/FACE_AUTH_CONTRACT.md`
+- **Smokes** : `python -m jarvis_core._smoke_phase0` ALL PASS ; `_smoke_auth_face` PASS (FaceEngine + `face_frame` < 5 s)
+- **Parcours dev** : `face_vault.html` refonte auth-first (scan auto → refus si inconnu → enroll → retour auth) ; mesh overlay + bbox Core
+- **Outils** : `face_smoke.html` (debug technique), `cam_test.html`, `ws_cli.py`, serve `:8770`
+
 ## 2026-08-07 — Satellite salon (Pi) + Freebox + wake
 
 Runtime aligné local ↔ NUC ↔ Pi (hashes). Commit deploy + Core salon.
@@ -19,6 +83,7 @@ Runtime aligné local ↔ NUC ↔ Pi (hashes). Commit deploy + Core salon.
 - **Device 1 VALIDÉ** : UUID `pc_client`/`web_hud` dans registre (portable + iPhone) ; caps honnêtes ; stratégie figée Device 2 Pi → puis Router (pas HA cerveau, pas Hermes unique)
 - **Device 2 VALIDÉ** : Pi `jarvis-device-announce` → `pi-salon` online (cam LG, audio, HA gateway, Freebox player)
 - Restart NUC Core/Hermes : FaceEngine Holomat prêt ; retester auth faciale HUD
+- **AUTH_SMOKE_TEST** : câble Camera → `face_frame` → FaceEngine validé (< 1 s) ; gate P1/P2 + workflow CI optionnel ; régression `dbfa270` classée (workflow HUD, pas modèles)
 
 ## 2026-08-06 (midi) — Auth / device / agentic honesty
 

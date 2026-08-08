@@ -46,6 +46,7 @@ d'elle.
 
 from __future__ import annotations
 
+import os
 import unicodedata
 from dataclasses import dataclass
 from enum import Enum
@@ -149,12 +150,27 @@ class Capability:
         n'existe pas — le déclarer disponible serait mentir.
         """
         if self.owner is Owner.CORE:
-            # Stubs CORE sans exécutant réel (déclarés dans le registre « sans outil »).
-            if self.intent in {"system.network", "core.missions"}:
-                return False
             return True
         if self.owner is Owner.HERMES:
-            return self.toolset is not None
+            if self.toolset is None:
+                return False
+            if self.intent == "media.music":
+                import os
+
+                return os.environ.get("JARVIS_SPOTIFY_ENABLED", "").lower() in (
+                    "1",
+                    "true",
+                    "yes",
+                )
+            return True
+        if self.owner is Owner.DEVICE:
+            import os
+
+            return os.environ.get("JARVIS_DEVICE_AGENT_ENABLED", "1").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
         return False
 
 
@@ -244,13 +260,15 @@ CAPABILITIES: dict[str, Capability] = {
     "mission-control-dev": Capability(
         app_id="mission-control-dev", intent="core.mission_dev", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
-        note="Route Core `mission_dev`. Le kanban d'Hermes reste à raccorder.",
+        note="Route Core `mission_dev` + kanban Hermes (skills) au démarrage projet.",
         # Plus de « mission control » nu : ça volait Mission Control Home.
         triggers=("mission control dev", "mission-control-dev", "mission ctrl dev"),
     ),
     "cursor": Capability(
-        app_id="cursor", intent="core.cursor", owner=Owner.CORE,
-        risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        app_id="cursor", intent="core.cursor", owner=Owner.DEVICE,
+        risk=RiskLevel.MEDIA, permission="media.control", display=Display.NATIVE,
+        operation=Operation.EXECUTE,
+        note="Lancement via agent local (app.launch) — milestone test_app puis Cursor.",
         triggers=("cursor", "éditeur cursor", "ouvre cursor"),
     ),
     # Liste des capacités — surface ResultPanel, sans Hermes
@@ -378,6 +396,18 @@ CAPABILITIES: dict[str, Capability] = {
             "stop musique", "coupe le son de la musique", "pause la musique",
         ),
     ),
+    "media-streaming": Capability(
+        app_id="video", intent="media.streaming", owner=Owner.CORE,
+        risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
+        operation=Operation.WRITE,
+        note="Netflix / Disney+ / YouTube / cam salon — Freebox Player ou repli HUD.",
+        triggers=(
+            "netflix", "disney", "disney+", "youtube", "prime video", "amazon prime",
+            "regarde sur netflix", "lance netflix", "ouvre disney",
+            "montre la cam", "affiche la cam", "caméra salon", "camera salon",
+            "flux salon", "voir le salon",
+        ),
+    ),
     # —— Maison ————————————————————————————————————————————————————————————
     #
     # ⚠ CORE, pas Hermes — et c'est une correction, pas un choix de départ.
@@ -404,6 +434,7 @@ CAPABILITIES: dict[str, Capability] = {
             "home", "ouvre home", "affiche home", "affiche-moi home",
             "mission control home", "mission contrôle home", "mission controle home",
             "ouvre la maison", "affiche la maison",
+            "allume", "éteint", "eteint", "allume le salon", "éteint le salon",
         ),
     ),
     # —— Médias ————————————————————————————————————————————————————————————
@@ -411,7 +442,7 @@ CAPABILITIES: dict[str, Capability] = {
         app_id="music", intent="media.music", owner=Owner.HERMES, toolset="spotify",
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
         operation=Operation.WRITE,
-        note="Toolset spotify — 7 outils, désactivé côté Hermes aujourd'hui.",
+        note="Toolset spotify — actif si JARVIS_SPOTIFY_ENABLED=1 et Hermes spotify configuré.",
         triggers=("musique", "spotify", "plex audio"),
     ),
     # ⚠ CORE depuis le 2026-08-05 — même correction que `home.control`, et pour
@@ -426,7 +457,7 @@ CAPABILITIES: dict[str, Capability] = {
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
         operation=Operation.WRITE,
         note="Adaptateur Core `plex.py` — déterministe, sans LLM.",
-        triggers=("vidéo", "video", "film", "plex", "série", "serie", "épisode", "episode", "regarde"),
+        triggers=("vidéo", "video", "film", "plex", "série", "serie", "épisode", "episode", "regarde", "mets", "lance"),
     ),
     # —— Hermes ————————————————————————————————————————————————————————————
     "reach": Capability(
@@ -489,49 +520,69 @@ CAPABILITIES: dict[str, Capability] = {
     # `toolset=None` : l'ouverture échouera en disant pourquoi. Les masquer ferait
     # croire que le volet est complet.
     "docker": Capability(
-        app_id="docker", intent="vps.docker", owner=Owner.HERMES,
+        app_id="docker", intent="vps.docker", owner=Owner.HERMES, toolset="terminal",
         risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
         operation=Operation.EXECUTE,
-        note="Aucun toolset docker chez Hermes — passerait par `terminal`, à trancher.",
+        note="Délégation Hermes toolset terminal (docker ps, logs…). Policy VPS allowlist.",
         triggers=("docker", "conteneur", "containers"),
     ),
     "storage": Capability(
-        app_id="storage", intent="vps.storage", owner=Owner.HERMES,
+        app_id="storage", intent="vps.storage", owner=Owner.HERMES, toolset="terminal",
         risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
         operation=Operation.EXECUTE,
-        note="Idem docker.",
+        note="Délégation Hermes toolset terminal (df, volumes…). Policy VPS allowlist.",
         triggers=("stockage", "disque", "volume"),
     ),
     "code": Capability(
-        app_id="code", intent="vps.code", owner=Owner.DEVICE,
+        app_id="code", intent="vps.code", owner=Owner.CORE,
         risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
         operation=Operation.WRITE,
-        note="Éditeur distant — relève d'un agent d'appareil.",
-        triggers=("code", "vscode", "éditeur"),
+        note="Liste projets (JARVIS_PROJECTS_ROOT) + note éditeur ; Hermes file pour le reste.",
+        triggers=("code", "vscode", "éditeur", "editeur"),
     ),
     "network": Capability(
         app_id="network", intent="system.network", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
-        note="Aucune liaison réseau enregistrée dans `BindingResolver`.",
+        note="Topologie DeviceRegistry + services amont (Core in-process).",
         triggers=("réseau", "wifi", "lan"),
     ),
     "connexions": Capability(
-        app_id="connexions", intent="devices.list", owner=Owner.DEVICE,
+        app_id="connexions", intent="devices.list", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
-        note="Device Manager inexistant.",
-        triggers=("connexions", "entités"),
+        note="Liste DeviceRegistry + inventaire logiciel par agent.",
+        triggers=("connexions", "entités", "appareils connectés"),
+    ),
+    "software": Capability(
+        app_id="connexions", intent="devices.software", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
+        note="Inventaire logiciel des agents Windows (app.software.*).",
+        triggers=(
+            "logiciels installés",
+            "applications installées",
+            "apps du pc",
+            "logiciels du portable",
+            "mes applications",
+        ),
+    ),
+    "device-launch": Capability(
+        app_id="connexions", intent="device.app_launch", owner=Owner.DEVICE,
+        risk=RiskLevel.MEDIA, permission="media.control", display=Display.NATIVE,
+        operation=Operation.EXECUTE,
+        note="Lance une app inventoriée sur l'agent Windows (match phrase → app_id).",
+        triggers=("ouvre l'application", "lance l'application", "ouvre l application"),
     ),
     "reseau": Capability(
-        app_id="reseau", intent="devices.topology", owner=Owner.DEVICE,
+        app_id="reseau", intent="devices.topology", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
-        note="Device Manager inexistant.",
-        triggers=("topologie", "mesh"),
+        note="Topologie DeviceRegistry (Core in-process).",
+        triggers=("topologie", "mesh", "réseau jarvis"),
     ),
     "objectifs": Capability(
         app_id="objectifs", intent="core.missions", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
-        note="Aucun magasin d'objectifs côté Core.",
-        triggers=("objectifs", "buts"),
+        operation=Operation.WRITE,
+        note="Magasin local data/missions.json — ajout / liste / clôture.",
+        triggers=("objectifs", "buts", "objectif", "goal", "goals"),
     ),
 }
 
@@ -632,6 +683,27 @@ def all_toolsets() -> set[str]:
     return {c.toolset for c in CAPABILITIES.values() if c.toolset}
 
 
+_SLIM_DEFAULT = frozenset({"skills"})
+
+
+def _apply_hermes_slim(granted: set[str]) -> set[str]:
+    """Réduit la surface MCP Hermes (pattern agent-swarm scripts-only).
+
+    ``JARVIS_HERMES_SKILLS_ONLY=1`` → intersection avec ``JARVIS_HERMES_SLIM_TOOLSETS``
+    (défaut ``skills``). Sinon, ``JARVIS_HERMES_TOOLSETS`` allowlist optionnelle.
+    """
+    mode = (os.environ.get("JARVIS_HERMES_SKILLS_ONLY") or "").lower()
+    if mode in ("1", "true", "yes"):
+        raw = (os.environ.get("JARVIS_HERMES_SLIM_TOOLSETS") or "skills").strip()
+        names = {x.strip() for x in raw.split(",") if x.strip()} or set(_SLIM_DEFAULT)
+        return granted & names
+    allow = (os.environ.get("JARVIS_HERMES_TOOLSETS") or "").strip()
+    if allow:
+        names = {x.strip() for x in allow.split(",") if x.strip()}
+        return granted & names if names else granted
+    return granted
+
+
 def toolsets_for(role: str | None) -> set[str]:
     """Les toolsets Hermes délégables par ce rôle.
 
@@ -644,5 +716,7 @@ def toolsets_for(role: str | None) -> set[str]:
         return set()
     normalized = str(role).lower()
     if normalized == "admin":
-        return all_toolsets()
-    return set(ROLE_TOOLSETS.get(normalized, ()))
+        granted = all_toolsets()
+    else:
+        granted = set(ROLE_TOOLSETS.get(normalized, ()))
+    return _apply_hermes_slim(granted)

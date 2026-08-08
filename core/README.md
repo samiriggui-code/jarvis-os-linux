@@ -88,10 +88,33 @@ surveillance.
 ## Smoke tests
 
 ```bash
+# Gate Phase 0 (offline, sans HUD)
+python -m jarvis_core._smoke_phase0
+# Gate Phase 2 (refactor post Phase 1)
+python -m jarvis_core._smoke_phase2
+# ou : ./deploy/scripts/core-phase0-smoke.sh
+
+# Client WS minimal (Core doit tourner)
+python tools/ws_cli.py ping
+python tools/ws_cli.py holomat status
+
 python -m jarvis_core.auth._smoke        # auth + rôles + permissions
 python -m jarvis_core._smoke_bus         # back-pressure + politiques gestuelles
 python -m jarvis_core._smoke_supervisor  # transitions + circuit breaker + backoff
+python -m jarvis_core._smoke_auth_face   # AUTH_SMOKE : face_frame < 5s → FaceEngine
 ```
+
+**Gate P1/P2 auth / Holomat** (décision 2026-08-07) :
+
+```bash
+# Linux / NUC
+./deploy/scripts/auth-smoke-test.sh
+# Windows (tunnel SSH :8765 → NUC si besoin)
+.\deploy\scripts\auth-smoke-test.ps1
+```
+
+Chaîne : Camera → AuthScene → `face_frame` → Core → FaceEngine → `FACE_*`.
+Pas de rename `holomat/` tant que ce smoke + enroll multi-profil ne sont pas verts.
 
 Les outils voix/STT/TTS upstream vivent dans `vendor/` — appelés en HTTP comme
 services, jamais copiés ici.

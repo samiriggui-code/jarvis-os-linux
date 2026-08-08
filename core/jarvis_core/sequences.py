@@ -198,54 +198,18 @@ BOOT = Sequence(
 AUTH = Sequence(
     "auth",
     [
-        # Préparation silencieuse : pas de monologue cinéma si personne n'est
-        # devant la caméra. La voix ne démarre QU'après `face.presence`.
+        # Auth = phrase vocale (STT). Holomat face hors de ce chemin
+        # (gestes / objets uniquement — décision 2026-08-07).
         Step("auth_started", min_hold_s=0.15, announce="never"),
         Step("peripheral_auth_degraded", when="no_biometrics", min_hold_s=0.6),
         Step("biometric_modules_sync", announce="never"),
-        Step("perception_ready", when="face_ready", announce="never"),
         Step("sensors_calibrated", announce="never"),
-        Step("environment_scan", when="face_ready", branch="face", announce="never"),
-        # « Présence humaine détectée » n'est dite QU'APRÈS la détection réelle.
-        Step("presence_detected", awaits="face.presence", timeout_s=45.0,
-             on_timeout="face_scan_prompt", soft_timeout=True,
-             when="face_ready", branch="face", announce="after"),
-        Step("face_scan_active", awaits="face.scanning", timeout_s=10.0,
-             when="face_ready", branch="face", announce="after"),
-        Step("face_embedding", when="face_ready", branch="face"),
-        Step("face_match_search", awaits="face.matched", timeout_s=12.0,
-             on_timeout="face_denied", when="face_ready", branch="face"),
-        Step("face_authenticated", min_hold_s=0.3, when="face_ready", branch="face"),
-        # -- Voix. BRANCHE DÉSACTIVÉE tant que la vérification du locuteur
-        # n'existe pas.
-        #
-        # `speaker_verified` renvoie False aujourd'hui, donc ces quatre étapes
-        # sont sautées. Ce n'est pas un oubli, c'est le correctif :
-        #
-        # Ce qui validait la voix, c'était `voice.captured` — signalé dès que
-        # la transcription rendait un texte non vide. Autrement dit :
-        # N'IMPORTE QUI QUI PARLE validait le facteur, puis JARVIS annonçait
-        # « Signature vocale validée » et « Authentification multimodale
-        # confirmée ». Aucune empreinte vocale n'est stockée nulle part, et
-        # aucune brique de vérification du locuteur n'existe dans le Core.
-        #
-        # Demander à quelqu'un de parler pour ensuite ne rien vérifier, c'est
-        # du théâtre — et du théâtre qui compte comme facteur d'accès. On se
-        # tait jusqu'à ce que la vérification soit réelle.
-        #
-        # Les phrases restent en cache : le jour où l'embedding locuteur
-        # arrive (cf. discussion WeSpeaker / CAM++), il suffira que
-        # `speaker_verified` dise vrai et que `awaits` pointe sur un signal de
-        # CORRESPONDANCE, pas de simple captation.
         Step("voice_channel_open", when="speaker_verified", branch="voice"),
-        Step("voice_prompt", awaits="voice.matched", timeout_s=12.0,
+        Step("voice_prompt", awaits="voice.matched", timeout_s=45.0,
              on_timeout="voice_no_match", wait_event="voice_prompt_wait",
-             when="speaker_verified", branch="voice"),
+             when="speaker_verified", branch="voice", soft_timeout=True),
         Step("voice_analyzing", when="speaker_verified", branch="voice"),
         Step("voice_validated", min_hold_s=0.4, when="speaker_verified", branch="voice"),
-        # Plus de greeting / awaiting ici : dès face OK le HUD unlock et
-        # coupe via sequence_stop. Une salutation Core doublait le chat et
-        # donnait l'impression que JARVIS « continue son monologue ».
     ],
 )
 

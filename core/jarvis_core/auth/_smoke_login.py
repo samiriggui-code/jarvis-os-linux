@@ -14,6 +14,7 @@ l'un d'eux casse, c'est que le chemin d'authentification s'est rouvert.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import tempfile
@@ -25,6 +26,13 @@ if str(ROOT) not in sys.path:
 
 from jarvis_core.auth import AuthService, UserManager  # noqa: E402
 from jarvis_core.auth.service import ENV_ALLOW_UNVERIFIED  # noqa: E402
+
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
+# Refus login attendus — évite le bruit rouge PowerShell (stderr logger).
+logging.getLogger("jarvis.auth.service").setLevel(logging.ERROR)
 
 
 def main() -> int:

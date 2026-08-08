@@ -1,0 +1,5 @@
+# Dépendances minimales — agent Windows JARVIS (hors Core)
+websockets>=12.0
+pystray>=0.19; sys_platform == 'win32'
+pillow>=10.0; sys_platform == 'win32'
+psutil>=5.9; sys_platform == 'win32'

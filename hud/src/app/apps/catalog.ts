@@ -184,7 +184,7 @@ export const HUD_APPS: HudApp[] = [
     id: 'code', name: 'VS Code', icon: Code, color: C.green, cat: 'Agent',
     status: 'soon', risk: 'vps', vpsLimited: true, owner: 'device',
     blurb: 'Éditeur distant — besoin d’un agent PC (pas encore). Utilisez Cursor HUD.',
-    voice: ['code', 'vscode', 'éditeur'],
+    voice: ['code', 'vscode', 'éditeur', 'editeur'],
     intent: 'vps.code',
   },
   {
@@ -219,7 +219,7 @@ export const HUD_APPS: HudApp[] = [
   {
     id: 'objectifs', name: 'Objectifs', icon: Target, color: C.green, cat: 'Agent',
     status: 'soon', risk: 'info', blurb: 'Magasin d’objectifs absent',
-    voice: ['objectifs', 'buts'], intent: 'core.missions', owner: 'core',
+    voice: ['objectifs', 'buts', 'objectif', 'goal', 'goals'], intent: 'core.missions', owner: 'core',
   },
   {
     id: 'skills', name: 'Skills', icon: Sparkles, color: C.violet, cat: 'Agent',
@@ -229,12 +229,12 @@ export const HUD_APPS: HudApp[] = [
   {
     id: 'connexions', name: 'Connexions', icon: Link2, color: C.blue, cat: 'Agent',
     status: 'soon', risk: 'info', blurb: 'Device Manager absent',
-    voice: ['connexions', 'entités'], intent: 'devices.list', owner: 'device',
+    voice: ['connexions', 'entités', 'appareils connectés'], intent: 'devices.list', owner: 'device',
   },
   {
     id: 'reseau', name: 'Topologie', icon: Network, color: C.cyan, cat: 'Agent',
     status: 'soon', risk: 'info', blurb: 'Device Manager absent',
-    voice: ['topologie', 'mesh'], intent: 'devices.topology', owner: 'device',
+    voice: ['topologie', 'mesh', 'réseau jarvis'], intent: 'devices.topology', owner: 'device',
   },
   {
     id: 'cursor', name: 'Cursor', icon: Code, color: C.green, cat: 'Agent',
@@ -359,6 +359,7 @@ export const HUD_APPS: HudApp[] = [
       'home', 'ouvre home', 'affiche home', 'affiche-moi home',
       'mission control home', 'mission contrôle home', 'mission controle home',
       'ouvre la maison', 'affiche la maison',
+      'allume', 'allume le salon', 'eteint', 'éteint', 'éteint le salon',
     ],
     intent: 'home.control',
   },
@@ -373,7 +374,7 @@ export const HUD_APPS: HudApp[] = [
     id: 'video', name: 'Vidéo', icon: Video, color: C.amber, cat: 'Médias',
     status: 'surface', risk: 'media', owner: 'core',
     blurb: 'Plex — sans LLM',
-    voice: ['vidéo', 'video', 'film', 'plex', 'série', 'serie', 'épisode', 'episode', 'regarde'],
+    voice: ['vidéo', 'video', 'film', 'plex', 'série', 'serie', 'épisode', 'episode', 'regarde', 'lance', 'mets'],
     intent: 'media.video',
   },
 

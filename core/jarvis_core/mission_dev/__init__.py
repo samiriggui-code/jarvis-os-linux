@@ -108,6 +108,8 @@ class MissionDevRunner:
         scenario: str = "cursor",
         owner_user_id: str | None = None,
         hermes_ok: bool | None = None,
+        hermes_bridge: Any | None = None,
+        session_role: str | None = None,
     ) -> None:
         if self.running:
             await send({"type": "mission_dev_error", "error": "mission_dev_already_running"})
@@ -121,6 +123,8 @@ class MissionDevRunner:
                 scenario=scenario,
                 owner_user_id=owner_user_id,
                 hermes_ok=hermes_ok,
+                hermes_bridge=hermes_bridge,
+                session_role=session_role,
             )
         )
 
@@ -163,6 +167,8 @@ class MissionDevRunner:
         scenario: str,
         owner_user_id: str | None,
         hermes_ok: bool | None,
+        hermes_bridge: Any | None,
+        session_role: str | None,
     ) -> None:
         mission_dev_id = str(uuid.uuid4())
         self.active_id = mission_dev_id
@@ -219,15 +225,29 @@ class MissionDevRunner:
             if self._abort.is_set():
                 raise InterruptedError("aborted")
             await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="hermes", status="running",
-                             project_name=name, project_id=project_id, log=">> analyse intent")
-            route = "agent.dev"
-            if hermes_ok is True:
-                log_h = ">> Hermès health OK · route → agent.dev"
+                             project_name=name, project_id=project_id, log=">> kanban Hermes")
+            log_h = ">> route locale → agent.dev"
+            if hermes_bridge is not None and project_id:
+                from .kanban import sync_project_card
+
+                ok, detail = await sync_project_card(
+                    hermes_bridge,
+                    role=session_role,
+                    project_name=name,
+                    project_id=project_id,
+                    mission_dev_id=mission_dev_id,
+                )
+                if ok:
+                    log_h = f">> kanban Hermes · {detail[:96]}"
+                elif hermes_ok is False:
+                    log_h = ">> Hermès hors ligne · route locale → agent.dev"
+                else:
+                    log_h = f">> kanban skip · {detail[:72]}"
+            elif hermes_ok is True:
+                log_h = ">> Hermès health OK · kanban non tenté (bridge absent)"
             elif hermes_ok is False:
                 log_h = ">> Hermès hors ligne · route locale → agent.dev"
-            else:
-                log_h = ">> route locale → agent.dev"
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(0.35)
             await self._emit(send, speak, mission_dev_id=mission_dev_id, step_id="hermes", status="done",
                              project_name=name, project_id=project_id, log=log_h)
 

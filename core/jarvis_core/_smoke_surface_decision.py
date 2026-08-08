@@ -24,8 +24,11 @@ def main() -> None:
     print("\n1. decide_surface_id")
     check("core.monitor -> monitor", decide_surface_id(intent="core.monitor") == MONITOR_SURFACE_ID)
     check("system.cpu -> monitor", decide_surface_id(tool="system.cpu") == MONITOR_SURFACE_ID)
-    check("autre intent -> None", decide_surface_id(intent="core.holomat") is None)
-    check("autre tool -> None", decide_surface_id(tool="terminal") is None)
+    check("core.holomat -> vision", decide_surface_id(intent="core.holomat") == "vision")
+    check("web.search -> reach", decide_surface_id(intent="web.search") == "reach")
+    check("terminal tool -> terminal", decide_surface_id(tool="terminal") == "terminal")
+    check("kanban_create -> mission-control-dev", decide_surface_id(tool="kanban_create") == "mission-control-dev")
+    check("core.mission_dev -> mission-control-dev", decide_surface_id(intent="core.mission_dev") == "mission-control-dev")
 
     print("\n2. document + validate catalogue")
     doc = monitor_document()

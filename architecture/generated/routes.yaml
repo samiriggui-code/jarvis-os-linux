@@ -7,101 +7,111 @@ version: 1
 routes:
   - message: ping
     core_handler: handle_ping
-    error_type: core_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L92"
+    source: "core/jarvis_core/ws/routes.py:L58"
   - message: auth
     core_handler: handle_auth
-    error_type: auth_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L93"
+    source: "core/jarvis_core/ws/routes.py:L59"
   - message: holomat
     core_handler: handle_holomat
-    error_type: holomat_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L94"
+    source: "core/jarvis_core/ws/routes.py:L60"
   - message: gesture
     core_handler: handle_gesture
-    error_type: core_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L98"
+    source: "core/jarvis_core/ws/routes.py:L61"
   - message: peripheral
     core_handler: handle_peripheral
-    error_type: core_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L99"
+    source: "core/jarvis_core/ws/routes.py:L62"
   - message: device
     core_handler: handle_device
-    error_type: device_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L102"
+    source: "core/jarvis_core/ws/routes.py:L63"
+  - message: device.execute_result
+    core_handler: handle_device_execute_result
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L64"
   - message: preferences
     core_handler: handle_preferences
-    error_type: preferences_result
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L103"
+    source: "core/jarvis_core/ws/routes.py:L65"
   - message: memory
     core_handler: handle_memory
-    error_type: memory_result
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L104"
+    source: "core/jarvis_core/ws/routes.py:L66"
   - message: voice
     core_handler: handle_voice
-    error_type: voice_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L105"
+    source: "core/jarvis_core/ws/routes.py:L67"
   - message: agent_reach
     core_handler: handle_agent_reach
-    error_type: agent_reach_status
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L106"
+    source: "core/jarvis_core/ws/routes.py:L68"
   - message: supervisor
     core_handler: handle_supervisor
-    error_type: supervisor_status
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L107"
+    source: "core/jarvis_core/ws/routes.py:L69"
   - message: usage
     core_handler: handle_usage
-    error_type: usage_result
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L108"
+    source: "core/jarvis_core/ws/routes.py:L70"
   - message: boot
     core_handler: handle_boot
-    error_type: core_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L112"
+    source: "core/jarvis_core/ws/routes.py:L71"
   - message: surface
     core_handler: handle_surface
-    error_type: surface_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L113"
+    source: "core/jarvis_core/ws/routes.py:L72"
   - message: user_event
     core_handler: handle_chat
-    error_type: core_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L114"
+    source: "core/jarvis_core/ws/routes.py:L73"
   - message: stop_run
     core_handler: handle_stop_run
-    error_type: core_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L115"
+    source: "core/jarvis_core/ws/routes.py:L74"
+  - message: tool_timeline
+    core_handler: handle_tool_timeline
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L75"
   - message: mission_dev
     core_handler: handle_mission_dev
-    error_type: mission_dev_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L116"
+    source: "core/jarvis_core/ws/routes.py:L76"
   - message: save_hud_preferences
     core_handler: handle_preferences
-    error_type: preferences_result
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L118"
+    source: "core/jarvis_core/ws/routes.py:L77"
   - message: save_gesture_profile
     core_handler: handle_preferences
-    error_type: preferences_result
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L128"
+    source: "core/jarvis_core/ws/routes.py:L87"
   - message: holomat_calibrate_start
     core_handler: handle_holomat
-    error_type: holomat_error
+    error_type: null
     handler_existe: true
-    source: "core/jarvis_core/__init__.py:L138"
+    source: "core/jarvis_core/ws/routes.py:L97"

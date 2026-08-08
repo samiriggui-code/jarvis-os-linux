@@ -143,7 +143,7 @@ async def main() -> None:
     print("  21 sondes OK -> 1 seul event (transition uniquement)")
     print(f"  {FAILURES_BEFORE_DEGRADED} echecs -> degraded | backoff 5s -> {MAX_INTERVAL_S:.0f}s plafonne")
     print("  degraded emis 1 fois, pas a chaque echec | retour ready -> intervalle reinitialise")
-    print("  check qui leve = KO | check qui pend = timeout, pas un blocage")
+    print("  sonde qui leve -> composant degraded | sonde qui pend -> timeout sans blocage")
 
 
 if __name__ == "__main__":

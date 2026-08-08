@@ -95,7 +95,7 @@ apps:
     risque: vps
     intention: vps.code
     execute_par: device
-    declencheurs: [code, vscode, éditeur]
+    declencheurs: [code, vscode, éditeur, editeur]
   - id: analyze
     nom: Analyse
     statut: surface
@@ -130,7 +130,7 @@ apps:
     risque: info
     intention: core.missions
     execute_par: core
-    declencheurs: [objectifs, buts]
+    declencheurs: [objectifs, buts, objectif, goal, goals]
   - id: skills
     nom: Skills
     statut: surface
@@ -144,14 +144,14 @@ apps:
     risque: info
     intention: devices.list
     execute_par: device
-    declencheurs: [connexions, entités]
+    declencheurs: [connexions, entités, appareils connectés]
   - id: reseau
     nom: Topologie
     statut: soon
     risque: info
     intention: devices.topology
     execute_par: device
-    declencheurs: [topologie, mesh]
+    declencheurs: [topologie, mesh, réseau jarvis]
   - id: cursor
     nom: Cursor
     statut: live
@@ -242,7 +242,7 @@ apps:
     risque: home
     intention: home.control
     execute_par: core
-    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant, home, ouvre home, affiche home, affiche-moi home, mission control home, mission contrôle home, mission controle home, ouvre la maison, affiche la maison]
+    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant, home, ouvre home, affiche home, affiche-moi home, mission control home, mission contrôle home, mission controle home, ouvre la maison, affiche la maison, allume, allume le salon, eteint, éteint, éteint le salon]
   - id: music
     nom: Musique
     statut: surface
@@ -256,7 +256,7 @@ apps:
     risque: media
     intention: media.video
     execute_par: core
-    declencheurs: [vidéo, video, film, plex, série, serie, épisode, episode, regarde]
+    declencheurs: [vidéo, video, film, plex, série, serie, épisode, episode, regarde, lance, mets]
   - id: mail
     nom: Courrier
     statut: soon

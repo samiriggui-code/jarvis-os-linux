@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Test caméra seule</title>
+  <style>
+    body { margin: 0; background: #111; color: #eee; font-family: system-ui; text-align: center; }
+    video { width: 100%; max-width: 720px; background: #000; transform: scaleX(-1); margin-top: 12px; }
+    button { font-size: 1.2rem; padding: 16px 28px; margin: 16px; cursor: pointer; }
+    #status { padding: 12px; color: #ffb020; }
+    a { color: #0cf; }
+  </style>
+</head>
+<body>
+  <h1>Test caméra (sans Core, sans WS)</h1>
+  <p id="status">Clique le bouton — le navigateur doit demander la permission.</p>
+  <button id="go">ACTIVER LA CAMÉRA</button>
+  <br />
+  <video id="v" playsinline muted autoplay></video>
+  <p><a href="face_smoke.html">face_smoke</a> · <a href="face_vault.html">face_vault</a></p>
+  <script>
+    const v = document.getElementById("v");
+    const st = document.getElementById("status");
+    document.getElementById("go").onclick = async () => {
+      st.textContent = "Demande en cours…";
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("getUserMedia absent — ouvre via http://127.0.0.1:8770/cam_test.html");
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        v.srcObject = stream;
+        await v.play();
+        st.textContent = "OK " + v.videoWidth + "×" + v.videoHeight + " — caméra fonctionne";
+        st.style.color = "#39ff14";
+      } catch (e) {
+        st.textContent = e.name + ": " + e.message;
+        st.style.color = "#ff4757";
+        alert(st.textContent);
+      }
+    };
+    if (!window.isSecureContext) {
+      st.textContent = "ERREUR: pas en HTTPS/localhost — utilise http://127.0.0.1:8770/cam_test.html";
+    }
+  </script>
+</body>
+</html>

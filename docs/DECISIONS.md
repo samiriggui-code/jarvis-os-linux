@@ -10,10 +10,11 @@
 | Date | Décision |
 |------|----------|
 | 2026-08 | Le Core **ne fait pas confiance** à une identité envoyée par le HUD |
-| 2026-08 | La voix **n'est pas** un facteur d'authentification |
-| 2026-08 | Contournements dev **retirés** de la prod |
-| 2026-08 | Gravité d'une action **dérivée côté Core** (`gravity_for`), jamais reçue du client |
-| 2026-08 | Chaîne complète : approbation → **IntentExecutor** exécute l'intention |
+| 2026-08-07 | **Auth = phrase vocale** (STT). Face **retirée** du parcours auth / enroll / lock / admin. Holomat reste pour gestes & objets uniquement. Phrase challenge : « Jarvis, active-toi ». Core : `voice/verify_phrase` + `enroll_phrase` → `attest_biometric(method=voice)` → `auth.login`. UI : orbe + `AuthVoiceWave` (pas de fenêtre caméra). **Supersède** « la voix n'est pas un facteur » et le contrat face-auth comme facteur d'accès. |
+| 2026-08-07 | **Contrat AUTH vs ENROLL (figé)** : (1) **AUTH** = dire « Jarvis, active-toi » → `verify_phrase` → login. (2) **ENROLL** = créer/lier le profil vocal (FirstSetup) — premier profil sans gate ; ajout membre = auth admin d'abord. (3) Wake hands-free « hey Jarvis » ≠ phrase d'auth (alias accepté en transition seulement). (4) HUD capture la voix ; **pas** de séquence Core `auth` en parallèle (évite TTS « hey Jarvis » + `voice_no_match` pendant que le HUD verify déjà). |
+| 2026-08-07 | ~~Contrat Face/Auth~~ — archivé pour Holomat technique ; **n'est plus** le facteur d'accès HUD. |
+| 2026-08 | ~~La voix n'est pas un facteur d'authentification~~ — **révoqué** 2026-08-07 (phrase STT). |
+| 2026-08-08 | **Foyer Samir — rôles à l'enroll (pas de noms en dur dans le code)** : 1er compte → **ADMIN** (Samir). **USER** = adultes permanents du foyer (Zahra, Malika — mêmes droits ; Malika reste USER même si elle habite ailleurs). **CHILD** = Ines, Syrine. Pas de rôle GUEST pour la famille proche. Identify à l'usage (face / voix) → permissions du rôle enrollé. |
 
 ## Agentic UI
 

@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS — Face Smoke (Core Face Mesh)</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --panel: #121820;
+      --line: #1e2a3a;
+      --text: #c8d6e5;
+      --muted: #6b7c93;
+      --cyan: #00e5ff;
+      --green: #39ff14;
+      --red: #ff4757;
+      --amber: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+    }
+    .pill {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .pill.ok { border-color: var(--green); color: var(--green); }
+    .pill.err { border-color: var(--red); color: var(--red); }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 0;
+      min-height: calc(100vh - 53px);
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+    .stage {
+      position: relative;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 420px;
+    }
+    video, canvas {
+      max-width: 100%;
+      max-height: 70vh;
+      transform: scaleX(-1);
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      pointer-events: none;
+    }
+    .hud-overlay {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .hud-title { color: var(--cyan); font-weight: 600; margin-bottom: 4px; }
+    .progress {
+      height: 6px;
+      background: var(--line);
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .progress > div {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      transition: width 0.2s;
+    }
+    aside {
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 53px);
+    }
+    .controls {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; }
+    button {
+      flex: 1;
+      min-width: 100px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+    button:hover { border-color: var(--cyan); color: var(--cyan); }
+    button.primary { background: rgba(0, 229, 255, 0.12); border-color: var(--cyan); color: var(--cyan); }
+    button.danger { border-color: var(--red); color: var(--red); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .log {
+      flex: 1;
+      overflow: auto;
+      padding: 10px 14px;
+      font-family: ui-monospace, monospace;
+      font-size: 0.68rem;
+      line-height: 1.45;
+    }
+    .log .line { margin-bottom: 6px; word-break: break-all; }
+    .log .ts { color: var(--muted); }
+    .log .ev-ok { color: var(--green); }
+    .log .ev-warn { color: var(--amber); }
+    .log .ev-err { color: var(--red); }
+    .log .ev-info { color: var(--cyan); }
+    .cam-go {
+      position: absolute;
+      z-index: 20;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 18px 28px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      background: rgba(0, 229, 255, 0.2);
+      border: 2px solid var(--cyan);
+      color: var(--cyan);
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .cam-go.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FACE SMOKE · CORE</h1>
+    <span id="wsPill" class="pill">WS déconnecté</span>
+    <span id="camPill" class="pill">Caméra off</span>
+    <span id="algoPill" class="pill">algo —</span>
+    <a href="face_vault.html" style="margin-left:auto;color:#6b7c93;font-size:0.75rem;text-decoration:none;">Vault Mission →</a>
+  </header>
+
+  <main>
+    <div class="stage">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="overlay"></canvas>
+      <button type="button" id="camGo" class="cam-go">ACTIVER LA CAMÉRA</button>
+      <div class="hud-overlay">
+        <div id="hudTitle" class="hud-title">En attente…</div>
+        <div id="hudSub">Lance la caméra + connecte le Core</div>
+        <div class="progress"><div id="progressBar"></div></div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="controls">
+        <label>Core WebSocket</label>
+        <input id="wsUrl" value="ws://127.0.0.1:8765" />
+
+        <label>User ID (enroll)</label>
+        <input id="userId" />
+
+        <label>Username</label>
+        <input id="username" value="smoke-test" />
+
+        <label>Caméra</label>
+        <select id="camSelect">
+          <option value="">(défaut — caméra frontale)</option>
+        </select>
+
+        <div class="row">
+          <button id="btnConnect" class="primary">Connecter WS</button>
+          <button id="btnCam">Caméra</button>
+        </div>
+        <div class="row">
+          <button id="btnStatus">Holomat status</button>
+          <button id="btnVerify">1× Verify</button>
+        </div>
+        <div class="row">
+          <button id="btnScan">Scan live</button>
+          <button id="btnEnroll" class="primary">Enroll auto</button>
+        </div>
+        <div class="row">
+          <button id="btnCommit">Commit enroll</button>
+          <button id="btnStop" class="danger">Stop</button>
+        </div>
+      </div>
+      <div id="log" class="log"></div>
+    </aside>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const video = $("video");
+    const canvas = $("overlay");
+    const ctx = canvas.getContext("2d");
+    const logEl = $("log");
+
+    $("userId").value = crypto.randomUUID();
+
+    let ws = null;
+    let stream = null;
+    let scanTimer = null;
+    let enrollTimer = null;
+    let landmarker = null;
+    let lastBox = null;
+    let lastLandmarks = null;
+    let animId = 0;
+    let meshTimer = null;
+    let suppressCamChange = false;
+    let camBusy = null;
+    let camGen = 0;
+
+    function cameraErrorHint(err) {
+      const name = err?.name || "";
+      if (name === "NotReadableError" || name === "TrackStartError") {
+        return "Caméra OCCUPÉE (Device in use) — ferme TOUTES les autres pages face_smoke / Teams / Zoom, puis redémarre le navigateur.";
+      }
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        return "Permission refusée — autorise la caméra pour 127.0.0.1 dans le navigateur.";
+      }
+      if (name === "NotFoundError") {
+        return "Aucune caméra détectée.";
+      }
+      if (name === "SecurityError") {
+        return "Ouvre la page via http://127.0.0.1:8770/face_smoke.html (pas file://).";
+      }
+      return err?.message || String(err);
+    }
+
+    async function waitVideoReady(timeoutMs = 8000) {
+      if (video.videoWidth > 0 && video.readyState >= 2) return;
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("Caméra lente — pas de frame après 8s")), timeoutMs);
+        const done = () => {
+          if (video.videoWidth > 0) {
+            clearTimeout(timer);
+            video.removeEventListener("loadedmetadata", done);
+            resolve();
+          }
+        };
+        video.addEventListener("loadedmetadata", done);
+        done();
+      });
+    }
+
+    async function refreshCameraList() {
+      const sel = $("camSelect");
+      const prev = sel.value;
+      suppressCamChange = true;
+      try {
+        sel.innerHTML = '<option value="">(défaut — caméra frontale)</option>';
+        if (!navigator.mediaDevices?.enumerateDevices) return;
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        devices.filter((d) => d.kind === "videoinput").forEach((d, i) => {
+          const opt = document.createElement("option");
+          opt.value = d.deviceId;
+          opt.textContent = d.label || `Caméra ${i + 1}`;
+          sel.appendChild(opt);
+        });
+        if (prev) sel.value = prev;
+      } catch (e) {
+        log(`Liste caméras: ${e.message}`, "ev-warn");
+      } finally {
+        suppressCamChange = false;
+      }
+    }
+
+    function stopCamera() {
+      camGen += 1;
+      if (meshTimer) {
+        clearInterval(meshTimer);
+        meshTimer = null;
+      }
+      cancelAnimationFrame(animId);
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+      lastLandmarks = null;
+      setPill("camPill", "Caméra off", null);
+      showCamGo();
+    }
+
+    function hideCamGo() {
+      if (video.videoWidth > 0) $("camGo").classList.add("hidden");
+    }
+
+    function showCamGo() {
+      $("camGo").classList.remove("hidden");
+    }
+
+    async function startCamera() {
+      if (camBusy) return camBusy;
+      camBusy = _startCameraInner();
+      try {
+        return await camBusy;
+      } finally {
+        camBusy = null;
+      }
+    }
+
+    async function _startCameraInner() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("getUserMedia indisponible — utilise http://127.0.0.1:8770/face_smoke.html");
+      }
+      const gen = ++camGen;
+      // Ne pas appeler stopCamera() ici : camGen++ annulerait tout de suite (bug silencieux).
+      if (meshTimer) {
+        clearInterval(meshTimer);
+        meshTimer = null;
+      }
+      cancelAnimationFrame(animId);
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+
+      const deviceId = $("camSelect").value;
+      const attempts = deviceId
+        ? [
+            { video: { deviceId: { exact: deviceId } }, audio: false },
+            { video: { deviceId }, audio: false },
+            { video: true, audio: false },
+          ]
+        : [
+            { video: { facingMode: "user" }, audio: false },
+            { video: true, audio: false },
+          ];
+
+      let lastErr = null;
+      for (const constraints of attempts) {
+        if (gen !== camGen) throw new DOMException("Caméra annulée", "AbortError");
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (e.name === "NotAllowedError" || e.name === "NotFoundError") throw e;
+          if (e.name === "AbortError" && gen !== camGen) throw e;
+        }
+      }
+      if (!stream) {
+        throw lastErr || new Error("Impossible d'ouvrir la caméra");
+      }
+      if (gen !== camGen) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+        throw new DOMException("Caméra annulée", "AbortError");
+      }
+
+      video.srcObject = stream;
+      await waitVideoReady();
+      await video.play();
+      setPill("camPill", `Caméra ON ${video.videoWidth}×${video.videoHeight}`, true);
+      log(`Caméra démarrée ${video.videoWidth}×${video.videoHeight}`, "ev-ok");
+      hideCamGo();
+      await refreshCameraList();
+      cancelAnimationFrame(animId);
+      drawOverlay();
+      if (meshTimer) clearInterval(meshTimer);
+      meshTimer = setInterval(detectLocalMesh, 100);
+      initLandmarker().catch((e) => log(`Overlay mesh (optionnel): ${e.message}`, "ev-warn"));
+    }
+
+    function log(msg, cls = "ev-info") {
+      const line = document.createElement("div");
+      line.className = "line " + cls;
+      const t = new Date().toLocaleTimeString();
+      line.innerHTML = `<span class="ts">${t}</span> ${msg}`;
+      logEl.prepend(line);
+    }
+
+    function setPill(id, text, ok) {
+      const el = $(id);
+      el.textContent = text;
+      el.className = "pill" + (ok === true ? " ok" : ok === false ? " err" : "");
+    }
+
+    function setHud(title, sub, progress = 0) {
+      $("hudTitle").textContent = title;
+      $("hudSub").textContent = sub;
+      $("progressBar").style.width = `${Math.min(100, progress)}%`;
+    }
+
+    async function initLandmarker() {
+      if (landmarker) return landmarker;
+      log("Chargement MediaPipe Face Landmarker (overlay)…");
+      const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm");
+      const resolver = await vision.FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      );
+      const modelAssetPath =
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+      const opts = {
+        baseOptions: { modelAssetPath },
+        runningMode: "VIDEO",
+        numFaces: 1,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+      };
+      try {
+        landmarker = await vision.FaceLandmarker.createFromOptions(resolver, {
+          ...opts,
+          baseOptions: { ...opts.baseOptions, delegate: "GPU" },
+        });
+      } catch (gpuErr) {
+        log(`GPU overlay indisponible (${gpuErr.message}) — CPU`, "ev-warn");
+        landmarker = await vision.FaceLandmarker.createFromOptions(resolver, {
+          ...opts,
+          baseOptions: { ...opts.baseOptions, delegate: "CPU" },
+        });
+      }
+      log("Overlay mesh prêt", "ev-ok");
+      return landmarker;
+    }
+
+    /** JPEG Core = miroir horizontal ; overlay = pixels vidéo bruts + CSS mirror. */
+    function coreBoxToCanvas(box, cw, ch) {
+      return {
+        x: (1 - box.x - box.w) * cw,
+        y: box.y * ch,
+        w: box.w * cw,
+        h: box.h * ch,
+      };
+    }
+
+    function boxFromLandmarks(lm) {
+      let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+      for (const p of lm) {
+        x0 = Math.min(x0, p.x);
+        y0 = Math.min(y0, p.y);
+        x1 = Math.max(x1, p.x);
+        y1 = Math.max(y1, p.y);
+      }
+      const pad = 0.015;
+      x0 = Math.max(0, x0 - pad);
+      y0 = Math.max(0, y0 - pad);
+      x1 = Math.min(1, x1 + pad);
+      y1 = Math.min(1, y1 + pad);
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+
+    function drawCaptureBox(x, y, w, h, fromCore) {
+      ctx.strokeStyle = fromCore ? "#39ff14" : "rgba(57, 255, 20, 0.45)";
+      ctx.lineWidth = fromCore ? 2 : 1.5;
+      if (!fromCore) ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+    }
+
+    function syncCanvasSize() {
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      canvas.width = w;
+      canvas.height = h;
+    }
+
+    function drawOverlay() {
+      syncCanvasSize();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Mesh navigateur (aperçu)
+      if (lastLandmarks && lastLandmarks.length) {
+        ctx.strokeStyle = "rgba(0, 229, 255, 0.35)";
+        ctx.fillStyle = "rgba(0, 229, 255, 0.85)";
+        const lm = lastLandmarks[0];
+        for (const p of lm) {
+          ctx.beginPath();
+          ctx.arc(p.x * canvas.width, p.y * canvas.height, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // contour yeux + lèvres (indices courants)
+        const contours = [
+          [33, 133, 362, 263, 33],
+          [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 61],
+        ];
+        ctx.strokeStyle = "rgba(57, 255, 20, 0.7)";
+        ctx.lineWidth = 1.5;
+        for (const ring of contours) {
+          ctx.beginPath();
+          for (let i = 0; i < ring.length; i++) {
+            const p = lm[ring[i]];
+            const x = p.x * canvas.width;
+            const y = p.y * canvas.height;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Champ de capture Core (bbox landmarks MediaPipe côté serveur)
+      let drewCoreBox = false;
+      if (lastBox) {
+        const b = coreBoxToCanvas(lastBox, canvas.width, canvas.height);
+        drawCaptureBox(b.x, b.y, b.w, b.h, true);
+        drewCoreBox = true;
+      }
+      // Aperçu local entre deux réponses WS (même repère que le mesh cyan)
+      if (!drewCoreBox && lastLandmarks && lastLandmarks.length) {
+        const lb = boxFromLandmarks(lastLandmarks[0]);
+        drawCaptureBox(
+          lb.x * canvas.width,
+          lb.y * canvas.height,
+          lb.w * canvas.width,
+          lb.h * canvas.height,
+          false,
+        );
+      }
+
+      animId = requestAnimationFrame(drawOverlay);
+    }
+
+    async function detectLocalMesh() {
+      if (!landmarker || video.readyState < 2) return;
+      try {
+        const result = landmarker.detectForVideo(video, performance.now());
+        lastLandmarks = result.faceLandmarks || null;
+      } catch (e) {
+        /* ignore frame drop */
+      }
+    }
+
+    function captureJpegB64(quality = 0.88) {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh) {
+        throw new Error("Caméra pas prête (attends 1s après démarrage)");
+      }
+      const off = document.createElement("canvas");
+      off.width = vw;
+      off.height = vh;
+      const octx = off.getContext("2d");
+      octx.translate(off.width, 0);
+      octx.scale(-1, 1);
+      octx.drawImage(video, 0, 0, vw, vh);
+      const dataUrl = off.toDataURL("image/jpeg", quality);
+      return dataUrl.split(",")[1];
+    }
+
+    function wsSend(obj) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WS non connecté", "ev-err");
+        return false;
+      }
+      ws.send(JSON.stringify(obj));
+      return true;
+    }
+
+    function handleCoreEvent(data) {
+      if (!data || typeof data !== "object") return;
+      const t = data.type || data.command || "";
+
+      if (t === "display_notification") {
+        log(`Core: ${data.message || "(notification)"}`, "ev-info");
+        return;
+      }
+      if (t === "voice_status" || t === "supervisor_status" || t === "set_orb_state") {
+        return;
+      }
+      if (t === "holomat_status") {
+        setPill("algoPill", data.algo || "—", data.face_engine ? true : false);
+        log(`holomat_status engine=${data.face_engine} algo=${data.algo}`, "ev-info");
+        return;
+      }
+      if (t === "holomat_error") {
+        setHud("ERREUR CORE", data.error || "?", 0);
+        log(`holomat_error: ${data.error}`, "ev-err");
+        return;
+      }
+      if (typeof t === "string" && (t.startsWith("FACE_") || t === "face_enroll_commit_result")) {
+        if (data.box) lastBox = data.box;
+        const title = data.hudText || t;
+        const sub = data.hudSubtext || data.reason || "";
+        setHud(title, sub, data.progress ?? (t === "FACE_SUCCESS" ? 100 : 0));
+        const cls = t === "FACE_SUCCESS" ? "ev-ok" : t === "FACE_FAILED" ? "ev-err" : "ev-warn";
+        log(`${t} progress=${data.progress ?? "-"} conf=${data.confidence ?? "-"} user=${data.username || data.user_id || "-"} reason=${data.reason || "-"}`, cls);
+        return;
+      }
+      if (t === "auth_status") {
+        log(`auth first_run=${data.first_run} users=${data.user_count}`, "ev-info");
+        return;
+      }
+      if (t === "pong" || t === "ping") return;
+    }
+
+    $("btnConnect").onclick = () => {
+      const url = $("wsUrl").value.trim();
+      if (ws) ws.close();
+      log(`Connexion ${url}…`);
+      ws = new WebSocket(url);
+      ws.onopen = () => {
+        setPill("wsPill", "WS connecté", true);
+        log("WS ouvert", "ev-ok");
+        wsSend({ type: "holomat", action: "status" });
+      };
+      ws.onclose = () => {
+        setPill("wsPill", "WS déconnecté", false);
+        log("WS fermé", "ev-warn");
+      };
+      ws.onerror = () => log("WS erreur", "ev-err");
+      ws.onmessage = (ev) => {
+        if (typeof ev.data !== "string") return;
+        try {
+          handleCoreEvent(JSON.parse(ev.data));
+        } catch (e) {
+          if (e instanceof SyntaxError) {
+            log(`JSON invalide: ${String(ev.data).slice(0, 80)}`, "ev-err");
+          } else {
+            log(`Message WS: ${e.message}`, "ev-err");
+          }
+        }
+      };
+    };
+
+    $("btnCam").onclick = () => toggleCamera();
+    $("camGo").onclick = () => toggleCamera();
+
+    async function toggleCamera() {
+      log("Clic caméra…", "ev-info");
+      if (camBusy) {
+        log("Caméra en cours…", "ev-warn");
+        return;
+      }
+      if (stream) {
+        stopCamera();
+        log("Caméra arrêtée");
+        return;
+      }
+      try {
+        await startCamera();
+      } catch (e) {
+        if (e.name === "AbortError") {
+          log("Caméra annulée", "ev-warn");
+          return;
+        }
+        const msg = cameraErrorHint(e);
+        log(`Caméra: ${msg}`, "ev-err");
+        setPill("camPill", "Caméra erreur", false);
+        stopCamera();
+        alert("Caméra: " + msg);
+      }
+    }
+
+    $("camSelect").onchange = async () => {
+      if (suppressCamChange || !stream) return;
+      log("Changement caméra…");
+      stopCamera();
+      try {
+        await startCamera();
+      } catch (e) {
+        if (e.name === "AbortError") return;
+        log(`Caméra: ${cameraErrorHint(e)}`, "ev-err");
+        stopCamera();
+      }
+    };
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && stream && video.paused) {
+        video.play().catch(() => {});
+      }
+    });
+
+    $("btnStatus").onclick = () => wsSend({ type: "holomat", action: "status" });
+
+    function sendFaceFrame(mode) {
+      if (!stream) {
+        log("Démarre la caméra d'abord", "ev-err");
+        return;
+      }
+      if (!video.videoWidth) {
+        log("Caméra pas prête — attends une seconde", "ev-err");
+        return;
+      }
+      let jpeg_b64;
+      try {
+        jpeg_b64 = captureJpegB64();
+      } catch (e) {
+        log(`Capture: ${e.message}`, "ev-err");
+        return;
+      }
+      const payload = {
+        type: "holomat",
+        action: "face_frame",
+        mode,
+        jpeg_b64,
+      };
+      if (mode === "enroll") {
+        payload.user_id = $("userId").value.trim();
+        payload.username = $("username").value.trim();
+      }
+      wsSend(payload);
+      log(`→ face_frame ${mode} (${Math.round(jpeg_b64.length / 1024)} KB)`, "ev-info");
+    }
+
+    $("btnVerify").onclick = () => {
+      lastBox = null;
+      sendFaceFrame("verify");
+    };
+
+    $("btnScan").onclick = () => {
+      if (scanTimer) {
+        clearInterval(scanTimer);
+        scanTimer = null;
+        log("Scan live arrêté");
+        return;
+      }
+      lastBox = null;
+      log("Scan live verify 2 fps");
+      scanTimer = setInterval(() => sendFaceFrame("verify"), 500);
+    };
+
+    $("btnEnroll").onclick = async () => {
+      const uid = $("userId").value.trim();
+      const username = $("username").value.trim();
+      if (!uid) {
+        log("user_id requis", "ev-err");
+        return;
+      }
+      wsSend({ type: "holomat", action: "face_enroll_begin", user_id: uid, username });
+      log(`enroll_begin ${username}`, "ev-info");
+      lastBox = null;
+      if (enrollTimer) clearInterval(enrollTimer);
+      enrollTimer = setInterval(() => sendFaceFrame("enroll"), 400);
+      setTimeout(() => {
+        if (enrollTimer) {
+          clearInterval(enrollTimer);
+          enrollTimer = null;
+          log("Enroll auto stop (timeout 12s)");
+        }
+      }, 12000);
+    };
+
+    $("btnCommit").onclick = () => {
+      const uid = $("userId").value.trim();
+      const username = $("username").value.trim();
+      if (enrollTimer) {
+        clearInterval(enrollTimer);
+        enrollTimer = null;
+      }
+      wsSend({ type: "holomat", action: "face_enroll_commit", user_id: uid, username });
+      log("face_enroll_commit", "ev-info");
+    };
+
+    $("btnStop").onclick = () => {
+      if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+      if (enrollTimer) { clearInterval(enrollTimer); enrollTimer = null; }
+      stopCamera();
+      log("Stop");
+    };
+
+    refreshCameraList().catch(() => {});
+    if (!window.isSecureContext) {
+      log("ERREUR: ouvre http://127.0.0.1:8770/face_smoke.html (pas file://)", "ev-err");
+    }
+    log("Test cam seule: cam_test.html", "ev-info");
+    log("2. Connecter WS + Caméra");
+    log("3. Verify ou Enroll auto");
+  </script>
+</body>
+</html>

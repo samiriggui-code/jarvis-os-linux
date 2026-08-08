@@ -201,28 +201,18 @@ lines:
     orb_state: listening
     hud_overlay: voice_channel
 
-  # ⚠ CETTE LIGNE DOIT DEMANDER QUELQUE CHOSE.
-  #
-  # L'étape attend `voice.captured` pendant douze secondes, puis part sur
-  # « Je n'ai pas pu confirmer votre identité vocale ». Tant que la phrase se
-  # contentait d'annoncer un protocole — « Initialisation du protocole de
-  # reconnaissance vocale » — on reprochait à l'utilisateur un silence qu'on
-  # ne lui avait jamais demandé de rompre. La branche visage, elle, a toujours
-  # eu son instruction : « Veuillez rester immobile quelques secondes. »
-  #
-  # Le mot à prononcer est DIT, pas sous-entendu. Il n'existait qu'en texte à
-  # l'écran, ce qui ne sert à rien à trois mètres du kiosque.
+  # Phrase d'AUTH (login) ≠ wake hands-free.
+  # Wake openWakeWord = « hey Jarvis » (voir wake.yaml).
+  # Auth STT = « Jarvis, active-toi » (voice_phrase.DEFAULT_CHALLENGE).
+  # Ne JAMAIS mélanger les deux dans ce clip — sinon l'utilisateur dit
+  # « hey Jarvis », le Core refuse, et on affiche « voix non reconnue ».
   - event: voice_prompt
     tone: cinematic
     security_level: auth
     address: vous
-    # ⚠ Le mot est « HEY JARVIS », pas « Jarvis ». C'est le modèle
-    # `hey_jarvis_v0.1.onnx` d'openWakeWord qui écoute (`data/voice/wake.yaml`),
-    # et il ne déclenche pas sur le prénom seul. Une invitation qui demande
-    # « Jarvis » fait échouer une détection qui n'avait aucune raison d'échouer.
     text:
-      - "Canal ouvert. Veuillez prononcer votre mot d'éveil : hey Jarvis."
-      - "Veuillez prononcer votre mot d'éveil pour l'analyse vocale : hey Jarvis."
+      - "Canal ouvert. Dites clairement : Jarvis, active-toi."
+      - "Pour vous identifier, prononcez : Jarvis, active-toi."
     face_animation: speak
     orb_state: listening
 
@@ -284,7 +274,7 @@ lines:
   - event: voice_no_match
     tone: cinematic
     security_level: alert
-    text: "Voix détectée, mais non reconnue."
+    text: "Phrase incorrecte. Dites : Jarvis, active-toi. Ou enrôlez un profil vocal."
     face_animation: alert
     orb_state: error
 

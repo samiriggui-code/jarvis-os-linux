@@ -1,20 +1,17 @@
-"""jarvis_core.holomat — vision / face (§6.8).
+"""Compat deprecated — préférer ``jarvis_core.vision``.
 
-`FaceEngine` = CV pur et synchrone. `FaceRunner` = la facade à utiliser depuis
-le Core : chargement différé, accès sérialisé, calcul hors boucle asyncio.
-
-`FaceEngine` est exposé en lazy pour ne pas payer l'import d'OpenCV au boot du
-Core — `runner.py` le charge dans un thread, à la demande.
+Le protocole WS reste ``type: holomat`` (contrat figé).
 """
+from __future__ import annotations
 
-from .runner import FaceRunner
+import warnings
+
+warnings.warn(
+    "jarvis_core.holomat est déprécié — utiliser jarvis_core.vision",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from jarvis_core.vision import FaceEngine, FaceRunner  # noqa: F401
 
 __all__ = ["FaceEngine", "FaceRunner"]
-
-
-def __getattr__(name: str):
-    if name == "FaceEngine":
-        from .face_engine import FaceEngine
-
-        return FaceEngine
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -33,6 +33,8 @@ GENERATED = Path(__file__).resolve().parent / "generated"
 
 CORE_PKG = ROOT / "core" / "jarvis_core"
 CORE_MAIN = CORE_PKG / "__init__.py"
+CORE_ROUTES = CORE_PKG / "ws" / "routes.py"
+CORE_WS_HANDLERS = CORE_PKG / "ws" / "handlers"
 HUD_SRC = ROOT / "hud" / "src" / "app"
 # La couche agentique est hors de `app/` — sans elle, l'extracteur ignore
 # `AgentSurface` et rapporte ses écoutes comme inexistantes.
@@ -77,17 +79,35 @@ def premier_texte(node: ast.Call) -> str | None:
 
 # ── extracteurs ───────────────────────────────────────────────────────────
 
+def _collect_ws_handlers() -> set[str]:
+    """Méthodes `handle_*` des mixins WS (Phase 1 — plus dans __init__.py)."""
+    methodes: set[str] = set()
+    if CORE_WS_HANDLERS.is_dir():
+        for py in sorted(CORE_WS_HANDLERS.rglob("*.py")):
+            if py.name.startswith("_"):
+                continue
+            for node in ast.walk(ast.parse(py.read_text(encoding="utf-8"), str(py))):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    methodes.add(node.name)
+    return methodes
+
+
 def extraire_routes() -> list[dict[str, Any]]:
     """La table `ROUTES` du Core : message WS → méthode handler."""
-    arbre = ast.parse(CORE_MAIN.read_text(encoding="utf-8"), str(CORE_MAIN))
+    source = CORE_ROUTES if CORE_ROUTES.is_file() else CORE_MAIN
+    arbre = ast.parse(source.read_text(encoding="utf-8"), str(source))
 
-    methodes = {
-        n.name
-        for cls in ast.walk(arbre)
-        if isinstance(cls, ast.ClassDef)
-        for n in cls.body
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    methodes = _collect_ws_handlers()
+    if not methodes and CORE_MAIN.is_file():
+        # Compat ancien monolithe
+        arbre_main = ast.parse(CORE_MAIN.read_text(encoding="utf-8"), str(CORE_MAIN))
+        methodes = {
+            n.name
+            for cls in ast.walk(arbre_main)
+            if isinstance(cls, ast.ClassDef)
+            for n in cls.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
 
     routes: list[dict[str, Any]] = []
     for node in arbre.body:
@@ -105,14 +125,16 @@ def extraire_routes() -> list[dict[str, Any]]:
         for cle, val in zip(valeur.keys, valeur.values):
             if not (isinstance(cle, ast.Constant) and isinstance(cle.value, str)):
                 continue
-            args = [a.value for a in val.args if isinstance(a, ast.Constant)] if isinstance(val, ast.Call) else []
-            handler = args[0] if args else None
+            handler: str | None = None
+            if isinstance(val, ast.Call):
+                args = [a.value for a in val.args if isinstance(a, ast.Constant)]
+                handler = args[0] if args else None
             routes.append({
                 "message": cle.value,
                 "core_handler": handler,
-                "error_type": args[1] if len(args) > 1 else None,
-                "handler_existe": handler in methodes,
-                "source": f"core/jarvis_core/__init__.py:L{cle.lineno}",
+                "error_type": None,
+                "handler_existe": handler in methodes if handler else False,
+                "source": f"{source.relative_to(ROOT).as_posix()}:L{cle.lineno}",
             })
     return routes
 
@@ -700,16 +722,8 @@ def incoherences() -> list[str]:
 def derive_declencheurs() -> list[str]:
     """Les déclencheurs vocaux du HUD et du Core disent-ils la même chose ?
 
-    Le HUD déclare `voice: [...]` par tuile ; le Core déclare `triggers=(...)`
-    par capacité. Le doublon est assumé — le Core ne peut pas dépendre du HUD
-    pour choisir un niveau de risque — mais une divergence est une vraie panne,
-    et silencieuse dans les deux sens :
-
-      * un mot connu du HUD seul lance une fenêtre que rien n'exécute ;
-      * un mot connu du Core seul est une commande **que personne n'a écrite
-        dans le produit**, et qui agit pourtant à la voix.
-
-    Le second cas est le grave : c'est une porte d'entrée non documentée.
+    Comparés par ``intent`` (contrat réel), pas par ``app_id`` — plusieurs
+    capacités Core peuvent partager une tuile HUD (ex. connexions / devices.*).
     """
     import re
 
@@ -720,30 +734,39 @@ def derive_declencheurs() -> list[str]:
 
     core: dict[str, set[str]] = {}
     for bloc in re.findall(r'app_id="([^"]+)",(.*?)\n    \),', texte, re.S):
-        app_id, corps = bloc
+        _app_id, corps = bloc
+        intent_m = re.search(r'intent="([^"]+)"', corps)
+        if not intent_m:
+            continue
+        intention = intent_m.group(1)
         m = re.search(r"triggers=\((.*?)\)", corps, re.S)
-        core[app_id] = set(re.findall(r'"([^"]+)"', m.group(1))) if m else set()
+        triggers = set(re.findall(r'"([^"]+)"', m.group(1))) if m else set()
+        core.setdefault(intention, set()).update(triggers)
 
     problemes: list[str] = []
     for app in extraire_plugins():
+        intention = app.get("intention")
+        if not intention:
+            continue
         aid = app["id"]
         cote_hud = set(app["declencheurs"])
-        if aid not in core:
+        if intention not in core:
             if cote_hud:
                 problemes.append(
-                    f"tuile « {aid} » : déclencheurs vocaux dans le HUD, aucune capacité Core"
+                    f"tuile « {aid} » ({intention}) : déclencheurs vocaux HUD, aucune capacité Core"
                 )
             continue
-        cote_core = core.pop(aid)
+        cote_core = core.pop(intention)
         for mot in sorted(cote_hud - cote_core):
-            problemes.append(f"déclencheur « {mot} » ({aid}) : connu du HUD, inconnu du Core")
+            problemes.append(
+                f"déclencheur « {mot} » ({aid}/{intention}) : connu du HUD, inconnu du Core"
+            )
         for mot in sorted(cote_core - cote_hud):
-            problemes.append(f"déclencheur « {mot} » ({aid}) : connu du Core, ABSENT du HUD")
+            problemes.append(
+                f"déclencheur « {mot} » ({aid}/{intention}) : connu du Core, ABSENT du HUD"
+            )
 
-    for aid, mots in core.items():
-        if mots:
-            problemes.append(f"capacité « {aid} » : déclencheurs Core sans tuile HUD correspondante")
-
+    # Intents vocaux sans tuile HUD (device.app_launch, media.pause…) : attendu.
     return problemes
 
 

@@ -36,6 +36,8 @@ logger = logging.getLogger("jarvis.devices")
 # TTL sans heartbeat → online=False (secondes).
 DEFAULT_TTL_S = float(os.environ.get("JARVIS_DEVICE_TTL_S", "120"))
 
+DEVICE_MODES = frozenset({"personal", "shared", "gateway"})
+
 
 @dataclass
 class HostCapability:
@@ -108,6 +110,10 @@ class Device:
     last_seen: float = field(default_factory=time.time)
     capabilities: dict[str, HostCapability] = field(default_factory=dict)
     """Indexés par capability_id."""
+    device_mode: str = "shared"
+    """personal | shared | gateway — usage produit Phase 3."""
+    bound_user_id: str = ""
+    """Profil lié si device_mode=personal."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -119,6 +125,8 @@ class Device:
             "online": self.online,
             "last_seen": self.last_seen,
             "capabilities": [c.to_dict() for c in self.capabilities.values()],
+            "device_mode": self.device_mode,
+            "bound_user_id": self.bound_user_id,
         }
 
 
@@ -154,6 +162,8 @@ class DeviceRegistry:
         runtime_kind: str = "",
         label: str = "",
         metadata: dict[str, Any] | None = None,
+        device_mode: str = "",
+        bound_user_id: str = "",
     ) -> Device:
         device_id = str(device_id or "").strip()
         if not device_id:
@@ -163,6 +173,14 @@ class DeviceRegistry:
         meta = dict(metadata or {})
         if label:
             meta["label"] = str(label).strip()
+        mode_raw = str(
+            device_mode or meta.get("device_mode") or ""
+        ).strip().lower()
+        if not mode_raw:
+            mode_raw = "shared"
+        if mode_raw not in DEVICE_MODES:
+            mode_raw = "shared"
+        bound = str(bound_user_id or meta.get("bound_user_id") or "").strip()
         existing = self._devices.get(device_id)
         if existing is None:
             dev = Device(
@@ -172,12 +190,15 @@ class DeviceRegistry:
                 metadata=meta,
                 online=True,
                 last_seen=now,
+                device_mode=mode_raw,
+                bound_user_id=bound,
             )
             self._devices[device_id] = dev
             logger.info(
-                "device register · %s type=%s label=%s",
+                "device register · %s type=%s mode=%s label=%s",
                 device_id,
                 type_s,
+                mode_raw,
                 meta.get("label") or "",
             )
             return dev
@@ -186,6 +207,9 @@ class DeviceRegistry:
             existing.runtime_kind = str(runtime_kind)
         if meta:
             existing.metadata.update(meta)
+        existing.device_mode = mode_raw
+        if bound:
+            existing.bound_user_id = bound
         existing.online = True
         existing.last_seen = now
         logger.debug("device re-register · %s", device_id)
@@ -205,16 +229,56 @@ class DeviceRegistry:
             # juste après register, ou les deux dans le même flux).
             dev = self.register(device_id, type="other", runtime_kind="unknown")
         now = time.time()
+        prev_ids = set(dev.capabilities.keys())
+        inv_added: list[str] = []
+        inv_removed: list[str] = []
+        new_software: list[str] = []
+
         for raw in capabilities:
             if isinstance(raw, HostCapability):
                 cap = raw
                 cap.last_seen = now
             else:
                 cap = HostCapability.from_payload(dict(raw))
-            # Index par capability_id — une même name peut évoluer.
-            dev.capabilities[cap.capability_id] = cap
+
+            cap_id = cap.capability_id
+            if cap_id == "system.inventory":
+                meta = cap.metadata if isinstance(cap.metadata, dict) else {}
+                added_raw = meta.get("added")
+                removed_raw = meta.get("removed")
+                if isinstance(added_raw, list):
+                    inv_added = [str(x) for x in added_raw if str(x).strip()]
+                if isinstance(removed_raw, list):
+                    inv_removed = [str(x) for x in removed_raw if str(x).strip()]
+            elif cap_id.startswith("app.software.") and cap_id not in prev_ids:
+                new_software.append(cap_id)
+
+            dev.capabilities[cap_id] = cap
+
         dev.online = True
         dev.last_seen = now
+
+        if inv_added:
+            logger.info(
+                "device inventory +%d · %s · %s",
+                len(inv_added),
+                device_id,
+                ", ".join(inv_added[:8]),
+            )
+        if inv_removed:
+            logger.info(
+                "device inventory -%d · %s · %s",
+                len(inv_removed),
+                device_id,
+                ", ".join(inv_removed[:8]),
+            )
+        if new_software and not inv_added:
+            logger.info(
+                "device software caps +%d · %s",
+                len(new_software),
+                device_id,
+            )
+
         logger.info(
             "device capabilities · %s · %d caps",
             device_id,
@@ -251,6 +315,10 @@ class DeviceRegistry:
     def get_device(self, device_id: str) -> Device | None:
         self._refresh_online()
         return self._devices.get(str(device_id or "").strip())
+
+    def iter_online(self) -> list[Device]:
+        self._refresh_online()
+        return [d for d in self._devices.values() if d.online]
 
     def _refresh_online(self) -> None:
         now = time.time()
@@ -404,6 +472,8 @@ class DeviceRegistry:
                 runtime_kind=str(data.get("runtime_kind") or ""),
                 label=label,
                 metadata=dict(meta),
+                device_mode=str(data.get("device_mode") or meta.get("device_mode") or ""),
+                bound_user_id=str(data.get("bound_user_id") or meta.get("bound_user_id") or ""),
             )
         except ValueError as exc:
             return {"ok": False, "type": "device_error", "error": str(exc)}
