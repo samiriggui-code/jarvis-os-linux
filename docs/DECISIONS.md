@@ -30,6 +30,15 @@
 
 | Date | Décision |
 |------|----------|
+| 2026-08-09 | **Vision orchestration** (figée) : JARVIS = Core chef d’orchestre ; agents = outils ; rapport agent ≠ preuve ; verify Core obligatoire avant « terminé » ; voix = restitution filtrée (événements `TASK_*`) ; HUD = supervision multi-agent. Doc : [`architecture/JARVIS-VISION-ORCHESTRATION.md`](architecture/JARVIS-VISION-ORCHESTRATION.md). Prochaine évolution : couche Mission → Evidence → Verify → Report. |
+| 2026-08-10 | **Skills méthodo vs Capabilities** : extraction DeerFlow = méthodologie dans `deploy/hermes/skills/` (ex. `deep-research`) ; exécution Internet = `agent-reach` ; Capabilities Core inchangées. **Pas** de déploiement DeerFlow/LangGraph comme second cerveau. Amont listé dans `vendor/README.md` § Déjà dispatchés ; dossier vendor **supprimé** 2026-08-10. |
+| 2026-08-10 | **Addy agent-skills = dev Cursor only** : idées `/spec` + preuves + personas `/ship` dans `.cursor/rules/dev-lifecycle.mdc`. **Pas** d’install dans Hermes ni clone `vendor/`. |
+| 2026-08-10 | **awesome-llm-apps = idées only** : trust-gate/audit, corrective RAG, always-on doc, scope creep Cursor ; gen-UI déjà couvert ; voice Live ≠ auth. **Pas** de clone monorepo. Amont : `vendor/README.md`. |
+| 2026-08-10 | **memU = idées only** : wiki `MEMORY.md` + progressive retrieve ; 3 magasins max ; pas de `memu-hermes` / cloud / auto-skills / 4ᵉ store. Amont : `vendor/README.md`. |
+| 2026-08-10 | **CrewAI = idées only** : personas role/goal/backstory + CR tâches + sequential/hierarchical dans vision fan-out ; Flows → Mission Core ; pas de runtime CrewAI (Hermes reste agent #1). Amont : `vendor/README.md`. |
+
+| Date | Décision |
+|------|----------|
 | 2026-08-07 | **Architecture A** : la boucle agent reste **dans Hermes** ; le Core reçoit un **stream d'événements** et expose les capacités périphériques. Le Core **n'est pas** un second agent. |
 | 2026-08-07 | Évolution de `Capability` + `IntentExecutor` + `HermesBridge` vers Tool Bus — **sans** dupliquer terminal / file / browser / HA / Plex Hermes. |
 | 2026-08-07 | HA + Plex Mode-3 restent **adapters Core** (déterministes) ; enregistrés comme Tools, pas déplacés vers Hermes. |
@@ -54,8 +63,8 @@
 | 2026-08 | voicebox sur VPS = docker-compose amont |
 | 2026-08 | `vendor/` = sas temporaire ; Agent-Reach dispatché ; CopilotKit supprimé |
 | 2026-08 | Core + HUD tournent sur **portable en dev** ; NUC = Hermes + PG seulement |
+| 2026-08-09 | **Sync NUC Core** : alias SSH `jarvis-nuc-wan` (Win) / `jarvis-nuc` (WSL) — **jamais** `root@IP` sans config clé. Script canonique : `sync-core-only-nuc.ps1` (scp → `/tmp` → rsync → `systemctl restart jarvis-core`). Exclusions prod : `.env`, `data/*.db`, `data/users/`, `data/holomat/`. `pip install` optionnel (`-Pip` / `NUC_PIP=1`) — venv NUC existant suffit en routine. Fronts : `sync-fronts-nuc.ps1` après `npm run build`. |
 
-## Infra réseau
 
 | Date | Décision |
 |------|----------|

@@ -309,15 +309,16 @@ export default function OrbView({
         for (let i = 0; i < bE; i++) b += data[i];
         for (let i = bE; i < mE; i++) m += data[i];
         for (let i = mE; i < n; i++) tr += data[i];
-        const s = P.sensitivity;
-        b = Math.min(1, (b / bE / 255) * 1.6 * s);
-        m = Math.min(1, (m / (mE - bE) / 255) * 1.8 * s);
-        tr = Math.min(1, (tr / (n - mE) / 255) * 2.2 * s);
+        const s = Math.min(1.8, Math.max(0.6, P.sensitivity));
+        // Sensible à la voix SANS éclater la sphère (plafond soft).
+        b = Math.min(0.85, (b / Math.max(1, bE) / 255) * 1.7 * s);
+        m = Math.min(0.85, (m / Math.max(1, mE - bE) / 255) * 1.9 * s);
+        tr = Math.min(0.85, (tr / Math.max(1, n - mE) / 255) * 2.2 * s);
         L.bass = smooth(L.bass, b);
         L.mid = smooth(L.mid, m);
         L.treble = smooth(L.treble, tr);
         L.raw = b * 0.5 + m * 0.35 + tr * 0.15;
-        L.env = smooth(L.env, L.raw);
+        L.env = smooth(L.env, Math.min(0.85, L.raw));
       } else {
         // sans analyser : quasi immobile, micro-respiration seulement
         L.bass = smooth(L.bass, 0.02);

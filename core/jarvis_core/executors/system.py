@@ -417,3 +417,29 @@ class SystemExecutorsMixin:
         )
         await self.broadcast(await self.speak(spoken, user_id=uid))
         return {"ok": True, "projects": projects, "prompt": prompt}
+
+    async def _execute_remote_terminal(self, target: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Terminal admin (Dashboard) — VPS ou Pi salon, SSH via `remote_exec.py`.
+
+        Aucune évaluation Policy ici : `ws/handlers/terminal.py` l'a déjà
+        faite avant d'appeler `IntentExecutor.execute()` — ce niveau exécute
+        une intention déjà autorisée, comme tous les autres `_execute_*`.
+        """
+        from .. import remote_exec
+
+        command = str(payload.get("command") or "").strip()
+        if not command:
+            return {"ok": False, "error": "commande vide"}
+        result = await remote_exec.run(target, command)
+        return {
+            "ok": result.ok,
+            "output": result.output,
+            "error": result.error,
+            "returncode": result.returncode,
+        }
+
+    async def _execute_vps_terminal(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._execute_remote_terminal("vps", payload)
+
+    async def _execute_pi_terminal(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._execute_remote_terminal("pi", payload)

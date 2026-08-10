@@ -99,3 +99,41 @@ function cleanName(raw: string): string {
   // Garde 1–3 mots (prénom + éventuel nom)
   return parts.slice(0, 3).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
+
+export type CivilTitle = 'monsieur' | 'madame' | 'mademoiselle';
+
+export function parseCivilTitle(text: string): CivilTitle | null {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  if (/\b(mademoiselle|fille|enfant|miss)\b/.test(t)) return 'mademoiselle';
+  if (/\b(madame|mme|femme|lady)\b/.test(t)) return 'madame';
+  if (/\b(monsieur|mister|homme|garçon|garcon|mr)\b/.test(t)) return 'monsieur';
+  return null;
+}
+
+/** Demande la civilité (monsieur / madame / mademoiselle) à la voix. */
+export async function askTitleWithConfirm(opts?: {
+  isAlive?: () => boolean;
+}): Promise<CivilTitle | null> {
+  const alive = opts?.isAlive ?? (() => true);
+  for (let round = 0; round < 6 && alive(); round++) {
+    await jarvisSay(
+      round === 0
+        ? 'Souhaitez-vous être appelé monsieur, madame, ou mademoiselle ?'
+        : 'Répondez par monsieur, madame, ou mademoiselle.',
+    );
+    const heard = await listenUtterance(4_000);
+    if (!alive()) return null;
+    const title = parseCivilTitle(heard);
+    if (!title) {
+      await jarvisSay("Je n'ai pas compris.");
+      continue;
+    }
+    const ok = await askYesNo(
+      `Très bien, ${title}. Confirmez par oui, ou dites non pour recommencer.`,
+    );
+    if (!alive()) return null;
+    if (ok) return title;
+  }
+  return null;
+}

@@ -159,7 +159,14 @@ async def main() -> int:
 
     print("\n── Cohérence propriétaire / toolset ────────────────────────────")
 
-    sans_declencheur = [c.app_id for c in CAPABILITIES.values() if not c.triggers]
+    # vps-terminal / pi-terminal : Terminal admin Dashboard, pas des tuiles
+    # HUD — aucune phrase ne doit les router (`match_intent`), donc pas de
+    # déclencheur à leur donner.
+    NO_TRIGGER_OK = frozenset({"vps-terminal", "pi-terminal"})
+    sans_declencheur = [
+        c.app_id for c in CAPABILITIES.values()
+        if not c.triggers and c.app_id not in NO_TRIGGER_OK
+    ]
     check("toute capacité a des déclencheurs", not sans_declencheur, ", ".join(sans_declencheur))
     bad = [c.app_id for c in CAPABILITIES.values() if c.owner is not Owner.HERMES and c.toolset]
     check("aucun toolset sur une capacité non-Hermes", not bad, ", ".join(bad))

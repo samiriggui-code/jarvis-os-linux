@@ -1,4 +1,15 @@
-import { useState } from 'react'
+/**
+ * JARVIS BASE / Recovery — accessible clavier+souris sans HUD, sans voix, sans Hermes.
+ * URL directe : /#/recovery · raccourci Ctrl+Alt+R
+ *
+ * Les indicateurs de santé étaient des `useState` figés qui ne bougeaient
+ * jamais (coreWs/hermes/ha/hud toujours aux mêmes valeurs) — dangereux sur
+ * LA page qu'on ouvre quand tout va mal. Remplacés par de vraies requêtes
+ * Core (supervisor, hermes_status, providers, voicebox). HA/HUD/Docker
+ * n'ont aucune sonde côté Core aujourd'hui — affichés "—" (inconnu),
+ * jamais un faux vert ni un faux rouge.
+ */
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
 import type { Page } from '../types'
 import { HOST } from '../types'
@@ -6,10 +17,10 @@ import { HOST } from '../types'
 type CheckStatus = 'ok' | 'warn' | 'fail' | 'unk'
 
 const STATUS_COLOR: Record<CheckStatus, string> = {
-  ok: '#00FF99',
+  ok: '#34C759',
   warn: '#FFC857',
-  fail: 'rgba(255,100,100,0.9)',
-  unk: 'rgba(224,244,255,0.4)',
+  fail: '#FF3B30',
+  unk: 'rgba(17,17,20,0.35)',
 }
 
 const STATUS_LABEL: Record<CheckStatus, string> = {
@@ -19,21 +30,87 @@ const STATUS_LABEL: Record<CheckStatus, string> = {
   unk: '—',
 }
 
-/**
- * JARVIS BASE / Recovery — accessible clavier+souris sans HUD, sans voix, sans Hermes.
- * URL directe : /#/recovery  ·  raccourci Ctrl+Alt+R
- */
+import { coreWsUrl } from '../lib/coreWs'
+const CORE_WS = coreWsUrl()
+
+type Checks = {
+  dashboard: CheckStatus
+  coreWs: CheckStatus
+  hermes: CheckStatus
+  voicebox: CheckStatus
+  apiKeys: CheckStatus
+  ha: CheckStatus
+  hud: CheckStatus
+  docker: CheckStatus
+}
+
+const UNKNOWN: Checks = {
+  dashboard: 'ok',
+  coreWs: 'fail',
+  hermes: 'unk',
+  voicebox: 'unk',
+  apiKeys: 'unk',
+  ha: 'unk',
+  hud: 'unk',
+  docker: 'unk',
+}
+
 export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
-  const [checks] = useState({
-    dashboard: 'ok' as CheckStatus,
-    coreWs: 'warn' as CheckStatus,
-    hermes: 'fail' as CheckStatus,
-    voiceMic: 'warn' as CheckStatus,
-    apiKeys: 'warn' as CheckStatus,
-    ha: 'fail' as CheckStatus,
-    hud: 'fail' as CheckStatus,
-    docker: 'ok' as CheckStatus,
-  })
+  const [checks, setChecks] = useState<Checks>(UNKNOWN)
+  const [checking, setChecking] = useState(false)
+
+  const runChecks = useCallback(() => {
+    setChecking(true)
+    const next: Checks = { ...UNKNOWN }
+    let gotAny = false
+    let settled = false
+
+    const ws = new WebSocket(CORE_WS)
+    const finish = () => {
+      if (settled) return
+      settled = true
+      next.coreWs = gotAny ? 'ok' : 'fail'
+      setChecks(next)
+      setChecking(false)
+      try { ws.close() } catch { /* */ }
+    }
+    const timer = window.setTimeout(finish, 8000)
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'hermes_status', action: 'status' }))
+      ws.send(JSON.stringify({ type: 'providers', action: 'status' }))
+      ws.send(JSON.stringify({ type: 'voicebox', action: 'status' }))
+    }
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(String(ev.data))
+        gotAny = true
+        if (data.type === 'hermes_result') {
+          next.hermes = data.healthy ? 'ok' : (data.configured ? 'fail' : 'warn')
+        }
+        if (data.type === 'providers_result') {
+          const orOk = data.openrouter?.ok === true
+          const ollamaOk = data.ollama?.ok === true
+          next.apiKeys = orOk || ollamaOk ? 'ok' : (data.mode === 'system' ? 'warn' : 'fail')
+        }
+        if (data.type === 'voicebox_result') {
+          next.voicebox = data.available === true ? 'ok' : (data.available === false ? 'fail' : 'unk')
+        }
+      } catch { /* */ }
+    }
+    ws.onerror = () => {
+      window.clearTimeout(timer)
+      finish()
+    }
+    // Le Core répond aux 3 requêtes vite (santé sondée en parallèle côté
+    // handlers) — pas besoin d'attendre les 8s si tout est déjà revenu.
+    const settleSoon = window.setTimeout(() => {
+      if (gotAny) { window.clearTimeout(timer); finish() }
+    }, 4000)
+    return () => window.clearTimeout(settleSoon)
+  }, [])
+
+  useEffect(() => { runChecks() }, [runChecks])
 
   const issues = [
     {
@@ -52,10 +129,10 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
     },
     {
       id: 'mic',
-      title: 'Micro mal configuré',
-      detail: 'Pas de listening / STT muet — dépannage clavier, pas vocal.',
+      title: 'Voicebox injoignable',
+      detail: 'Pas de synthèse/transcription — le Core replie sur tts_fallback / SpeechSynthesis navigateur.',
       go: 'voice' as Page,
-      fix: ['Voice Manager → device défaut', 'Tester périphérique OS', 'Désactiver wake word temporairement'],
+      fix: ['Voice Manager → statut voicebox', 'Vérifier tunnel SSH NUC→VPS (17600)', 'jarvis-tunnel-voicebox.service'],
     },
     {
       id: 'hermes',
@@ -67,7 +144,7 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
     {
       id: 'ha',
       title: 'Home Assistant difficile à paramétrer',
-      detail: 'Token HA, URL, IoT gateway — config manuelle ici.',
+      detail: 'Token HA, URL, IoT gateway — config manuelle ici. Aucune sonde automatique aujourd’hui.',
       go: 'settings' as Page,
       fix: ['Entités / Tools → ha.control', 'URL + token HA (secrets)', 'Isoler IoT du Core (réseau)'],
     },
@@ -82,16 +159,16 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
         border: '1px solid rgba(255,107,74,0.45)',
         background: 'rgba(255,107,74,0.08)',
       }}>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 12, letterSpacing: '0.14em', color: '#FF6B4A', marginBottom: 6 }}>
+        <div style={{ fontFamily: 'Inter', fontSize: 12, letterSpacing: '0.14em', color: '#FF6B4A', marginBottom: 6 }}>
           MODE RECOVERY · JARVIS BASE
         </div>
-        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(224,244,255,0.8)', lineHeight: 1.5 }}>
+        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(17,17,20,0.75)', lineHeight: 1.5 }}>
           Entrée <strong style={{ color: '#FFC857' }}>clavier + souris uniquement</strong> — pas de voix, pas de HUD, pas besoin que Hermes réponde.
-          URL directe <code style={{ color: '#00E5FF' }}>#/recovery</code> · raccourci <code style={{ color: '#00E5FF' }}>Ctrl+Alt+R</code>.
+          URL directe <code style={{ color: '#0A84FF' }}>#/recovery</code> · raccourci <code style={{ color: '#0A84FF' }}>Ctrl+Alt+R</code>.
         </div>
       </div>
 
-      <PlaceholderBanner note="Checks mock — brancher Health Manager / Recovery Manager (§12). Secrets jamais affichés en clair." />
+      <PlaceholderBanner note={checking ? 'Sonde en cours (Hermes, Providers, Voicebox)…' : 'HA/HUD/Docker : aucune sonde côté Core — "—" veut dire inconnu, jamais un statut inventé.'} />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
         {(
@@ -99,7 +176,7 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
             ['DASHBOARD', checks.dashboard],
             ['CORE WS', checks.coreWs],
             ['HERMES', checks.hermes],
-            ['MIC', checks.voiceMic],
+            ['VOICEBOX', checks.voicebox],
             ['API', checks.apiKeys],
             ['HA', checks.ha],
             ['HUD', checks.hud],
@@ -118,18 +195,18 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
               key={issue.id}
               style={{
                 padding: '12px 0',
-                borderBottom: '1px solid rgba(0,229,255,0.08)',
+                borderBottom: '1px solid rgba(17,17,20,0.06)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 600, color: 'rgba(224,244,255,0.95)', marginBottom: 4 }}>
+                  <div style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 600, color: 'rgba(17,17,20,0.9)', marginBottom: 4 }}>
                     {issue.title}
                   </div>
-                  <div style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(224,244,255,0.55)', marginBottom: 8, lineHeight: 1.45 }}>
+                  <div style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(17,17,20,0.55)', marginBottom: 8, lineHeight: 1.45 }}>
                     {issue.detail}
                   </div>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(0,229,255,0.55)', lineHeight: 1.6 }}>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(17,17,20,0.45)', lineHeight: 1.6 }}>
                     {issue.fix.map(f => <li key={f}>{f}</li>)}
                   </ul>
                 </div>
@@ -142,9 +219,9 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
                     fontSize: 10,
                     padding: '6px 10px',
                     borderRadius: 6,
-                    border: '1px solid rgba(255,200,87,0.35)',
-                    background: 'rgba(255,200,87,0.1)',
-                    color: '#FFC857',
+                    border: '1px solid rgba(255,200,87,0.5)',
+                    background: 'rgba(255,200,87,0.12)',
+                    color: '#B8860B',
                     cursor: 'pointer',
                   }}
                 >
@@ -158,12 +235,12 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card>
             <CardTitle>Accès indépendant du HUD</CardTitle>
-            <Row name="URL Dashboard" meta={`https://${HOST.label}/dashboard/`} status="SOURIS" statusColor="#00E5FF" />
+            <Row name="URL Dashboard" meta={`https://${HOST.label}/dashboard/`} status="SOURIS" statusColor="#0A84FF" />
             <Row name="Recovery deep-link" meta="#/recovery" status="BOOKMARK" statusColor="#FFC857" />
-            <Row name="SSH secours" meta={HOST.ssh} status="HORS UI" statusColor="#FF6B4A" />
-            <Row name="Docker UI" meta={HOST.dockerUi} status="LINK" />
-            <div style={{ marginTop: 10, fontFamily: 'Inter', fontSize: 12, color: 'rgba(224,244,255,0.6)', lineHeight: 1.5 }}>
-              Si le kiosk HUD est mort, ouvre un navigateur normal (PC / tablette) vers le VPS — ce Dashboard reste le cockpit de réparation (JARVIS BASE §1 / Recovery §12).
+            <Row name="SSH secours" meta={HOST.ssh} status="HORS UI" statusColor="#FF3B30" />
+            <Row name="Docker UI" meta={HOST.dockerUi} status="LINK" statusColor="rgba(17,17,20,0.5)" />
+            <div style={{ marginTop: 10, fontFamily: 'Inter', fontSize: 12, color: 'rgba(17,17,20,0.6)', lineHeight: 1.5 }}>
+              Si le kiosk HUD est mort, ouvre un navigateur normal (PC / tablette) vers le VPS — ce Dashboard reste le cockpit de réparation (JARVIS BASE / Recovery).
             </div>
           </Card>
 
@@ -174,7 +251,7 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
                 ['terminal', 'Terminal'],
                 ['docker', 'Docker'],
                 ['ai', 'API / LLM'],
-                ['voice', 'Micro'],
+                ['voice', 'Voix'],
                 ['hermes', 'Hermes'],
                 ['settings', 'HA / Policy'],
               ] as [Page, string][]).map(([id, label]) => (
@@ -186,10 +263,10 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
                     fontFamily: 'JetBrains Mono',
                     fontSize: 10,
                     padding: '7px 11px',
-                    borderRadius: 6,
-                    border: '1px solid rgba(0,229,255,0.25)',
-                    background: 'rgba(0,229,255,0.08)',
-                    color: '#00E5FF',
+                    borderRadius: 999,
+                    border: '1px solid rgba(10,132,255,0.3)',
+                    background: 'rgba(10,132,255,0.08)',
+                    color: '#0A84FF',
                     cursor: 'pointer',
                   }}
                 >
@@ -197,6 +274,27 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
                 </button>
               ))}
             </div>
+          </Card>
+
+          <Card>
+            <CardTitle>Ré-sonder</CardTitle>
+            <button
+              type="button"
+              onClick={runChecks}
+              disabled={checking}
+              style={{
+                fontFamily: 'Inter, sans-serif',
+                fontSize: 11,
+                padding: '6px 14px',
+                borderRadius: 999,
+                border: '1px solid rgba(17,17,20,0.12)',
+                background: 'rgba(255,255,255,0.5)',
+                cursor: checking ? 'default' : 'pointer',
+                opacity: checking ? 0.6 : 1,
+              }}
+            >
+              {checking ? 'Sonde en cours…' : 'Relancer les checks'}
+            </button>
           </Card>
         </div>
       </div>

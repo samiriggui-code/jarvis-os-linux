@@ -1,4 +1,7 @@
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
+
+import { coreWsUrl } from '../lib/coreWs'
 
 /**
  * Holomat côté Dashboard = admin (services, FaceEngine, calib machine).
@@ -7,16 +10,50 @@ import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '..
  *   - gesture_profile + hud_preferences → core/data/users/<id>/
  *   - calibration machine → core/data/holomat/calibration.json
  *   - face_profile → core/data/users/<id>/face_profile
+ *
+ * FACE ENGINE / HOLOMAT : composants réels du superviseur Core
+ * (orchestrator_lifecycle.py registre "face" et "holomat").
  */
+type Component = { name: string; state?: string }
+const CORE_WS = coreWsUrl()
+const STATE_COLOR: Record<string, string> = { ready: '#34C759', loading: '#0A84FF', degraded: '#FF3B30', unknown: 'rgba(17,17,20,0.35)' }
+
 export default function HolomatPage() {
+  const [components, setComponents] = useState<Component[] | null>(null)
+
+  const refresh = useCallback(() => {
+    let settled = false
+    const ws = new WebSocket(CORE_WS)
+    const finish = () => { if (!settled) { settled = true; try { ws.close() } catch { /* */ } } }
+    const timer = window.setTimeout(finish, 10000)
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'supervisor', action: 'status' }))
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(String(ev.data))
+        if (data.type === 'supervisor_status') {
+          window.clearTimeout(timer)
+          setComponents(Array.isArray(data.components) ? data.components : [])
+          finish()
+        }
+      } catch { /* */ }
+    }
+    ws.onerror = () => { window.clearTimeout(timer); finish() }
+  }, [])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  const find = (name: string) => (components || []).find(c => c.name === name)
+  const face = find('face')
+  const holomat = find('holomat')
+
   return (
     <PageShell>
       <PlaceholderBanner note="Admin Holomat. L’onglet Paramètres du HUD (VISION) allume la caméra, lance la calib et sauve gesture_profile — pas ici." />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        <StatPill label="FACE ENGINE" value="READY" color="#00FF99" />
-        <StatPill label="CAMERA" value="HUD" color="#A855F7" />
-        <StatPill label="GESTURES" value="PROFILE" color="#00E5FF" />
-        <StatPill label="CALIB FILE" value="JSON" color="#FFC857" />
+        <StatPill label="FACE ENGINE" value={face?.state?.toUpperCase() || '…'} color={STATE_COLOR[face?.state || 'unknown']} />
+        <StatPill label="HOLOMAT" value={holomat?.state?.toUpperCase() || '…'} color={STATE_COLOR[holomat?.state || 'unknown']} />
+        <StatPill label="CAMERA" value="HUD" color="#0A84FF" />
+        <StatPill label="GESTURES" value="PROFILE" color="#0A84FF" />
       </div>
 
       <div className="dash-grid-2">
@@ -49,7 +86,7 @@ export default function HolomatPage() {
           <CardTitle>Identité</CardTitle>
           <Row name="Face match" meta="facteur, pas sésame" status="FACTOR" statusColor="#FFC857" />
           <Row name="+ Voice / PIN / geste" meta="User Manager §10.1" status="REQUIRED" />
-          <div style={{ marginTop: 12, fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(0,229,255,0.4)', lineHeight: 1.5 }}>
+          <div style={{ marginTop: 12, fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(168,85,247,0.4)', lineHeight: 1.5 }}>
             Pour calibrer : ouvrir le HUD → engrenage Paramètres → VISION / HOLOMAT → Allumer caméra → Lancer calibration → Enregistrer.
           </div>
         </Card>

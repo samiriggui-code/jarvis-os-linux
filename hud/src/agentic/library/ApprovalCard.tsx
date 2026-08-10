@@ -1,123 +1,68 @@
 /**
- * ApprovalCard — le blocage rendu VISIBLE.
- *
- * ⚠ Ce composant **n'implémente pas** le contrôle d'accès, il l'affiche. Ce qui
- * bloque, c'est le Core : tant qu'aucun `APPROVAL_RESPONSE` positif ne lui
- * revient, il n'exécute rien. Supprimer cette carte, la modifier, ou l'appeler
- * depuis la console ne débloque donc rien — on ne contourne pas une décision
- * en cachant le message qui l'annonce.
- *
- * C'est la différence entre une confirmation d'interface (« êtes-vous sûr ? »,
- * contournable) et une autorisation (arbitrée ailleurs).
- *
- * La demande vit dans `pending.approvals` du document de surface, donc elle
- * survit à une reconnexion et à une resynchronisation : une action en attente
- * ne disparaît pas parce que le HUD a rechargé.
+ * ApprovalCard — Vision glass. Affiche un blocage décidé par le Core.
  */
-
-import { tokens } from '../../ui/tokens';
 import type { AgenticProps } from '../registry/renderers';
+import { VisionButton, VisionPane, useVisionText } from './vision';
 
 export interface ApprovalCardProps {
-  /** Identifiant de la demande — c'est lui qui repart au Core. */
   approvalId: string;
   action: string;
-  /** `info | media | home | admin` — décidée au catalogue, jamais ici. */
   gravity: string;
   reason?: string;
 }
 
-const GRAVITY_COLOR: Record<string, string> = {
-  info: tokens.color.accent,
-  media: tokens.color.pending,
-  home: tokens.color.warning,
-  admin: tokens.color.danger,
+const GRAVITY_RGB: Record<string, string> = {
+  info: '10, 132, 255',
+  media: '94, 92, 230',
+  home: '255, 159, 10',
+  admin: '255, 59, 48',
 };
 
 export const ApprovalCard = ({ props, emit }: AgenticProps) => {
   const { approvalId, action, gravity, reason } = props as unknown as ApprovalCardProps;
-  const accent = GRAVITY_COLOR[gravity] ?? tokens.color.warning;
+  const { title, body, theme } = useVisionText();
+  const rgb = GRAVITY_RGB[gravity] ?? GRAVITY_RGB.home;
 
   return (
-    <div
+    <VisionPane
+      material="regular"
       style={{
-        border: `1px solid ${accent}`,
-        borderLeft: `3px solid ${accent}`,
-        borderRadius: tokens.radius.md,
-        background: tokens.color.surfaceRaised,
-        padding: '14px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
+        borderColor: `rgba(${rgb}, 0.45)`,
+        boxShadow: `0 0 0 1px rgba(${rgb}, 0.2), 0 20px 48px rgba(0,0,0,0.25)`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <span
           style={{
-            font: `10px ${tokens.font.mono}`,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: accent,
-            border: `1px solid ${accent}`,
-            borderRadius: tokens.radius.sm,
-            padding: '2px 7px',
+            fontSize: 10,
+            fontWeight: 650,
+            letterSpacing: '0.02em',
+            textTransform: 'capitalize',
+            color: `rgba(${rgb}, 1)`,
+            border: `1px solid rgba(${rgb}, 0.4)`,
+            borderRadius: 999,
+            padding: '3px 10px',
+            background: `rgba(${rgb}, 0.12)`,
           }}
         >
           {gravity}
         </span>
-        <strong style={{ color: tokens.color.text, font: `13px ${tokens.font.body}` }}>
-          Autorisation requise
-        </strong>
+        <strong style={{ ...title, fontSize: 14 }}>Autorisation requise</strong>
       </div>
 
-      <div style={{ color: tokens.color.text, font: `13px ${tokens.font.mono}` }}>{action}</div>
+      <p style={{ ...title, fontSize: 13, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+        {action}
+      </p>
 
-      {reason && (
-        <div style={{ color: tokens.color.textMuted, font: `12px ${tokens.font.body}`, lineHeight: 1.4 }}>
-          {reason}
-        </div>
-      )}
+      {reason ? <p style={{ ...body, marginTop: 8 }}>{reason}</p> : null}
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        {/* Le refus est un choix explicite, pas une absence de réponse : sans
-            lui, une demande resterait en attente indéfiniment et le Core ne
-            saurait jamais qu'elle a été vue. */}
-        <button
-          type="button"
-          onClick={() => emit('approval.deny', { approvalId })}
-          style={{
-            font: `11px ${tokens.font.mono}`,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            padding: '6px 14px',
-            cursor: 'pointer',
-            borderRadius: tokens.radius.sm,
-            border: `1px solid ${tokens.color.border}`,
-            background: 'transparent',
-            color: tokens.color.textMuted,
-          }}
-        >
-          refuser
-        </button>
-        <button
-          type="button"
-          onClick={() => emit('approval.grant', { approvalId })}
-          style={{
-            font: `11px ${tokens.font.mono}`,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            padding: '6px 14px',
-            cursor: 'pointer',
-            borderRadius: tokens.radius.sm,
-            border: `1px solid ${accent}`,
-            background: accent,
-            color: '#02121f',
-          }}
-        >
-          autoriser
-        </button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+        <VisionButton onClick={() => emit('approval.deny', { approvalId })}>Refuser</VisionButton>
+        <VisionButton tone="accent" onClick={() => emit('approval.grant', { approvalId })}>
+          Autoriser
+        </VisionButton>
       </div>
-    </div>
+    </VisionPane>
   );
 };
 

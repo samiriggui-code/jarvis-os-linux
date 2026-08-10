@@ -13,6 +13,7 @@ import AgentsPage from './pages/AgentsPage'
 import ToolsPage from './pages/ToolsPage'
 import AgentReachPage from './pages/AgentReachPage'
 import ApplicationsPage from './pages/ApplicationsPage'
+import HudSurfacePage from './pages/HudSurfacePage'
 import DockerPage from './pages/DockerPage'
 import TerminalPage from './pages/TerminalPage'
 import DeployPage from './pages/DeployPage'
@@ -20,10 +21,14 @@ import SystemMonitoring from './pages/SystemMonitoring'
 import AIProviders from './pages/AIProviders'
 import SystemSettings from './pages/SystemSettings'
 import { pageFromHash, PAGE_IDS, type Page } from './types'
+import { DashToastProvider } from './components/DashToast'
+import { CoreSessionProvider } from './context/CoreSessionContext'
+import { AdminLoginGate } from './components/AdminLoginGate'
 
 function PageContent({ page, onNavigate }: { page: Page; onNavigate: (p: Page) => void }) {
   switch (page) {
     case 'recovery': return <RecoveryPage onNavigate={onNavigate} />
+    case 'hud': return <HudSurfacePage />
     case 'dashboard': return <DashboardOverview />
     case 'command': return <CommandCenter onNavigate={onNavigate} />
     case 'hermes': return <HermesCore />
@@ -33,7 +38,7 @@ function PageContent({ page, onNavigate }: { page: Page; onNavigate: (p: Page) =
     case 'agents': return <AgentsPage />
     case 'tools': return <ToolsPage />
     case 'reach': return <AgentReachPage />
-    case 'apps': return <ApplicationsPage />
+    case 'apps': return <ApplicationsPage onNavigate={onNavigate} />
     case 'docker': return <DockerPage />
     case 'terminal': return <TerminalPage />
     case 'deploy': return <DeployPage />
@@ -53,15 +58,17 @@ function navigateTo(page: Page, setPage: (p: Page) => void) {
 }
 
 /**
- * Dashboard VPS — défaut voice-only (pas de clic).
- * Ctrl+Alt+R → recovery (clics) + page Recovery.
- * postMessage depuis HUD : jarvis:navigate / jarvis:inputMode
+ * Dashboard admin — clics/clavier actifs par défaut (paramétrage à la souris).
+ * Le mode voice-only (clics coupés) n'a de sens que quand le HUD l'embarque
+ * et le pilote explicitement via `jarvis:inputMode` — jamais par défaut, sinon
+ * la totalité des boutons/liens reste inerte en accès direct.
+ * Ctrl+Alt+R bascule quand même vers 'voice' pour tester ce mode-là.
  */
 export default function App() {
   const [page, setPage] = useState<Page>(() => pageFromHash() ?? 'dashboard')
   const [inputMode, setInputMode] = useState<'voice' | 'recovery'>(() => {
-    if (typeof window === 'undefined') return 'voice'
-    return new URLSearchParams(window.location.search).get('recovery') === '1' ? 'recovery' : 'voice'
+    if (typeof window === 'undefined') return 'recovery'
+    return new URLSearchParams(window.location.search).get('voice') === '1' ? 'voice' : 'recovery'
   })
 
   useEffect(() => {
@@ -132,48 +139,23 @@ export default function App() {
   }, [])
 
   return (
+    <CoreSessionProvider>
+    <AdminLoginGate>
+    <DashToastProvider>
     <div className="dash-shell" data-input-mode={inputMode}>
       <AnimatedBackground />
-      {inputMode === 'recovery' && (
+      {inputMode === 'voice' && (
         <div
           data-jarvis-always-interactive
-          style={{
-            position: 'fixed',
-            top: 8,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 50,
-            padding: '6px 14px',
-            borderRadius: 8,
-            background: 'rgba(40,12,8,0.92)',
-            border: '1px solid rgba(255,107,74,0.5)',
-            fontFamily: 'JetBrains Mono',
-            fontSize: 10,
-            color: '#FF6B4A',
-            letterSpacing: '0.06em',
-            pointerEvents: 'auto',
-            maxWidth: 'min(92vw, 420px)',
-            textAlign: 'center',
-          }}
+          className="dash-voice-banner"
         >
-          RECOVERY — CLICS ACTIFS · Ctrl+Alt+R = voix
+          MODE VOIX — clics désactivés
           <button
             type="button"
             data-jarvis-always-interactive
-            onClick={() => setInputMode('voice')}
-            style={{
-              marginLeft: 12,
-              fontFamily: 'JetBrains Mono',
-              fontSize: 9,
-              color: '#00E5FF',
-              background: 'rgba(0,229,255,0.1)',
-              border: '1px solid rgba(0,229,255,0.35)',
-              borderRadius: 6,
-              padding: '2px 8px',
-              cursor: 'pointer',
-            }}
+            onClick={() => setInputMode('recovery')}
           >
-            MODE VOIX
+            ACTIVER CLICS
           </button>
         </div>
       )}
@@ -184,37 +166,28 @@ export default function App() {
           aria-hidden
         />
       )}
-      <div style={{ pointerEvents: inputMode === 'voice' ? 'none' : 'auto', display: 'contents' }}>
-        <Sidebar
-          active={page}
-          onNavigate={go}
-          open={navOpen}
-          onClose={() => setNavOpen(false)}
-        />
-      </div>
+      <Sidebar
+        active={page}
+        onNavigate={go}
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+      />
       <div className="dash-main">
-        <div style={{ pointerEvents: inputMode === 'voice' ? 'none' : 'auto' }}>
-          <TopNav
-            page={page}
-            onMenu={() => setNavOpen(true)}
-            onRecovery={() => {
-              setInputMode('recovery')
-              go('recovery')
-            }}
-          />
-        </div>
-        <main
-          style={{
-            flex: 1,
-            overflow: 'hidden',
-            position: 'relative',
-            pointerEvents: inputMode === 'voice' ? 'none' : 'auto',
-            minHeight: 0,
+        <TopNav
+          page={page}
+          onMenu={() => setNavOpen(true)}
+          onRecovery={() => {
+            setInputMode('recovery')
+            go('recovery')
           }}
-        >
+        />
+        <div className="dash-main-scroll">
           <PageContent page={page} onNavigate={go} />
-        </main>
+        </div>
       </div>
     </div>
+    </DashToastProvider>
+    </AdminLoginGate>
+    </CoreSessionProvider>
   )
 }

@@ -10,10 +10,9 @@ import { getAppById, VPS_ALLOWLIST, riskLabel } from '../apps/catalog';
 import { MissionControlDev, CursorSurface } from './missionDev';
 import { SystemMonitor } from './SystemMonitor';
 import { AgentSurface } from '../../agentic/AgentSurface';
-
-const orbFont = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-const raj = { fontFamily: 'Rajdhani, sans-serif' };
+import { glassLevel, tokens } from '../../ui/tokens';
+import { bodyFont, monoFont, orbFont, DANGER, MUTED, SUCCESS, TEXT, WARNING } from './hudTheme';
+import { visionBody, visionCaption } from './visionChrome';
 
 function isHermesNodeId(id: string): id is Exclude<NodeId, 'hermes'> {
   return id !== 'hermes' && id in HERMES_NODES;
@@ -37,16 +36,16 @@ function HermesSurface({ app }: { app: OpenApp }) {
           <app.icon className="w-8 h-8" style={{ color: app.color }} />
         </div>
         <div className="min-w-0">
-          <p style={{ ...raj, color: 'rgba(255,255,255,0.9)', fontSize: 18, margin: 0 }}>{app.name}</p>
-          <p style={{ ...mono, color: `${app.color}cc`, fontSize: 10, marginTop: 4 }}>
+          <p style={{ ...bodyFont, color: TEXT, fontSize: 18, margin: 0 }}>{app.name}</p>
+          <p style={{ ...monoFont, color: `${app.color}cc`, fontSize: 10, marginTop: 4 }}>
             {soon
               ? 'Intention déclarée — exécutant pas encore câblé'
               : (meta?.blurb || 'En attente du Core')}
             {meta?.risk ? ` · ${riskLabel(meta.risk)}` : ''}
           </p>
           {tool && (
-            <p style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: 9, marginTop: 6 }}>
-              intention · {tool}{soon ? ' · SOON' : ''}
+            <p style={{ ...monoFont, color: MUTED, fontSize: 9, marginTop: 6, letterSpacing: '0.02em' }}>
+              intention · {tool}{soon ? ' · Bientôt' : ''}
             </p>
           )}
         </div>
@@ -55,12 +54,12 @@ function HermesSurface({ app }: { app: OpenApp }) {
       {soon && (
         <div
           className="rounded-xl p-3"
-          style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)' }}
+          style={{ background: tokens.color.accentSoft, border: `1px solid ${WARNING}55` }}
         >
-          <p style={{ ...mono, color: '#f59e0b', fontSize: 10 }}>CAPACITÉ NON EXÉCUTABLE</p>
-          <p style={{ ...mono, color: 'rgba(255,255,255,0.45)', fontSize: 9, lineHeight: 1.5, marginTop: 4 }}>
+          <p style={{ ...monoFont, color: WARNING, fontSize: 10, letterSpacing: '0.02em' }}>Capacité non exécutable</p>
+          <p style={{ ...visionBody, fontSize: 11, marginTop: 4 }}>
             Tuile visible exprès. Le Core refuse avec une raison plutôt que de
-            faire semblant. Dashboard → Applications pour LIVE / SURFACE / SOON.
+            faire semblant. Dashboard → Applications pour Prêt / Surface / Bientôt.
           </p>
         </div>
       )}
@@ -68,16 +67,16 @@ function HermesSurface({ app }: { app: OpenApp }) {
       {vps && (
         <div
           className="rounded-xl p-3 flex gap-2"
-          style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.35)' }}
+          style={{ background: `color-mix(in srgb, ${DANGER} 8%, transparent)`, border: `1px solid ${DANGER}55` }}
         >
-          <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#f43f5e' }} />
+          <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: DANGER }} />
           <div>
-            <p style={{ ...mono, color: '#f43f5e', fontSize: 10 }}>ACCÈS VPS LIMITÉ</p>
-            <p style={{ ...mono, color: 'rgba(255,255,255,0.45)', fontSize: 9, lineHeight: 1.5, marginTop: 4 }}>
+            <p style={{ ...monoFont, color: DANGER, fontSize: 10, letterSpacing: '0.02em' }}>Accès VPS limité</p>
+            <p style={{ ...visionBody, fontSize: 11, marginTop: 4 }}>
               Allowlist uniquement (status / logs / restart services jarvis-*). Pas de root, pas de rm -rf, pas de reboot libre.
-              Toute action : Proposition → Policy → confirmation ADMIN.
+              Toute action : Proposition → Policy → confirmation Admin.
             </p>
-            <p style={{ ...mono, color: 'rgba(255,255,255,0.3)', fontSize: 8, marginTop: 8 }}>
+            <p style={{ ...monoFont, color: MUTED, fontSize: 8, marginTop: 8, letterSpacing: '0.02em' }}>
               shell OK : {VPS_ALLOWLIST.shell.slice(0, 3).join(' · ')}…
             </p>
           </div>
@@ -86,31 +85,31 @@ function HermesSurface({ app }: { app: OpenApp }) {
 
       <div
         className="flex-1 rounded-xl p-4"
-        style={{ background: 'rgba(0,8,22,0.55)', border: `1px solid ${app.color}22` }}
+        style={{ background: tokens.color.surface, border: `1px solid ${tokens.color.border}` }}
       >
         {app.id === 'reach' ? (
           <>
-            <p style={{ ...mono, color: 'rgba(255,255,255,0.55)', fontSize: 11, lineHeight: 1.65 }}>
+            <p style={{ ...visionBody, fontSize: 11 }}>
               En attente du résultat de recherche…
             </p>
-            <p style={{ ...mono, color: `${app.color}99`, fontSize: 9, marginTop: 12, lineHeight: 1.5 }}>
+            <p style={{ ...monoFont, color: `${app.color}99`, fontSize: 9, marginTop: 12, lineHeight: 1.5, letterSpacing: '0.02em' }}>
               Dites « Jarvis cherche … ». Le Core pousse un ResultPanel ici
               (pas une page d’aide). Si ça reste vide : Hermes timeout — Google
               s’ouvre en secours.
             </p>
           </>
         ) : soon ? (
-          <p style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: 10, lineHeight: 1.65 }}>
+          <p style={{ ...visionBody, fontSize: 11 }}>
             Surface agentic non générée pour cette intention. Les capacités câblées
             (maison, médias, sécurité…) composent une vraie surface.
           </p>
         ) : (
           <>
-            <p style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.65 }}>
+            <p style={{ ...visionBody, fontSize: 11 }}>
               Surface HUD prête. Le contenu live (stdout, fichiers, HA, média…) sera poussé par Hermes
               via l’outil déclaré — pas de simulation trompeuse ici.
             </p>
-            <p style={{ ...mono, color: 'rgba(255,255,255,0.28)', fontSize: 9, marginTop: 12 }}>
+            <p style={{ ...visionCaption, fontSize: 10, marginTop: 12 }}>
               « Jarvis ouvre {app.name.toLowerCase()} » · skill hud-apps · tool_manager pour ajouter des outils.
             </p>
           </>
@@ -120,7 +119,12 @@ function HermesSurface({ app }: { app: OpenApp }) {
   );
 }
 
-function MockAppContent({ app }: { app: OpenApp }) {
+/**
+ * Résout le contenu d'une « app »/surface ouverte — exporté pour être
+ * réutilisé tel quel par le canevas agentic plein écran (App.tsx, G1a),
+ * qui n'est pas une fenêtre AppStage mais doit résoudre le même contenu.
+ */
+export function MockAppContent({ app }: { app: OpenApp }) {
   const { launchApp, missionControlDev } = useApp();
 
   if (app.id === 'jarvis') {
@@ -195,14 +199,13 @@ export function ControlDot({ color, label, onClick }: { color: string; label: st
         height: 11,
         background: color,
         border: `1px solid ${color}`,
-        boxShadow: `0 0 6px ${color}90`,
       }}
     />
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Fenêtre habillée (chrome holographique)                             */
+/* Fenêtre habillée (chrome Vision)                                    */
 /* ------------------------------------------------------------------ */
 
 function AppWindow({ app, depth, maximized, onFocus, onClose, onMinimize, onToggleMaximize }: {
@@ -237,24 +240,25 @@ function AppWindow({ app, depth, maximized, onFocus, onClose, onMinimize, onTogg
         zIndex: 50 - depth,
         cursor: isFront ? 'default' : 'pointer',
         transformStyle: 'preserve-3d',
-        background: 'rgba(0, 10, 26, 0.88)',
-        backdropFilter: 'blur(18px)',
-        border: `1px solid ${app.color}${isFront ? '45' : '20'}`,
+        background: glassLevel.regular.background,
+        backdropFilter: glassLevel.regular.backdropFilter,
+        WebkitBackdropFilter: glassLevel.regular.backdropFilter,
+        border: glassLevel.regular.border,
         boxShadow: isFront
-          ? `0 0 40px ${app.color}22, inset 0 0 30px rgba(0,0,0,0.45)`
-          : '0 0 20px rgba(0,0,0,0.5)',
+          ? glassLevel.regular.boxShadow
+          : '0 12px 32px -14px rgba(0,0,0,0.52)',
       }}
     >
       {/* Barre de titre */}
       <div
         className="flex items-center gap-2.5 px-4 py-2.5 flex-shrink-0"
-        style={{ borderBottom: `1px solid ${app.color}20`, background: 'rgba(0,6,18,0.6)' }}
+        style={{ borderBottom: `1px solid ${tokens.color.border}`, background: tokens.color.surface }}
       >
         {/* Points de contrôle en code couleur */}
         <div className="flex items-center gap-2 mr-1">
-          <ControlDot color="#ef4444" label="Fermer" onClick={onClose} />
-          <ControlDot color="#f59e0b" label="Réduire" onClick={onMinimize} />
-          <ControlDot color="#22c55e" label={maximized ? 'Restaurer' : 'Agrandir'} onClick={onToggleMaximize} />
+          <ControlDot color={DANGER} label="Fermer" onClick={onClose} />
+          <ControlDot color={WARNING} label="Réduire" onClick={onMinimize} />
+          <ControlDot color={SUCCESS} label={maximized ? 'Restaurer' : 'Agrandir'} onClick={onToggleMaximize} />
         </div>
 
         <div
@@ -263,18 +267,18 @@ function AppWindow({ app, depth, maximized, onFocus, onClose, onMinimize, onTogg
         >
           <app.icon className="w-3.5 h-3.5" style={{ color: app.color }} />
         </div>
-        <span style={{ ...orbFont, color: app.color, fontSize: 11, letterSpacing: '0.15em' }}>
-          {app.name.toUpperCase()}
+        <span style={{ ...orbFont, color: TEXT, fontSize: 13 }}>
+          {app.name}
         </span>
         <div className="flex items-center gap-1.5 ml-3">
           <motion.div
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ duration: 1.6, repeat: Infinity }}
             className="w-1.5 h-1.5 rounded-full"
-            style={{ background: '#f59e0b' }}
+            style={{ background: WARNING }}
           />
-          <span style={{ ...mono, color: 'rgba(245,158,11,0.7)', fontSize: 8, letterSpacing: '0.1em' }}>
-            FLUX AGENT — EN ATTENTE
+          <span style={{ ...monoFont, color: MUTED, fontSize: 9, letterSpacing: '0.02em' }}>
+            Flux agent en attente
           </span>
         </div>
       </div>
@@ -285,7 +289,7 @@ function AppWindow({ app, depth, maximized, onFocus, onClose, onMinimize, onTogg
       </div>
 
       {/* Voile de mise au fond : les fenêtres arrière ne captent que le clic focus */}
-      {!isFront && <div className="absolute inset-0" style={{ background: 'rgba(0,4,12,0.25)' }} />}
+      {!isFront && <div className="absolute inset-0" style={{ background: 'rgba(8,8,10,0.25)' }} />}
     </motion.div>
   );
 }
@@ -331,11 +335,11 @@ export function AppStage() {
       {ordered.length > 1 && (
         <div
           className="absolute top-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full pointer-events-none"
-          style={{ zIndex: 95, background: 'rgba(0,8,22,0.8)', border: '1px solid rgba(0,245,255,0.2)' }}
+          style={{ zIndex: 95, background: tokens.color.surfaceRaised, border: `1px solid ${tokens.color.border}`, backdropFilter: tokens.glass }}
         >
-          <Layers className="w-2.5 h-2.5" style={{ color: '#00f5ff' }} />
-          <span style={{ ...mono, color: 'rgba(0,245,255,0.7)', fontSize: 8, letterSpacing: '0.1em' }}>
-            {ordered.length} FENÊTRES — MOLETTE / GESTE POUR FEUILLETER
+          <Layers className="w-2.5 h-2.5" style={{ color: tokens.color.accent }} />
+          <span style={{ ...monoFont, color: MUTED, fontSize: 9, letterSpacing: '0.02em' }}>
+            {ordered.length} fenêtres · molette ou geste pour feuilleter
           </span>
         </div>
       )}
@@ -358,7 +362,7 @@ export function AppStage() {
       </div>
 
       {/* Hors du clip des fenêtres — sinon orbe coupée (3/4 visibles). */}
-      <MiniOrb corner="right" />
+      <MiniOrb position="right" />
     </div>
   );
 }

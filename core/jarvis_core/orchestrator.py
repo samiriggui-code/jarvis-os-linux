@@ -13,6 +13,7 @@ from .ws.handlers.chat import ChatHandlerMixin
 from .ws.handlers.holomat import HolomatHandlerMixin
 from .ws.handlers.surface import SurfaceHandlerMixin
 from .ws.handlers.system import SystemHandlerMixin
+from .ws.handlers.terminal import TerminalHandlerMixin
 from .ws.handlers.voice import VoiceHandlerMixin
 
 
@@ -29,6 +30,7 @@ class Orchestrator(
     HolomatHandlerMixin,
     SurfaceHandlerMixin,
     SystemHandlerMixin,
+    TerminalHandlerMixin,
     VoiceHandlerMixin,
 ):
     """Cerveau : reçoit les events HUD, applique la policy, répond via WS."""

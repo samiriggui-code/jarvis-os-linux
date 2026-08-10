@@ -16,12 +16,19 @@ from typing import Any
 import cv2
 import numpy as np
 
-from .face_mesh import ALGO_NAME, EMBEDDING_DIM, FaceMeshBackend, LANDMARK_COUNT
+from .face_mesh import FaceMeshBackend, LANDMARK_COUNT
+from .opencv_face import (
+    ALGO_NAME as OPENCV_ALGO,
+    VERIFY_THRESHOLD as OPENCV_THRESHOLD,
+    OpenCvSFaceBackend,
+    cpu_has_avx,
+)
 
 logger = logging.getLogger("jarvis.vision.face")
 
 ENROLL_SAMPLES_NEEDED = 8
-VERIFY_THRESHOLD = 0.88
+# Seuil MediaPipe Face Mesh (cosine landmarks) — SFace utilise OPENCV_THRESHOLD.
+VERIFY_THRESHOLD_MESH = 0.88
 MIN_FACE_SCORE = 0.5
 MIN_FACE_PX = 28
 PRESENCE_FRAC_W = 0.05
@@ -29,6 +36,11 @@ PRESENCE_FRAC_H = 0.06
 PRESENCE_CENTER_TOL_X = 0.48
 PRESENCE_CENTER_TOL_Y = 0.48
 PRESENCE_HITS_NEEDED = 2
+
+# Compat imports / smokes
+VERIFY_THRESHOLD = VERIFY_THRESHOLD_MESH
+ALGO_NAME = "mediapipe_facemesh"
+EMBEDDING_DIM = LANDMARK_COUNT * 3
 
 
 @dataclass
@@ -53,9 +65,24 @@ class EnrollBuffer:
 
 class FaceEngine:
     def __init__(self) -> None:
-        self._backend = FaceMeshBackend()
+        # NUC sans AVX : importer MediaPipe tue le process (SIGILL). Jamais.
+        use_mesh = cpu_has_avx()
+        if use_mesh:
+            try:
+                self._backend = FaceMeshBackend()
+                self._algo = "mediapipe_facemesh"
+                self._threshold = VERIFY_THRESHOLD_MESH
+                self._landmarks = LANDMARK_COUNT
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("MediaPipe Face Mesh indisponible (%s) — OpenCV SFace", exc)
+                use_mesh = False
+        if not use_mesh:
+            self._backend = OpenCvSFaceBackend()
+            self._algo = OPENCV_ALGO
+            self._threshold = OPENCV_THRESHOLD
+            self._landmarks = 0
         self._enroll: dict[str, EnrollBuffer] = {}
-        logger.info("FaceEngine prêt · MediaPipe Face Mesh")
+        logger.info("FaceEngine prêt · %s · seuil=%.3f", self._algo, self._threshold)
 
     def decode_jpeg_b64(self, jpeg_b64: str) -> np.ndarray | None:
         try:
@@ -189,17 +216,17 @@ class FaceEngine:
         label = (username or buf.username or key).strip()
         payload = {
             "version": 3,
-            "algo": ALGO_NAME,
+            "algo": self._algo,
             "username": label,
             "user_id": key,
             "embedding": mean.astype(np.float32).tolist(),
             "samples": len(buf.samples),
-            "threshold": VERIFY_THRESHOLD,
-            "landmarks": LANDMARK_COUNT,
+            "threshold": self._threshold,
+            "landmarks": self._landmarks,
         }
         path.write_text(json.dumps(payload), encoding="utf-8")
         self._enroll.pop(key, None)
-        logger.info("face_profile écrit %s (%d samples, %s)", path, len(buf.samples), ALGO_NAME)
+        logger.info("face_profile écrit %s (%d samples, %s)", path, len(buf.samples), self._algo)
         return {"ok": True, "path": str(path), "samples": payload["samples"]}
 
     def reset_face_profile(self, user_id: str) -> dict[str, Any]:
@@ -315,9 +342,9 @@ class FaceEngine:
                 best_id = uid
                 best_name = uname
 
-        progress = float(np.clip(best_score / max(VERIFY_THRESHOLD, 1e-3) * 95.0, 0, 99))
+        progress = float(np.clip(best_score / max(self._threshold, 1e-3) * 95.0, 0, 99))
         box = self._norm_box(det, img)
-        if best_score >= VERIFY_THRESHOLD and best_id:
+        if best_score >= self._threshold and best_id:
             ev = {
                 "type": "FACE_SUCCESS",
                 "progress": 100,
@@ -382,12 +409,14 @@ class FaceEngine:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             algo = str(data.get("algo") or "")
-            if algo and algo != ALGO_NAME:
-                logger.debug("face_profile algo incompatible %s (attendu %s)", algo, ALGO_NAME)
+            if algo and algo != self._algo:
+                logger.debug("face_profile algo incompatible %s (attendu %s)", algo, self._algo)
                 return None
             emb = np.array(data["embedding"], dtype=np.float32)
-            if emb.size != EMBEDDING_DIM:
-                logger.debug("face_profile dim %s != %s — ré-enrôler", emb.size, EMBEDDING_DIM)
+            # Mesh = 1404, SFace = 128 — sinon ré-enrôler
+            expected = EMBEDDING_DIM if self._algo == "mediapipe_facemesh" else 128
+            if emb.size != expected:
+                logger.debug("face_profile dim %s != %s — ré-enrôler", emb.size, expected)
                 return None
             n = np.linalg.norm(emb)
             if n < 1e-6:

@@ -6,8 +6,8 @@ import React from 'react';
 type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'processing' | 'responding';
 
 const COLORS: Record<string, string> = {
-  idle: '#00f5ff',
-  listening: '#19f0d8',
+  idle: '#0A84FF',
+  listening: '#0A84FF',
   thinking: '#a78bfa',
   processing: '#a78bfa',
   speaking: '#22c55e',

@@ -6,7 +6,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Background } from './components/Background';
 import { TopBar } from './components/TopBar';
 import { AICore } from './components/AICore';
-import { AppStage } from './components/AppStage';
+import { AppStage, MockAppContent } from './components/AppStage';
 import { InteractionLock } from './components/InteractionLock';
 import { Figma2Stage } from './components/Figma2Stage';
 import { MiniOrb } from './components/MiniOrb';
@@ -31,20 +31,26 @@ import { VoiceChatBridge } from './components/VoiceChatBridge';
 import { SessionLifecycle } from './components/SessionLifecycle';
 import { KioskMediaWarmup } from './components/KioskMediaWarmup';
 import { BootScene } from '../ui/boot/BootScene';
+import { tokens } from '../ui/tokens';
+import { glassLevel } from '../ui/tokens';
 
 /** Panneaux / boutons démo — visibles uniquement en Vite DEV */
 const IS_DEV = import.meta.env.DEV;
 
-const orb = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
+const orb = { fontFamily: tokens.font.display };
+const mono = { fontFamily: tokens.font.mono };
 
-const glassPanel = (accent = '#00f5ff') => ({
-  background: 'rgba(0, 10, 28, 0.65)',
-  backdropFilter: 'blur(20px)',
-  border: `1px solid ${accent}20`,
-  borderRadius: '16px',
-  boxShadow: `0 0 30px rgba(0,0,0,0.4), inset 0 0 20px rgba(0,0,0,0.3)`,
-});
+const glassPanel = () => {
+  const spec = glassLevel.regular;
+  return {
+    background: spec.background,
+    backdropFilter: spec.backdropFilter,
+    WebkitBackdropFilter: spec.backdropFilter,
+    border: spec.border,
+    borderRadius: '20px',
+    boxShadow: spec.boxShadow,
+  };
+};
 
 /** Scale children to fit parent; layout box matches visual size (unlike CSS transform alone). */
 function FitScale({
@@ -113,7 +119,7 @@ function PanelTab({
       }}
     >
       <Icon className="w-3.5 h-3.5" style={{ color: active ? color : 'rgba(255,255,255,0.3)' }} />
-      <span style={{ ...mono, color: active ? color : 'rgba(255,255,255,0.35)', fontSize: '9px', letterSpacing: '0.08em' }}>
+      <span style={{ ...mono, color: active ? color : tokens.color.textMuted, fontSize: '10px' }}>
         {label}
       </span>
     </motion.button>
@@ -138,16 +144,23 @@ function MainLayout() {
     window.addEventListener('jarvis:start-enrollment', onEnroll as EventListener);
     return () => window.removeEventListener('jarvis:start-enrollment', onEnroll as EventListener);
   }, []);
-  // Deux états du HUD normal : « veille » (orbe centrale) / « apps » (scène time capsule
-  // + mini-orbe). En mode apps : panneau gauche + barre voix s'effacent —
-  // le panneau droit (console / chat) reste. Fenêtre dans la colonne centre,
-  // orbe réduite en bas à droite de la scène apps.
+  // Trois états du HUD normal :
+  // - « veille » : orbe centrale, rien d'ouvert.
+  // - « surface » : UNE surface agentic occupe tout l'écran (G1a) — c'est le flux
+  //   principal désormais : JARVIS répond, la réponse prend la scène, l'orbe se
+  //   réduit et se pose en bas-centre (MiniOrb position="bottom-center").
+  // - « apps » : PLUSIEURS fenêtres ouvertes simultanément → on retombe sur le
+  //   système de fenêtres AppStage (usage multi-fenêtres explicite, ex. Terminal +
+  //   Settings ouverts ensemble). Panneau gauche + barre voix s'effacent dans les
+  //   deux cas non-veille — le panneau droit (console / chat) reste toujours.
   //
-  // L'icône déportée du TopBar (dashboardOpen) est un troisième état, distinct et
+  // L'icône déportée du TopBar (dashboardOpen) est un quatrième état, distinct et
   // spécial : tout le HUD se retire pour laisser Dashboard Core RÉEL (figma2) occuper
-  // tout l'espace, orbe réduite au même gabarit qu'en mode apps mais posée en bas
-  // à gauche — voir Figma2Stage. Accès via AdminAuthScene (auth intermédiaire SF).
-  const hudMode: 'veille' | 'apps' = openApps.some(a => !a.minimized) ? 'apps' : 'veille';
+  // tout l'espace, orbe réduite posée en bas à gauche — voir Figma2Stage. Accès via
+  // AdminAuthScene (auth intermédiaire SF).
+  const visibleApps = openApps.filter(a => !a.minimized);
+  const hudMode: 'veille' | 'surface' | 'apps' =
+    visibleApps.length === 1 ? 'surface' : visibleApps.length > 1 ? 'apps' : 'veille';
 
   // Post-auth / post-enrôlement uniquement — pas au verrouillage ni au refresh.
   if (welcomeCinematic) {
@@ -198,7 +211,7 @@ function MainLayout() {
   return (
     <div
       className="fixed inset-0 flex flex-col overflow-hidden"
-      style={{ fontFamily: 'Rajdhani, sans-serif', height: '100svh', maxHeight: '100svh' }}
+      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif', height: '100svh', maxHeight: '100svh' }}
     >
       <Background />
 
@@ -221,6 +234,22 @@ function MainLayout() {
             className="absolute inset-0 px-2 pb-0.5"
           >
             <Figma2Stage />
+          </motion.div>
+        ) : hudMode === 'surface' ? (
+          /* G1a — canevas agentic plein écran : une seule surface prend TOUT
+             l'écran (plus une petite fenêtre AppStage parmi d'autres). Le
+             protocole/registre ne changent pas (mêmes composants), seul le
+             conteneur devient l'écran entier. L'orbe se réduit — voir le
+             MiniOrb position="bottom-center" plus bas. */
+          <motion.div
+            key="surface"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute inset-0 px-2 pb-0.5"
+          >
+            <MockAppContent app={visibleApps[0]} />
           </motion.div>
         ) : (
       <motion.div
@@ -245,20 +274,20 @@ function MainLayout() {
               <div className="w-48 lg:w-56 xl:w-64 h-full flex flex-col gap-1.5 overflow-hidden pt-1 pb-0.5">
                 <div className="flex gap-2 flex-shrink-0">
                   <PanelTab
-                    id="monitor" label="MONITEUR" icon={Activity}
-                    active={leftPanel === 'monitor'} color="#00f5ff"
+                    id="monitor" label="Moniteur" icon={Activity}
+                    active={leftPanel === 'monitor'} color="#0A84FF"
                     onClick={() => setLeftPanel('monitor')}
                   />
                   <PanelTab
-                    id="memory" label="MÉMOIRE" icon={Brain}
-                    active={leftPanel === 'memory'} color="#a855f7"
+                    id="memory" label="Mémoire" icon={Brain}
+                    active={leftPanel === 'memory'} color="#0A84FF"
                     onClick={() => setLeftPanel('memory')}
                   />
                 </div>
 
                 <div
                   className="flex-1 min-h-0 p-3 overflow-y-auto"
-                  style={glassPanel(leftPanel === 'monitor' ? '#00f5ff' : '#a855f7')}
+                  style={glassPanel()}
                 >
                   <AnimatePresence mode="wait">
                     {leftPanel === 'monitor' ? (
@@ -290,20 +319,20 @@ function MainLayout() {
                 transition={{ duration: 0.3 }}
                 className="hidden min-[700px]:flex w-full max-w-xs items-center justify-between px-3 py-1 rounded-xl flex-shrink-0"
                 style={{
-                  background: 'rgba(0,8,22,0.5)',
-                  border: '1px solid rgba(0,245,255,0.1)',
-                  backdropFilter: 'blur(12px)',
+                  background: glassLevel.subtle.background,
+                  border: glassLevel.subtle.border,
+                  backdropFilter: glassLevel.subtle.backdropFilter,
                 }}
               >
                 {[
-                  { label: 'OPS NEURONALES', value: '1,2T', color: '#00f5ff' },
-                  { label: 'CONTEXTE', value: '128K', color: '#a855f7' },
-                  { label: 'PRÉCISION', value: '98,7%', color: '#22c55e' },
-                  { label: 'LATENCE', value: '42ms', color: '#f59e0b' },
+                  { label: 'Opérations', value: '1,2 T', color: '#0A84FF' },
+                  { label: 'Contexte', value: '128 K', color: '#0A84FF' },
+                  { label: 'Précision', value: '98,7 %', color: '#22c55e' },
+                  { label: 'Latence', value: '42 ms', color: '#f59e0b' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="flex flex-col items-center">
-                    <span style={{ ...orb, color, fontSize: '10px', textShadow: `0 0 8px ${color}` }}>{value}</span>
-                    <span style={{ ...mono, color: 'rgba(255,255,255,0.3)', fontSize: '6px' }}>{label}</span>
+                    <span style={{ ...orb, color, fontSize: '11px' }}>{value}</span>
+                    <span style={{ ...mono, color: tokens.color.textMuted, fontSize: '8px' }}>{label}</span>
                   </div>
                 ))}
               </motion.div>
@@ -353,10 +382,10 @@ function MainLayout() {
                 <VoiceBar />
                 <div className="flex items-center justify-center gap-1.5 flex-wrap hud-quick-actions">
                   {[
-                    { label: 'SCANNER', color: '#00f5ff', action: 'scan' },
-                    { label: 'ANALYSER', color: '#a855f7', action: 'analyze' },
-                    { label: 'DÉPLOYER', color: '#22c55e', action: 'deploy' },
-                    { label: 'SÉCURISER', color: '#f59e0b', action: 'encrypt' },
+                    { label: 'Scanner', color: '#0A84FF', action: 'scan' },
+                    { label: 'Analyser', color: '#0A84FF', action: 'analyze' },
+                    { label: 'Déployer', color: '#22c55e', action: 'deploy' },
+                    { label: 'Sécuriser', color: '#f59e0b', action: 'encrypt' },
                   ].map(({ label, color, action }) => (
                     <QuickActionButton key={label} label={label} color={color} action={action} />
                   ))}
@@ -370,20 +399,20 @@ function MainLayout() {
         <div className="w-48 lg:w-56 xl:w-64 flex-shrink-0 flex flex-col gap-1.5 overflow-hidden pt-1 pb-0.5 hud-side-right">
           <div className="flex gap-2 flex-shrink-0">
             <PanelTab
-              id="console" label="CONSOLE" icon={Terminal}
-              active={rightPanel === 'console'} color="#00f5ff"
+              id="console" label="Console" icon={Terminal}
+              active={rightPanel === 'console'} color="#0A84FF"
               onClick={() => setRightPanel('console')}
             />
             <PanelTab
-              id="search" label="RECHERCHE" icon={Search}
-              active={rightPanel === 'search'} color="#0ea5e9"
+              id="search" label="Recherche" icon={Search}
+              active={rightPanel === 'search'} color="#0A84FF"
               onClick={() => setRightPanel('search')}
             />
           </div>
 
           <div
             className="flex-1 min-h-0 p-3 overflow-y-auto"
-            style={glassPanel(rightPanel === 'console' ? '#00f5ff' : '#0ea5e9')}
+            style={glassPanel()}
           >
             <AnimatePresence mode="wait">
               {rightPanel === 'console' ? (
@@ -402,10 +431,14 @@ function MainLayout() {
         )}
       </AnimatePresence>
 
-      {/* Dashboard actif : l'orbe rapetisse au même gabarit que l'état fenêtre
-          et se pose en bas à gauche, pendant que Dashboard Core occupe la scène */}
+      {/* Dashboard actif : l'orbe rapetisse et se pose en bas à gauche. Surface
+          plein écran (G1b) : elle se pose en bas-centre — même mécanique, un
+          troisième point d'ancrage. Jamais de remount de JarvisOrb/OrbLite,
+          seule la position change (P6 : le rendu de l'orbe reste intact). */}
       <AnimatePresence>
-        {(dashboardOpen || micTestActive) && <MiniOrb corner="left" />}
+        {(dashboardOpen || micTestActive || hudMode === 'surface') && (
+          <MiniOrb position={dashboardOpen || micTestActive ? 'left' : 'bottom-center'} />
+        )}
       </AnimatePresence>
       </div>
 
@@ -460,14 +493,11 @@ function QuickActionButton({ label, color, action }: { label: string; color: str
       onClick={handleClick}
       className="px-2.5 py-1 rounded-lg cursor-pointer"
       style={{
-        background: `${color}0a`,
-        border: `1px solid ${color}30`,
-        transition: 'box-shadow 0.2s',
+        background: `${color}14`,
+        border: `1px solid ${color}28`,
       }}
-      onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = `0 0 16px ${color}25`}
-      onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = 'none'}
     >
-      <span style={{ ...mono, color, fontSize: '9px', letterSpacing: '0.08em' }}>{label}</span>
+      <span style={{ ...mono, color, fontSize: '10px' }}>{label}</span>
     </motion.button>
   );
 }

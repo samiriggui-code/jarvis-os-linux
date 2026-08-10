@@ -1,65 +1,114 @@
-import { useMemo } from 'react'
-import { Card, CardTitle, PageShell, Row, StatPill } from '../components/ui'
+import { useMemo, useState } from 'react'
+import { PageShell, StatPill } from '../components/ui'
+import { AppTile } from '../components/AppTile'
+import { GlassButton } from '../components/glass'
+import { useDashToast } from '../components/DashToast'
+import {
+  APP_CATEGORIES,
+  DASH_APPS,
+  hudPublicUrl,
+  type AppCat,
+  type DashApp,
+} from '../apps/catalog'
+import type { Page } from '../types'
+import { tokens } from '../ui/tokens'
 
-/**
- * Miroir du catalogue HUD (`hud/src/app/apps/catalog.ts`) — intentions, pas apps.
- * Source de vérité runtime = Core capabilities ; ici vue d'ensemble admin.
- */
-const HUD_INTENTIONS = [
-  { name: 'Paramètres', cat: 'Système', status: 'LIVE', intent: '—', owner: 'core' },
-  { name: 'Sécurité', cat: 'Système', status: 'SURFACE', intent: 'core.security', owner: 'core' },
-  { name: 'Providers IA', cat: 'Système', status: 'SURFACE', intent: 'core.providers', owner: 'core' },
-  { name: 'Usage', cat: 'Système', status: 'SURFACE', intent: 'core.usage', owner: 'core' },
-  { name: 'Réseau', cat: 'Système', status: 'SOON', intent: 'system.network', owner: 'core' },
-  { name: 'Missions', cat: 'Agent', status: 'SOON', intent: 'core.missions', owner: 'core' },
-  { name: 'Maison', cat: 'Maison', status: 'SURFACE', intent: 'home.control', owner: 'core' },
-  { name: 'Musique', cat: 'Médias', status: 'SURFACE', intent: 'media.music', owner: 'hermes' },
-  { name: 'Vidéo', cat: 'Médias', status: 'SURFACE', intent: 'media.video', owner: 'core' },
-  { name: 'Terminal', cat: 'Outils', status: 'SURFACE', intent: 'vps.shell', owner: 'hermes' },
-  { name: 'Docker', cat: 'Outils', status: 'SOON', intent: 'vps.docker', owner: 'hermes' },
-  { name: 'Stockage', cat: 'Outils', status: 'SOON', intent: 'vps.storage', owner: 'hermes' },
-  { name: 'Code', cat: 'Outils', status: 'SOON', intent: 'vps.code', owner: 'hermes' },
-  { name: 'Appareils', cat: 'Système', status: 'SOON', intent: 'devices.list', owner: 'device' },
-  { name: 'Topologie', cat: 'Système', status: 'SOON', intent: 'devices.topology', owner: 'device' },
-  { name: 'Agent Reach', cat: 'Agent', status: 'SURFACE', intent: 'agent.reach', owner: 'hermes' },
-  { name: 'Holomat', cat: 'Système', status: 'LIVE', intent: '—', owner: 'core' },
-  { name: 'Mission Control DEV', cat: 'Agent', status: 'LIVE', intent: '—', owner: 'core' },
-] as const
-
-const STATUS_COLOR: Record<string, string> = {
-  LIVE: '#22c55e',
-  SURFACE: '#00f5ff',
-  SOON: '#FFC857',
+interface Props {
+  onNavigate: (page: Page) => void
 }
 
-export default function ApplicationsPage() {
+function appMeta(app: DashApp): string {
+  const parts = [app.cat]
+  if (app.intent) parts.push(app.intent)
+  if (app.owner) parts.push(app.owner)
+  return parts.join(' · ')
+}
+
+export default function ApplicationsPage({ onNavigate }: Props) {
+  const { push } = useDashToast()
+  const [cat, setCat] = useState<'Tout' | AppCat>('Tout')
+
+  const filtered = useMemo(
+    () => DASH_APPS.filter(a => cat === 'Tout' || a.cat === cat),
+    [cat],
+  )
+
   const counts = useMemo(() => {
-    const live = HUD_INTENTIONS.filter(a => a.status === 'LIVE').length
-    const surface = HUD_INTENTIONS.filter(a => a.status === 'SURFACE').length
-    const soon = HUD_INTENTIONS.filter(a => a.status === 'SOON').length
-    return { live, surface, soon, total: HUD_INTENTIONS.length }
+    const live = DASH_APPS.filter(a => a.status === 'live').length
+    const surface = DASH_APPS.filter(a => a.status === 'surface').length
+    const soon = DASH_APPS.filter(a => a.status === 'soon').length
+    return { live, surface, soon, total: DASH_APPS.length }
   }, [])
+
+  const openApp = (app: DashApp) => {
+    if (app.id === 'hud-surface') {
+      window.location.href = hudPublicUrl()
+      return
+    }
+    if (app.page) {
+      onNavigate(app.page)
+      push({
+        type: 'info',
+        title: app.name,
+        message: `Ouverture · ${app.intent ?? app.page}`,
+      })
+      return
+    }
+    if (app.status === 'soon') {
+      push({
+        type: 'warning',
+        title: app.name,
+        message: 'Intention déclarée — exécution pas encore disponible.',
+      })
+      return
+    }
+    push({
+      type: 'info',
+      title: app.name,
+      message: app.intent
+        ? `${app.intent} — surface HUD ou agent requis.`
+        : 'Disponible depuis le HUD kiosk.',
+    })
+  }
 
   return (
     <PageShell>
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <StatPill label="INTENTIONS" value={String(counts.total)} />
-        <StatPill label="LIVE" value={String(counts.live)} />
-        <StatPill label="SURFACE" value={String(counts.surface)} />
-        <StatPill label="SOON" value={String(counts.soon)} />
+        <StatPill label="APPLICATIONS" value={String(counts.total)} />
+        <StatPill label="LIVE" value={String(counts.live)} color={tokens.color.success} />
+        <StatPill label="SURFACE" value={String(counts.surface)} color={tokens.color.accent} />
+        <StatPill label="SOON" value={String(counts.soon)} color={tokens.color.warning} />
       </div>
-      <Card>
-        <CardTitle>Catalogue HUD — intentions</CardTitle>
-        {HUD_INTENTIONS.map(app => (
-          <Row
-            key={app.name}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+        {APP_CATEGORIES.map(c => (
+          <GlassButton
+            key={c}
+            active={cat === c}
+            tone={c === 'Surfaces' ? 'accent' : 'neutral'}
+            onClick={() => setCat(c)}
+            style={{ fontSize: 10, padding: '6px 14px' }}
+          >
+            {c.toUpperCase()}
+          </GlassButton>
+        ))}
+      </div>
+
+      <div className="dash-app-grid">
+        {filtered.map(app => (
+          <AppTile
+            key={app.id}
             name={app.name}
-            meta={`${app.cat} · ${app.intent} · ${app.owner}`}
+            icon={app.icon}
+            color={app.color}
             status={app.status}
-            statusColor={STATUS_COLOR[app.status]}
+            blurb={app.blurb}
+            meta={appMeta(app)}
+            locked={app.adminOnly}
+            onClick={() => openApp(app)}
           />
         ))}
-      </Card>
+      </div>
     </PageShell>
   )
 }

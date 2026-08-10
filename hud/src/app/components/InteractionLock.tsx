@@ -7,8 +7,10 @@ import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wrench, Mic } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { GlassButton } from '../../components/glass';
+import { glassLevel, tokens } from '../../ui/tokens';
 
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
+const mono = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' };
 
 export function InteractionLock() {
   const { inputMode, toggleRecoveryMode, setInputMode, addNotification } = useApp();
@@ -63,26 +65,26 @@ export function InteractionLock() {
           exit={{ opacity: 0, y: -12 }}
           className="fixed top-14 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3 px-4 py-2 rounded-xl"
           style={{
-            background: 'rgba(40,12,8,0.92)',
-            border: '1px solid rgba(255,107,74,0.5)',
-            boxShadow: '0 0 24px rgba(255,107,74,0.25)',
+            background: glassLevel.floating.background,
+            border: glassLevel.floating.border,
+            boxShadow: glassLevel.floating.boxShadow,
+            backdropFilter: glassLevel.floating.backdropFilter,
             pointerEvents: 'auto',
           }}
           data-jarvis-always-interactive
         >
-          <Wrench className="w-4 h-4" style={{ color: '#FF6B4A' }} />
-          <span style={{ ...mono, color: '#FF6B4A', fontSize: 10, letterSpacing: '0.08em' }}>
-            RECOVERY — CLICS / CLAVIER ACTIFS
+          <Wrench className="w-4 h-4" style={{ color: tokens.color.warning }} />
+          <span style={{ ...mono, color: tokens.color.text, fontSize: 10 }}>
+            Récupération · clics et clavier actifs
           </span>
-          <button
-            type="button"
+          <GlassButton
+            tone="accent"
             onClick={() => setInputMode('voice')}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer"
-            style={{ background: 'rgba(0,245,255,0.1)', border: '1px solid rgba(0,245,255,0.35)' }}
+            className="!gap-1.5 !px-2 !py-1 !rounded-lg"
           >
-            <Mic className="w-3 h-3" style={{ color: '#00f5ff' }} />
-            <span style={{ ...mono, color: '#00f5ff', fontSize: 9 }}>MODE VOIX</span>
-          </button>
+            <Mic className="w-3 h-3" />
+            <span style={{ ...mono, fontSize: 9 }}>Mode voix</span>
+          </GlassButton>
         </motion.div>
       )}
     </AnimatePresence>

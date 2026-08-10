@@ -1,5 +1,12 @@
+import { useState } from 'react'
 import type { Page } from '../types'
 import { HOST } from '../types'
+import { tokens } from '../ui/tokens'
+
+const ACCENT = tokens.color.accent
+const BORDER = tokens.color.border
+const TEXT = tokens.color.text
+const MUTED = tokens.color.textMuted
 
 interface NavItem { icon: string; label: string; id: Page }
 interface NavSection { label: string; items: NavItem[] }
@@ -12,11 +19,17 @@ const sections: NavSection[] = [
     ],
   },
   {
+    label: 'Surfaces',
+    items: [
+      { icon: '◈', label: 'HUD', id: 'hud' },
+      { icon: '▣', label: 'Dashboard', id: 'dashboard' },
+    ],
+  },
+  {
     label: 'Cockpit',
     items: [
-      { icon: '▣', label: 'Dashboard', id: 'dashboard' },
       { icon: '⬡', label: 'Command Center', id: 'command' },
-      { icon: '◈', label: 'Hermes Core', id: 'hermes' },
+      { icon: '◎', label: 'Hermes Core', id: 'hermes' },
     ],
   },
   {
@@ -49,6 +62,8 @@ const sections: NavSection[] = [
   },
 ]
 
+const LS_COLLAPSED = 'dash.sidebarCollapsed'
+
 interface Props {
   active: Page
   onNavigate: (page: Page) => void
@@ -57,18 +72,48 @@ interface Props {
 }
 
 export default function Sidebar({ active, onNavigate, open = false, onClose }: Props) {
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(LS_COLLAPSED) === '1'
+  })
+
+  const toggleCollapsed = () => {
+    setCollapsed(c => {
+      const next = !c
+      try { window.localStorage.setItem(LS_COLLAPSED, next ? '1' : '0') } catch { /* */ }
+      return next
+    })
+  }
+
   return (
-    <aside className={`dash-sidebar${open ? ' is-open' : ''}`} aria-hidden={!open && undefined}>
-      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(0, 229, 255, 0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <div className="animate-pulse-glow" style={{ width: 32, height: 32, border: '1.5px solid #00E5FF', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0, 229, 255, 0.06)' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" stroke="#00E5FF" strokeWidth="1.5" strokeLinejoin="round"/>
-              <path d="M12 2v20M2 7l10 5 10-5" stroke="#00E5FF" strokeWidth="1.5" strokeLinejoin="round"/>
-            </svg>
+    <aside className={`dash-sidebar${open ? ' is-open' : ''}${collapsed ? ' is-collapsed' : ''}`} aria-hidden={!open && undefined}>
+      <div style={{ padding: collapsed ? '20px 12px 16px' : '20px 16px 16px', borderBottom: `1px solid ${BORDER}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: collapsed ? 0 : 4, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <div
+            className="dash-brand-orb"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              flexShrink: 0,
+              overflow: 'hidden',
+              boxShadow: '0 0 20px rgba(10, 132, 255, 0.45), inset 0 0 0 1px rgba(255,255,255,0.25)',
+            }}
+          >
+            <img
+              src="/orb/jarvis.jpeg"
+              alt=""
+              width={36}
+              height={36}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
           </div>
-          <div style={{ fontFamily: 'Orbitron', fontWeight: 800, fontSize: 17, color: '#00E5FF', letterSpacing: '0.12em' }} className="glow-text">JARVIS</div>
-          {onClose && (
+          {!collapsed && (
+            <div style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: 15, color: TEXT, letterSpacing: '0.14em' }}>
+              J.A.R.V.I.S
+            </div>
+          )}
+          {!collapsed && onClose && (
             <button
               type="button"
               className="dash-menu-btn"
@@ -80,49 +125,85 @@ export default function Sidebar({ active, onNavigate, open = false, onClose }: P
             </button>
           )}
         </div>
-        <div style={{ fontFamily: 'JetBrains Mono', fontSize: 8, color: 'rgba(0, 229, 255, 0.32)', letterSpacing: '0.12em', paddingLeft: 42 }}>
-          DASHBOARD · VPS
-        </div>
+        {!collapsed && (
+          <div style={{ fontFamily: 'Inter', fontSize: 10, color: MUTED, letterSpacing: '0.06em', paddingLeft: 46 }}>
+            Dashboard · VPS
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? 'Déplier le menu' : 'Réduire le menu'}
+          title={collapsed ? 'Déplier' : 'Réduire'}
+          className="dash-hide-mobile"
+          style={{
+            marginTop: 12,
+            width: collapsed ? 32 : '100%',
+            marginLeft: collapsed ? 'auto' : 0,
+            marginRight: collapsed ? 'auto' : 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '6px 0',
+            borderRadius: 10,
+            border: `1px solid ${BORDER}`,
+            background: 'rgba(255,255,255,0.04)',
+            color: MUTED,
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
+            <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {!collapsed && <span style={{ fontFamily: 'Inter', fontSize: 10, letterSpacing: '0.08em' }}>RÉDUIRE</span>}
+        </button>
       </div>
 
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(0, 229, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', background: 'rgba(0, 255, 153, 0.05)', borderRadius: 6, border: '1px solid rgba(0, 255, 153, 0.12)' }}>
-          <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#00FF99', boxShadow: '0 0 6px #00FF99' }} className="animate-pulse-glow" />
-          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, color: '#00FF99', letterSpacing: '0.05em' }}>HERMES ONLINE</span>
+      {!collapsed && (
+        <div style={{ padding: '8px 16px', borderBottom: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', background: 'rgba(52, 199, 89, 0.08)', borderRadius: 8, border: '1px solid rgba(52, 199, 89, 0.2)' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: tokens.color.success }} />
+            <span style={{ fontFamily: 'Inter', fontSize: 10, color: tokens.color.success, letterSpacing: '0.02em' }}>Hermes en ligne</span>
+          </div>
+          <div style={{ fontFamily: 'Inter', fontSize: 10, color: MUTED, paddingLeft: 4 }}>
+            {HOST.label} · {HOST.path}
+          </div>
         </div>
-        <div style={{ fontFamily: 'JetBrains Mono', fontSize: 8, color: 'rgba(0,229,255,0.4)', paddingLeft: 4 }}>
-          {HOST.label} · {HOST.path}
-        </div>
-      </div>
+      )}
 
-      <nav style={{ flex: 1, overflowY: 'auto', padding: '6px 8px' }}>
+      <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 8px' }}>
         {sections.map((section, si) => (
           <div key={si}>
-            {section.label && <div className="sidebar-section-label">{section.label}</div>}
+            {section.label && !collapsed && <div className="sidebar-section-label">{section.label}</div>}
             {section.items.map(item => (
-              <div
+              <button
                 key={item.id}
-                className={`sidebar-nav-item${active === item.id ? ' active' : ''}`}
+                type="button"
+                className={`sidebar-nav-item${active === item.id ? ' active' : ''}${collapsed ? ' is-collapsed' : ''}`}
+                title={collapsed ? item.label : undefined}
                 onClick={() => {
                   onNavigate(item.id)
                   onClose?.()
                 }}
               >
                 <span className="icon" style={{ fontFamily: 'monospace' }}>{item.icon}</span>
-                {item.label}
-              </div>
+                {!collapsed && item.label}
+              </button>
             ))}
           </div>
         ))}
       </nav>
 
-      <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(0, 229, 255, 0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #0066FF, #00E5FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Orbitron', fontSize: 11, fontWeight: 700, color: '#050816' }}>A</div>
-          <div>
-            <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: 'rgba(224, 244, 255, 0.9)' }}>Admin</div>
-            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 8, color: 'rgba(0, 229, 255, 0.35)' }}>dashboard_access · VPS</div>
-          </div>
+      <div style={{ padding: collapsed ? '10px 12px' : '10px 16px', borderTop: `1px solid ${BORDER}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>A</div>
+          {!collapsed && (
+            <div>
+              <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: TEXT }}>Admin</div>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: MUTED }}>dashboard_access · VPS</div>
+            </div>
+          )}
         </div>
       </div>
     </aside>

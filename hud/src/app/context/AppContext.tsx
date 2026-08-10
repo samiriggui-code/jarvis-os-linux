@@ -329,15 +329,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [sessionUnlocked, setSessionUnlocked] = useState(() => {
+    // Contrat FACE_AUTH_CONTRACT : refresh → AUTH_REQUIRED (re-login Core).
+    // Soft-lock / user hint restent dans sessionWasUnlocked + jarvis_hud_session.
     if (isAuthBypassEnabled()) return true;
-    const p = loadPersistedSession();
-    return p?.unlocked === true;
+    return false;
   });
   const [sessionWasUnlocked, setSessionWasUnlocked] = useState(() => {
     if (isAuthBypassEnabled()) return true;
     const p = loadPersistedSession();
-    // Soft-lock maison : on a déjà eu une session → LockScene, pas AuthScene.
-    return p?.unlocked === true || p?.locked === true;
+    return p?.unlocked === true || p?.locked === true || Boolean(p?.user);
   });
   const [welcomeCinematic, setWelcomeCinematic] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);

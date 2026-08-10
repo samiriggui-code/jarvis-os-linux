@@ -9,21 +9,43 @@
 - `manifests/` — profils JSON (Setup Center)
 - `systemd/` — units de référence (Core + kiosque Chromium)
 - `scripts/bootstrap-nuc-tree.sh` — crée `/opt/jarvis`, `/etc/jarvis`, `/storage/jarvis`
-- `scripts/sync-to-nuc.sh` — rsync `core/` (+ fronts quand prêts)
-- `scripts/seed-hermes-consciousness.ps1` / `.sh` — installe SOUL/skills dans `$HERMES_HOME`
+
+## Sync NUC — méthode validée (2026-08-09)
+
+**SSH** : alias `jarvis-nuc-wan` (Windows) ou `jarvis-nuc` (WSL) — **pas** `root@192.168.1.37` nu (pas de clé → hang).
+
+| Cible | Chemin NUC | Accès public |
+|-------|------------|--------------|
+| Core Python | `/opt/jarvis/core/` | WS loopback `127.0.0.1:8765` |
+| HUD build | `/opt/jarvis/hud/dist/` | nginx `:8080` |
+| Dashboard build | `/opt/jarvis/dashboard/dist/` | nginx `/dashboard/` (si conf) |
+| Service | `systemctl restart jarvis-core` | — |
+
+**Jamais écrasé au sync** : `core/.env`, `data/*.db`, `data/users/`, `data/holomat/`.
+
+```powershell
+# Core seul (PowerShell — méthode prod)
+pwsh deploy/scripts/sync-core-only-nuc.ps1
+
+# HUD + Dashboard (après npm run build local)
+pwsh deploy/scripts/sync-fronts-nuc.ps1
+```
+
+```bash
+# Core seul (WSL)
+NUC_SSH=jarvis-nuc ./deploy/scripts/sync-core-only-nuc.sh
+
+# Full sync (Core + assets + dist si présents)
+NUC_SSH=jarvis-nuc ./deploy/scripts/sync-to-nuc.sh
+# pip sur NUC seulement si besoin explicite :
+NUC_PIP=1 NUC_SSH=jarvis-nuc ./deploy/scripts/sync-to-nuc.sh
+```
+
+**Note** : `pip install -r requirements.txt` sur le NUC peut échouer (`tflite-runtime`) — le venv prod existant reste valide ; `-Pip` / `NUC_PIP=1` seulement si deps changées.
 
 ```bash
 # Conscience Hermes (obligatoire pour que le cerveau applique la loi produit)
 pwsh deploy/scripts/seed-hermes-consciousness.ps1 -ForceSoul
-# ou : bash deploy/scripts/seed-hermes-consciousness.sh --force-soul
 ```
 
-```bash
-# Sur le NUC (root) — créer l'arbre
-sudo bash bootstrap-nuc-tree.sh
-
-# Depuis le PC — pousser le code
-NUC_HOST=192.168.1.xx NUC_USER=root ./deploy/scripts/sync-to-nuc.sh
-```
-
-**HUD** : plus de PySide. Cible = build React servi en local + Chromium `--kiosk` (voir `jarvis-hud.service`). Tant que `hud/dist` n’existe pas, le service kiosque reste non opérationnel — normal.
+**HUD** : build React servi par nginx `:8080`. Kiosk Chromium (`jarvis-hud.service`) **disabled** sur NUC actuel — normal.

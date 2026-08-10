@@ -32,8 +32,6 @@ import logging
 import time
 from typing import Any
 
-from .face_mesh import ALGO_NAME
-
 logger = logging.getLogger("jarvis.vision.runner")
 
 State = str  # "idle" | "loading" | "ready" | "error"
@@ -64,7 +62,7 @@ class FaceRunner:
             "error": self.error,
             "load_ms": self.load_ms,
             "waits": self.waits,
-            "algo": ALGO_NAME if self.ready else None,
+            "algo": (getattr(self._engine, "_algo", None) if self.ready else None),
         }
 
     # -- chargement ----------------------------------------------------------
@@ -86,7 +84,10 @@ class FaceRunner:
         self.state = "loading"
         self.error = None
         started = time.monotonic()
-        logger.info("Holomat : chargement MediaPipe Face Mesh en tâche de fond…")
+        from .opencv_face import cpu_has_avx
+
+        backend = "MediaPipe Face Mesh" if cpu_has_avx() else "OpenCV YuNet+SFace (pas d'AVX)"
+        logger.info("Holomat : chargement %s en tâche de fond…", backend)
         try:
             from .face_engine import FaceEngine
 
@@ -96,7 +97,7 @@ class FaceRunner:
             self.error = str(exc)
             logger.warning("Holomat Face indisponible : %s", exc)
             logger.warning(
-                "→ pip install mediapipe  puis relancer le Core"
+                "→ pip install mediapipe (si AVX) OU python -m jarvis_core.vision.fetch_models (YuNet/SFace)"
             )
             return False
 

@@ -64,6 +64,17 @@ class PolicyEngine:
         "df -h",
     )
 
+    # Terminal admin (Dashboard) → Pi salon — diagnostics uniquement, jamais
+    # d'action qui coupe le wake word ou la caméra à distance sans quelqu'un
+    # sur place pour la rallumer.
+    _PI_ALLOW_HINTS = (
+        "systemctl status jarvis-ear",
+        "systemctl status jarvis-cam",
+        "journalctl -u jarvis-ear",
+        "journalctl -u jarvis-cam",
+        "df -h",
+    )
+
     def evaluate(
         self,
         action: str,
@@ -73,10 +84,17 @@ class PolicyEngine:
     ) -> Decision:
         lowered = text.lower()
         if any(h in lowered for h in self._ADMIN_HINTS):
+            # Refus dur, jamais « à confirmer » : ces mots-clés (rm -rf,
+            # format, shutdown, root, passwd, iptables, curl|bash…) désignent
+            # des gestes qu'un simple clic d'approbation ne doit jamais
+            # pouvoir débloquer. `text` n'était passé nulle part avant le
+            # chantier Terminal admin (2026-08-09) : cette branche était donc
+            # inerte partout où une carte d'approbation existe — elle ne l'est
+            # plus, il fallait donc la rendre honnête d'abord.
             return Decision(
                 allowed=False,
-                needs_confirmation=True,
-                reason="Action sensible refusée / confirmation ADMIN (Policy Engine).",
+                needs_confirmation=False,
+                reason="Action sensible refusée (Policy Engine).",
             )
         if operation is Operation.DESTRUCTIVE:
             # Indépendant du RiskLevel : une opération destructive se confirme
@@ -88,15 +106,30 @@ class PolicyEngine:
             )
         if risk >= RiskLevel.VPS or action.startswith("vps_"):
             if text and not any(h in lowered for h in self._VPS_ALLOW_HINTS):
+                # Hors allowlist = refus, pas juste « à confirmer » — un clic
+                # sur une carte d'approbation ne doit pas pouvoir faire passer
+                # une commande que l'allowlist a explicitement exclue.
                 return Decision(
                     allowed=False,
-                    needs_confirmation=True,
-                    reason="VPS limité — commande hors allowlist (Hermes propose, Policy tranche).",
+                    needs_confirmation=False,
+                    reason="VPS limité — commande hors allowlist, refusée (Policy Engine).",
                 )
             return Decision(
                 allowed=True,
                 needs_confirmation=True,
                 reason="VPS allowlist — confirmation ADMIN requise.",
+            )
+        if action == "pi.terminal":
+            if text and not any(h in lowered for h in self._PI_ALLOW_HINTS):
+                return Decision(
+                    allowed=False,
+                    needs_confirmation=False,
+                    reason="Pi salon limité — commande hors allowlist, refusée (Policy Engine).",
+                )
+            return Decision(
+                allowed=True,
+                needs_confirmation=True,
+                reason="Pi salon allowlist — confirmation ADMIN requise.",
             )
         if risk >= RiskLevel.ADMIN:
             return Decision(

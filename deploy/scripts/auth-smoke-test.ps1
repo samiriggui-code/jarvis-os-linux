@@ -28,9 +28,9 @@ try {
 
 if ($env:AUTH_SMOKE_HUD -eq '1') {
   Write-Host ''
-  $HudDir = Join-Path $Root 'vendor\hud'
+  $HudDir = Join-Path $Root 'hud'
   if (-not (Test-Path (Join-Path $HudDir 'scripts\authSmokeBrowser.mjs'))) {
-    $HudDir = Join-Path $Root 'hud'
+    Write-Error "hud/scripts/authSmokeBrowser.mjs absent"
   }
   Push-Location $HudDir
   try {

@@ -4,27 +4,27 @@
  */
 import React from 'react';
 import { motion } from 'motion/react';
+import { SUCCESS, monoFont, orbFont } from '../../hudTheme';
+import { tokens } from '../../../../ui/tokens';
 
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-const orb = { fontFamily: 'Orbitron, sans-serif' };
-const ACCENT = '#22c55e';
+const ACCENT = SUCCESS;
 
 export function CursorSurface({ projectName }: { projectName?: string }) {
   const name = projectName || 'HoloControl';
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: 'rgba(2,8,4,0.92)' }}>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: tokens.color.surface, backdropFilter: tokens.glass }}>
       <div
         className="flex items-center gap-3 px-4 py-2 flex-shrink-0"
-        style={{ borderBottom: `1px solid ${ACCENT}28`, background: 'rgba(0,12,6,0.85)' }}
+        style={{ borderBottom: `1px solid ${tokens.color.border}`, background: tokens.color.surfaceRaised }}
       >
-        <span style={{ ...orb, color: ACCENT, fontSize: 11, letterSpacing: '0.14em' }}>CURSOR</span>
-        <span style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>{name}</span>
+        <span style={{ ...orbFont, color: ACCENT, fontSize: 11 }}>Cursor</span>
+        <span style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 10 }}>{name}</span>
         <motion.span
           animate={{ opacity: [1, 0.35, 1] }}
           transition={{ duration: 1.4, repeat: Infinity }}
-          style={{ ...mono, color: ACCENT, fontSize: 8, marginLeft: 'auto', letterSpacing: '0.1em' }}
+          style={{ ...monoFont, color: ACCENT, fontSize: 8, marginLeft: 'auto', letterSpacing: '0.02em' }}
         >
-          PRÊT
+          Prêt
         </motion.span>
       </div>
 
@@ -33,32 +33,33 @@ export function CursorSurface({ projectName }: { projectName?: string }) {
           className="w-36 sm:w-44 flex-shrink-0 overflow-y-auto p-2"
           data-jarvis-scrollable
           style={{
-            borderRight: `1px solid ${ACCENT}18`,
-            background: 'rgba(0,10,4,0.7)',
+            borderRight: `1px solid ${tokens.color.border}`,
+            background: tokens.color.surface,
             scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(34,197,94,0.35) transparent',
+            scrollbarColor: 'rgba(52,199,89,0.35) transparent',
           }}
         >
-          <p style={{ ...mono, fontSize: 8, color: `${ACCENT}88`, letterSpacing: '0.1em', marginBottom: 8 }}>EXPLORER</p>
+          <p style={{ ...monoFont, fontSize: 8, color: tokens.color.textMuted, letterSpacing: '0.02em', marginBottom: 8 }}>Explorer</p>
           {[`${name}/`, '  src/', '    App.tsx', '    main.tsx', '  package.json', '  README.md', '  .git/'].map(f => (
-            <div key={f} style={{ ...mono, fontSize: 10, color: 'rgba(200,255,220,0.55)', lineHeight: 1.7 }}>
+            <div key={f} style={{ ...monoFont, fontSize: 10, color: tokens.color.textMuted, lineHeight: 1.7 }}>
               {f}
             </div>
           ))}
         </div>
 
         <div className="flex-1 min-w-0 p-4 overflow-auto" data-jarvis-scrollable>
-          <p style={{ ...mono, fontSize: 9, color: 'rgba(255,255,255,0.3)', marginBottom: 12 }}>
+          <p style={{ ...monoFont, fontSize: 9, color: tokens.color.textMuted, marginBottom: 12 }}>
             // contexte projet injecté par Hermès — simulation HUD
           </p>
           <pre
             style={{
-              ...mono,
+              ...monoFont,
               fontSize: 11,
-              color: 'rgba(180,255,200,0.85)',
+              color: tokens.color.text,
               lineHeight: 1.55,
               margin: 0,
               whiteSpace: 'pre-wrap',
+              opacity: 0.85,
             }}
           >{`export default function App() {
   return (
@@ -73,9 +74,9 @@ export function CursorSurface({ projectName }: { projectName?: string }) {
 
       <div
         className="px-3 py-1.5 flex-shrink-0"
-        style={{ borderTop: `1px solid ${ACCENT}18`, background: 'rgba(0,8,4,0.9)' }}
+        style={{ borderTop: `1px solid ${tokens.color.border}`, background: tokens.color.surfaceRaised }}
       >
-        <span style={{ ...mono, fontSize: 8, color: 'rgba(255,255,255,0.35)' }}>
+        <span style={{ ...monoFont, fontSize: 8, color: tokens.color.textMuted }}>
           Workspace Core · Agent Laptop natif = Phase B
         </span>
       </div>

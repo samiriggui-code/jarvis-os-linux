@@ -22,7 +22,7 @@
  * identiques : le dernier état émis est mémorisé ici.
  */
 import { getCoreClient } from './coreClient';
-import { ensureMic, subscribeMedia, withCamera, type MediaDevicesState } from './mediaDevices';
+import { ensureMic, subscribeMedia, type MediaDevicesState } from './mediaDevices';
 
 export type PeripheralId = 'camera' | 'mic' | 'audio_out';
 
@@ -128,7 +128,7 @@ function resolveAudioOut(present: boolean, mic: MediaDevicesState['mic']): Repor
  *   ne doit pas laisser la webcam allumée derrière elle, diode comprise.
  *   Le micro, lui, suit son propre contrat (cf. bas de `mediaDevices.ts`).
  */
-const probed = { camera: false, mic: false };
+const probed = { mic: false };
 
 async function probeIfSilent(
   kinds: Record<string, number>,
@@ -136,12 +136,8 @@ async function probeIfSilent(
 ): Promise<void> {
   const tasks: Promise<unknown>[] = [];
 
-  if (!probed.camera && (kinds.videoinput ?? 0) === 0 && media.camera === 'idle') {
-    probed.camera = true;
-    console.info('[peripheral] aucune caméra listée — demande d’autorisation');
-    tasks.push(withCamera('preview', async () => { /* la demande suffit */ }));
-  }
-
+  // Ne PAS sonder la caméra avec getUserMedia au démarrage HUD.
+  // Auth = voix ; cameraSleepByDefault. enumerateDevices suffit pour « présente ».
   if (!probed.mic && (kinds.audioinput ?? 0) === 0 && media.mic === 'idle') {
     probed.mic = true;
     console.info('[peripheral] aucun micro listé — demande d’autorisation');

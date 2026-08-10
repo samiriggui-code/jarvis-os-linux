@@ -3,9 +3,16 @@ import { Orb } from './orb';
 import { OrbLite } from './orb/OrbLite';
 import { useOrbHud } from './orb/useOrbHud';
 import { getDevicePolicy } from '../../ui/core/devicePolicy';
+import { tokens } from '../../ui/tokens';
 
-const display = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
+const display = { fontFamily: tokens.font.display };
+const mono = { fontFamily: tokens.font.mono };
+
+function sentenceCase(label: string) {
+  return label
+    .toLocaleLowerCase('fr-FR')
+    .replace(/^./, character => character.toLocaleUpperCase('fr-FR'));
+}
 
 /** Centre HUD — orbe pleine taille, wake « Jarvis » uniquement (pas de clic). */
 export function AICore() {
@@ -31,16 +38,15 @@ export function AICore() {
           style={{
             ...display,
             color: meta.color,
-            fontSize: 13,
-            letterSpacing: '0.28em',
+            fontSize: 15,
             fontWeight: 600,
             opacity: 0.95,
           }}
         >
-          {meta.label}
+          {sentenceCase(meta.label)}
         </span>
-        <span style={{ ...mono, color: 'rgba(255,255,255,0.28)', fontSize: 9, letterSpacing: '0.08em' }}>
-          {meta.sub}
+        <span style={{ ...mono, color: tokens.color.textMuted, fontSize: 10 }}>
+          {sentenceCase(meta.sub)}
         </span>
       </div>
     </div>

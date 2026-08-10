@@ -15,6 +15,9 @@ class UserRow(Base):
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     pin_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Profil foyer (formulaire enroll) — title = monsieur|madame|mademoiselle
+    title: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    birth_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
     face_enrolled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     voice_enrolled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     gesture_enrolled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

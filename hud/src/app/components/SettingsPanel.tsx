@@ -17,10 +17,24 @@ import { ensureCamera, getMediaState, listAudioInputs, listVideoInputs } from '.
 import { startAudioBus, pauseWakeWord, resumeWakeWord } from '../bridge/audioBus';
 import { authEnroll, authListUsers, type AuthUser } from '../bridge/authClient';
 import { CameraPreview } from './CameraPreview';
+import { VisionChrome, visionBody, visionCaption, visionTitle } from './visionChrome';
+import { GlassButton, GlassPanel } from '../../components/glass/';
+import { tokens } from '../../ui/tokens';
 
-const orb = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-const raj = { fontFamily: 'Rajdhani, sans-serif' };
+const labelStyle = {
+  ...visionCaption,
+  textTransform: 'none',
+  letterSpacing: 0,
+  fontSize: 12,
+};
+const compactLabelStyle = { ...labelStyle, fontSize: 11 };
+const controlSurface = {
+  background: tokens.color.surface,
+  border: `1px solid ${tokens.color.border}`,
+  color: tokens.color.text,
+  fontFamily: tokens.font.body,
+  fontSize: 13,
+};
 
 const LS_PREFS = 'jarvis.hud_preferences';
 const LS_GESTURE = 'jarvis.gesture_profile';
@@ -28,12 +42,12 @@ const LS_GESTURE = 'jarvis.gesture_profile';
 type Section = 'profil' | 'voix' | 'vision' | 'comportement' | 'coupure' | 'foyer';
 
 const SECTIONS: { id: Section; label: string; icon: React.ElementType; color: string }[] = [
-  { id: 'profil', label: 'PROFIL', icon: User, color: '#00f5ff' },
-  { id: 'foyer', label: 'FOYER', icon: Users, color: '#38bdf8' },
-  { id: 'voix', label: 'VOIX', icon: Mic, color: '#19f0d8' },
-  { id: 'vision', label: 'VISION / HOLOMAT', icon: Camera, color: '#a855f7' },
-  { id: 'comportement', label: 'COMPORTEMENTS', icon: SlidersHorizontal, color: '#f59e0b' },
-  { id: 'coupure', label: 'COUPURES', icon: ShieldAlert, color: '#ef4444' },
+  { id: 'profil', label: 'Profil', icon: User, color: tokens.color.accent },
+  { id: 'foyer', label: 'Foyer', icon: Users, color: tokens.color.accent },
+  { id: 'voix', label: 'Voix', icon: Mic, color: tokens.color.accent },
+  { id: 'vision', label: 'Vision et Holomat', icon: Camera, color: tokens.color.accent },
+  { id: 'comportement', label: 'Comportement', icon: SlidersHorizontal, color: tokens.color.warning },
+  { id: 'coupure', label: 'Coupures', icon: ShieldAlert, color: tokens.color.danger },
 ];
 
 function loadLocalPrefs(): HudExperiencePreferences {
@@ -86,10 +100,10 @@ function Field({ label, value, onChange, placeholder = '', hint }: {
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>{label}</label>
+      <label style={labelStyle}>{label}</label>
       <div
         className="flex items-center gap-2 rounded-xl px-3 py-2.5"
-        style={{ background: 'rgba(0,5,15,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ ...controlSurface, borderRadius: tokens.radius.md }}
       >
         <input
           type="text"
@@ -97,39 +111,39 @@ function Field({ label, value, onChange, placeholder = '', hint }: {
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           className="flex-1 bg-transparent outline-none"
-          style={{ ...raj, color: 'rgba(255,255,255,0.85)', fontSize: '13px' }}
+          style={{ color: tokens.color.text, fontFamily: tokens.font.body, fontSize: '13px' }}
         />
       </div>
       {hint && (
-        <span style={{ ...mono, color: 'rgba(255,255,255,0.25)', fontSize: '9px' }}>{hint}</span>
+        <span style={{ ...visionBody, fontSize: 11 }}>{hint}</span>
       )}
     </div>
   );
 }
 
-function Toggle({ label, value, onChange, color = '#00f5ff', hint }: {
+function Toggle({ label, value, onChange, color = tokens.color.accent, hint }: {
   label: string; value: boolean; onChange: (v: boolean) => void; color?: string; hint?: string;
 }) {
   return (
     <div className="py-2">
       <div className="flex items-center justify-between">
-        <span style={{ ...raj, color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>{label}</span>
+        <span style={visionBody}>{label}</span>
         <motion.button
           type="button"
           onClick={() => onChange(!value)}
           className="w-11 h-6 rounded-full relative cursor-pointer"
-          style={{ background: value ? `${color}30` : 'rgba(255,255,255,0.06)', border: `1px solid ${value ? color : 'rgba(255,255,255,0.12)'}` }}
+          style={{ background: value ? color : tokens.color.surfaceRaised, border: `1px solid ${value ? color : tokens.color.border}` }}
         >
           <motion.div
             animate={{ x: value ? 20 : 2 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             className="absolute top-0.5 w-5 h-5 rounded-full"
-            style={{ background: value ? color : 'rgba(255,255,255,0.3)', boxShadow: value ? `0 0 8px ${color}` : 'none' }}
+            style={{ background: value ? '#fff' : tokens.color.textMuted }}
           />
         </motion.button>
       </div>
       {hint && (
-        <p style={{ ...mono, color: 'rgba(255,255,255,0.28)', fontSize: '9px', marginTop: 4 }}>{hint}</p>
+        <p style={{ ...visionBody, fontSize: 11, marginTop: 4 }}>{hint}</p>
       )}
     </div>
   );
@@ -137,10 +151,12 @@ function Toggle({ label, value, onChange, color = '#00f5ff', hint }: {
 
 function WireHint({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl p-3 flex gap-2 items-start" style={{ background: 'rgba(0,245,255,0.05)', border: '1px solid rgba(0,245,255,0.15)' }}>
-      <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#00f5ff' }} />
-      <span style={{ ...mono, color: 'rgba(0,245,255,0.65)', fontSize: '10px', lineHeight: 1.45 }}>{children}</span>
-    </div>
+    <VisionChrome level="subtle">
+      <div className="flex gap-2 items-start">
+        <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: tokens.color.accent }} />
+        <span style={visionBody}>{children}</span>
+      </div>
+    </VisionChrome>
   );
 }
 
@@ -150,17 +166,18 @@ function SelectDevice({ label, value, onChange, options }: {
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>{label}</label>
+      <label style={labelStyle}>{label}</label>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
         className="rounded-xl px-3 py-2.5 outline-none cursor-pointer"
         style={{
-          ...raj,
+          fontFamily: tokens.font.body,
           fontSize: '13px',
-          color: 'rgba(255,255,255,0.85)',
-          background: 'rgba(0,5,15,0.7)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          color: tokens.color.text,
+          background: tokens.color.surface,
+          border: `1px solid ${tokens.color.border}`,
+          borderRadius: tokens.radius.md,
         }}
       >
         <option value="">— Défaut système —</option>
@@ -503,48 +520,47 @@ export function SettingsPanel() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 flex items-center justify-center overflow-hidden p-3"
-          style={{ zIndex: 180, background: 'rgba(0, 4, 12, 0.92)', backdropFilter: 'blur(12px)' }}
+          style={{ zIndex: 180, background: 'rgba(8, 8, 10, 0.64)', backdropFilter: tokens.glass }}
         >
           <motion.div
             initial={{ scale: 0.92, y: 16 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.92, y: 16 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col"
+            className="w-full max-w-3xl overflow-hidden flex flex-col"
             style={{
               maxHeight: 'calc(100dvh - 1.5rem)',
-              background: 'rgba(0, 10, 25, 0.95)',
-              border: '1px solid rgba(0,245,255,0.2)',
-              boxShadow: '0 0 60px rgba(0,245,255,0.1)',
+              borderRadius: tokens.radius.lg,
+              background: tokens.color.void,
+              border: `1px solid ${tokens.color.border}`,
+              boxShadow: '0 28px 64px -20px rgba(0,0,0,0.7)',
             }}
           >
             <div
               className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-              style={{ borderBottom: '1px solid rgba(0,245,255,0.12)', background: 'rgba(0, 10, 25, 0.98)' }}
+              style={{ borderBottom: `1px solid ${tokens.color.border}`, background: tokens.color.surface }}
             >
               <div>
-                <h2 style={{ ...orb, color: '#00f5ff', fontSize: '16px', letterSpacing: '0.2em', margin: 0 }}>
-                  PARAMÈTRES
+                <h2 style={visionTitle}>
+                  Paramètres
                 </h2>
-                <p style={{ ...mono, color: 'rgba(0,245,255,0.4)', fontSize: '10px', marginTop: 4 }}>
+                <p style={{ ...visionBody, fontSize: 12, marginTop: 4 }}>
                   Expérience HUD · Voix · Holomat — admin / clés API → Dashboard
                 </p>
               </div>
-              <motion.button
-                whileHover={{ scale: 1.1, rotate: 90 }}
-                whileTap={{ scale: 0.9 }}
+              <GlassButton
+                aria-label="Fermer les paramètres"
+                tone="neutral"
+                icon={<X className="w-4 h-4" />}
                 onClick={() => setSettingsOpen(false)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer"
-                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
-              >
-                <X className="w-5 h-5" style={{ color: '#ef4444' }} />
-              </motion.button>
+                style={{ padding: 10, color: tokens.color.textMuted }}
+              />
             </div>
 
             <div className="flex flex-1 min-h-0 overflow-hidden hud-settings-body">
               <div
                 className="w-48 flex flex-col gap-1 p-3 flex-shrink-0 overflow-y-auto hud-settings-nav"
-                style={{ borderRight: '1px solid rgba(0,245,255,0.08)' }}
+                style={{ borderRight: `1px solid ${tokens.color.border}` }}
               >
                 {SECTIONS.map(s => (
                   <motion.button
@@ -553,19 +569,27 @@ export function SettingsPanel() {
                     onClick={() => selectSection(s.id)}
                     className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer text-left"
                     style={{
-                      background: section === s.id ? `${s.color}12` : 'transparent',
-                      border: `1px solid ${section === s.id ? `${s.color}30` : 'transparent'}`,
+                      background: section === s.id ? tokens.color.surfaceRaised : 'transparent',
+                      border: `1px solid ${section === s.id ? tokens.color.borderActive : 'transparent'}`,
+                      borderRadius: tokens.radius.md,
                     }}
                   >
-                    <s.icon className="w-4 h-4" style={{ color: section === s.id ? s.color : 'rgba(255,255,255,0.3)' }} />
-                    <span style={{ ...mono, color: section === s.id ? s.color : 'rgba(255,255,255,0.4)', fontSize: '9px' }}>
+                    <s.icon className="w-4 h-4" style={{ color: section === s.id ? s.color : tokens.color.textMuted }} />
+                    <span style={{ ...visionBody, color: section === s.id ? tokens.color.text : tokens.color.textMuted, fontSize: 13 }}>
                       {s.label}
                     </span>
                   </motion.button>
                 ))}
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto p-5" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,245,255,0.2) transparent' }}>
+              <GlassPanel
+                level="subtle"
+                radius="md"
+                padding={0}
+                className="flex-1 min-h-0 overflow-y-auto m-3"
+                style={{ scrollbarWidth: 'thin', scrollbarColor: `${tokens.color.border} transparent` }}
+              >
+                <div className="p-5">
                 <AnimatePresence mode="wait">
                   {section === 'profil' && (
                     <motion.div key="profil" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="flex flex-col gap-4">
@@ -575,34 +599,34 @@ export function SettingsPanel() {
                       <div className="flex items-center gap-4 mb-1">
                         <div
                           className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                          style={{ background: 'rgba(0,245,255,0.08)', border: '1px solid rgba(0,245,255,0.2)' }}
+                          style={{ background: tokens.color.accentSoft, border: `1px solid ${tokens.color.border}`, borderRadius: tokens.radius.lg }}
                         >
-                          <User className="w-7 h-7" style={{ color: '#00f5ff' }} />
+                          <User className="w-7 h-7" style={{ color: tokens.color.accent }} />
                         </div>
                         <div>
-                          <p style={{ ...raj, color: 'rgba(255,255,255,0.8)', fontSize: '16px' }}>{prefs.displayName}</p>
-                          <p style={{ ...mono, color: 'rgba(0,245,255,0.6)', fontSize: '11px' }}>
+                          <p style={{ ...visionTitle, fontSize: 16 }}>{prefs.displayName}</p>
+                          <p style={{ ...visionBody, fontSize: 12 }}>
                             {coreAuth?.user?.role || '—'} · {prefs.assistantName}
                           </p>
                         </div>
                       </div>
-                      <Field label="NOM AFFICHÉ" value={prefs.displayName} onChange={v => patch(p => ({ ...p, displayName: v }))} />
-                      <Field label="NOM DE L'ASSISTANT" value={prefs.assistantName} onChange={v => patch(p => ({ ...p, assistantName: v }))} placeholder="JARVIS" />
+                      <Field label="Nom affiché" value={prefs.displayName} onChange={v => patch(p => ({ ...p, displayName: v }))} />
+                      <Field label="Nom de l’assistant" value={prefs.assistantName} onChange={v => patch(p => ({ ...p, assistantName: v }))} placeholder="Jarvis" />
                       <Field
-                        label="ID UTILISATEUR (profil)"
+                        label="Identifiant utilisateur"
                         value={prefs.userId}
                         onChange={v => patch(p => ({ ...p, userId: v }))}
                         hint="Lie face + voice + locale + permissions (Core)"
                       />
                       <Field
-                        label="FACE ID (Holomat)"
+                        label="Face ID (Holomat)"
                         value={prefs.locale.faceId || ''}
                         onChange={v => patch(p => ({ ...p, locale: { ...p.locale, faceId: v || null } }))}
                         placeholder="samir_001"
                         hint="Après auth face → charge ce profil + langue + voix TTS"
                       />
                       <SelectDevice
-                        label="LANGUE PRINCIPALE"
+                        label="Langue principale"
                         value={prefs.locale.preferredLanguage}
                         onChange={v => patch(p => ({
                           ...p,
@@ -614,7 +638,7 @@ export function SettingsPanel() {
                         ]}
                       />
                       <SelectDevice
-                        label="LANGUES ACCEPTÉES (secondaires)"
+                        label="Langues acceptées"
                         value={prefs.locale.secondaryLanguages[0] || ''}
                         onChange={v => patch(p => ({
                           ...p,
@@ -632,7 +656,7 @@ export function SettingsPanel() {
                         ]}
                       />
                       <SelectDevice
-                        label="MODE LANGUE"
+                        label="Mode langue"
                         value={prefs.locale.mode}
                         onChange={v => patch(p => ({
                           ...p,
@@ -645,7 +669,7 @@ export function SettingsPanel() {
                         ]}
                       />
                       <SelectDevice
-                        label="VOIX TTS"
+                        label="Voix TTS"
                         value={prefs.locale.voicePreset}
                         onChange={v => patch(p => ({
                           ...p,
@@ -676,44 +700,44 @@ export function SettingsPanel() {
                         l’enrollment via skill family-enroll. Toi seul = ADMIN → Dashboard.
                       </WireHint>
                       {!isAdmin && (
-                        <p style={{ ...mono, color: '#f59e0b', fontSize: '11px' }}>
+                        <p style={{ ...visionBody, color: tokens.color.warning }}>
                           Lecture seule — enrollment réservé à l’admin.
                         </p>
                       )}
                       <div className="flex flex-col gap-2">
                         {family.length === 0 ? (
-                          <p style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: '10px' }}>
+                          <p style={{ ...visionBody, fontSize: 12 }}>
                             Aucun membre listé (Core offline ou pas admin).
                           </p>
                         ) : family.map(u => (
                           <div
                             key={u.id}
                             className="rounded-xl px-3 py-2.5 flex justify-between gap-2"
-                            style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)' }}
+                            style={{ background: tokens.color.surface, border: `1px solid ${tokens.color.border}`, borderRadius: tokens.radius.md }}
                           >
                             <div>
-                              <p style={{ ...raj, color: 'rgba(255,255,255,0.85)', fontSize: '14px' }}>
+                              <p style={{ ...visionTitle, fontSize: 14 }}>
                                 {u.display_name || u.username}
                               </p>
-                              <p style={{ ...mono, color: 'rgba(56,189,248,0.7)', fontSize: '10px' }}>
+                              <p style={{ ...visionBody, fontSize: 11 }}>
                                 @{u.username} · {u.role}
                                 {u.biometrics?.voice ? ' · voix' : ''}
                                 {u.biometrics?.face ? ' · face' : ''}
                               </p>
                             </div>
-                            <span style={{ ...mono, color: u.role === 'ADMIN' ? '#a855f7' : '#38bdf8', fontSize: '9px' }}>
+                            <span style={{ ...compactLabelStyle, color: u.role === 'ADMIN' ? tokens.color.accent : tokens.color.textMuted }}>
                               {u.role === 'ADMIN' ? 'DASHBOARD' : 'HUD'}
                             </span>
                           </div>
                         ))}
                       </div>
                       {isAdmin && (
-                        <div className="flex flex-col gap-3 rounded-xl p-3" style={{ border: '1px solid rgba(56,189,248,0.25)' }}>
-                          <span style={{ ...mono, color: '#38bdf8', fontSize: '10px' }}>▸ ENROLER UN MEMBRE</span>
-                          <Field label="NOM AFFICHÉ" value={enrollName} onChange={setEnrollName} placeholder="Ma fille" />
-                          <Field label="USERNAME" value={enrollUser} onChange={setEnrollUser} placeholder="lea" hint="Optionnel — dérivé du nom si vide" />
+                        <VisionChrome title="Enrôler un membre" level="subtle">
+                          <div className="flex flex-col gap-3">
+                          <Field label="Nom affiché" value={enrollName} onChange={setEnrollName} placeholder="Ma fille" />
+                          <Field label="Username" value={enrollUser} onChange={setEnrollUser} placeholder="lea" hint="Optionnel — dérivé du nom si vide" />
                           <SelectDevice
-                            label="RÔLE"
+                            label="Rôle"
                             value={enrollRole}
                             onChange={v => setEnrollRole((v as 'USER' | 'CHILD') || 'CHILD')}
                             options={[
@@ -721,22 +745,19 @@ export function SettingsPanel() {
                               { id: 'USER', name: 'USER — HUD + maison / média' },
                             ]}
                           />
-                          <motion.button
-                            type="button"
-                            whileTap={{ scale: 0.98 }}
+                          <GlassButton
+                            tone="accent"
+                            active
                             disabled={enrollBusy}
                             onClick={() => void enrollMember()}
-                            className="rounded-xl px-4 py-2.5 cursor-pointer text-left"
-                            style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)' }}
                           >
-                            <span style={{ ...mono, color: '#38bdf8', fontSize: '10px' }}>
-                              {enrollBusy ? '… EN COURS' : '▸ CRÉER PROFIL (+ face / voix stubs)'}
-                            </span>
-                          </motion.button>
-                          <p style={{ ...mono, color: 'rgba(255,255,255,0.3)', fontSize: '9px' }}>
+                            {enrollBusy ? 'Création en cours…' : 'Créer le profil'}
+                          </GlassButton>
+                          <p style={{ ...visionBody, fontSize: 11 }}>
                             Après lock : elle s’authentifie → JARVIS bascule son profil. Voiceprint réel = pipeline Core plus tard.
                           </p>
-                        </div>
+                          </div>
+                        </VisionChrome>
                       )}
                     </motion.div>
                   )}
@@ -751,51 +772,42 @@ export function SettingsPanel() {
                         label="Voix activée"
                         value={prefs.voice.enabled}
                         onChange={v => patch(p => ({ ...p, voice: { ...p.voice, enabled: v } }))}
-                        color="#19f0d8"
+                        color={tokens.color.accent}
                       />
                       <Toggle
                         label="Wake word « Jarvis »"
                         value={prefs.voice.wakeWord}
                         onChange={v => patch(p => ({ ...p, voice: { ...p.voice, wakeWord: v } }))}
-                        color="#19f0d8"
+                        color={tokens.color.accent}
                         hint="Sort JARVIS de la léthargie — ensuite commande « Jarvis … »"
                       />
                       <Toggle
                         label="TTS (réponse parlée)"
                         value={prefs.voice.ttsEnabled}
                         onChange={v => patch(p => ({ ...p, voice: { ...p.voice, ttsEnabled: v } }))}
-                        color="#19f0d8"
+                        color={tokens.color.accent}
                       />
                       <SelectDevice
-                        label="MICROPHONE"
+                        label="Microphone"
                         value={prefs.voice.micDeviceId || ''}
                         onChange={v => patch(p => ({ ...p, voice: { ...p.voice, micDeviceId: v || null } }))}
                         options={micOptions}
                       />
                       <SelectDevice
-                        label="SORTIE AUDIO"
+                        label="Sortie audio"
                         value={prefs.voice.outputDeviceId || ''}
                         onChange={v => patch(p => ({ ...p, voice: { ...p.voice, outputDeviceId: v || null } }))}
                         options={outOptions}
                       />
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.98 }}
-                        className="rounded-xl px-4 py-2.5 cursor-pointer text-left"
-                        style={{
-                          background: micTestActive ? 'rgba(34,197,94,0.12)' : 'rgba(25,240,216,0.08)',
-                          border: `1px solid ${micTestActive ? 'rgba(34,197,94,0.45)' : 'rgba(25,240,216,0.25)'}`,
-                        }}
+                      <GlassButton
+                        tone={micTestActive ? 'success' : 'accent'}
+                        active={micTestActive}
                         onClick={() => void toggleMicTest()}
                       >
-                        <span style={{ ...mono, color: micTestActive ? '#22c55e' : '#19f0d8', fontSize: '10px' }}>
-                          {micTestActive
-                            ? '▸ ARRÊTER TEST MICRO (orbe bas-gauche)'
-                            : '▸ TESTER LE MICRO → orbe bas-gauche (niveau seul)'}
-                        </span>
-                      </motion.button>
+                        {micTestActive ? 'Arrêter le test du micro' : 'Tester le microphone'}
+                      </GlassButton>
                       {micTestActive && (
-                        <p style={{ ...mono, color: 'rgba(34,197,94,0.8)', fontSize: '10px' }}>
+                        <p style={{ ...visionBody, color: tokens.color.success, fontSize: 12 }}>
                           STT / wake suspendus — parle pour voir l’orbe réagir. Évite de saturer Whisper.
                         </p>
                       )}
@@ -814,33 +826,31 @@ export function SettingsPanel() {
                         label="Holomat activé"
                         value={prefs.vision.holomatEnabled}
                         onChange={v => patch(p => ({ ...p, vision: { ...p.vision, holomatEnabled: v } }))}
-                        color="#a855f7"
+                        color={tokens.color.accent}
                       />
                       <SelectDevice
-                        label="CAMÉRA"
+                        label="Caméra"
                         value={prefs.vision.cameraDeviceId || ''}
                         onChange={v => patch(p => ({ ...p, vision: { ...p.vision, cameraDeviceId: v || null } }))}
                         options={camOptions.length ? camOptions : [{ id: '', name: '— Autoriser la caméra pour lister —' }]}
                       />
 
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.98 }}
-                        className="rounded-xl px-4 py-2.5 cursor-pointer text-left"
-                        style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)' }}
+                      <GlassButton
+                        tone="accent"
                         onClick={() => void enableCameraForHolomat()}
                       >
-                        <span style={{ ...mono, color: '#a855f7', fontSize: '10px' }}>▸ ALLUMER CAMÉRA (requis gestes / calib)</span>
-                      </motion.button>
+                        Activer la caméra
+                      </GlassButton>
 
                       {(camPreviewOn || calibrating) && (
                         <div
                           className="relative rounded-xl overflow-hidden"
                           style={{
-                            border: `1px solid ${calibrating ? 'rgba(168,85,247,0.55)' : 'rgba(168,85,247,0.25)'}`,
+                            border: `1px solid ${calibrating ? tokens.color.borderActive : tokens.color.border}`,
                             background: '#000',
                             aspectRatio: '16 / 10',
                             maxHeight: 220,
+                            borderRadius: tokens.radius.md,
                           }}
                         >
                           <CameraPreview
@@ -850,38 +860,39 @@ export function SettingsPanel() {
                           />
                           <div
                             className="absolute left-2 top-2 px-2 py-1 rounded"
-                            style={{ background: 'rgba(0,0,0,0.55)', fontFamily: 'Share Tech Mono, monospace', fontSize: 9, color: calibrating ? '#a855f7' : '#22c55e' }}
+                            style={{ background: 'rgba(0,0,0,0.55)', ...compactLabelStyle, color: calibrating ? tokens.color.accent : tokens.color.success }}
                           >
-                            {calibrating ? 'CALIBRATION · CADRE LE PLAN' : 'APERÇU CAMÉRA'}
+                            {calibrating ? 'Calibration · Cadrez le plan' : 'Aperçu caméra'}
                           </div>
                           {calibrating && (
                             <div
                               className="pointer-events-none absolute inset-6 rounded-lg"
-                              style={{ border: '1px dashed rgba(168,85,247,0.5)' }}
+                              style={{ border: `1px dashed ${tokens.color.borderActive}` }}
                             />
                           )}
                         </div>
                       )}
 
-                      <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)' }}>
+                      <VisionChrome title="Statut Holomat" level="subtle">
+                        <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                          <Camera className="w-4 h-4" style={{ color: '#a855f7' }} />
-                          <span style={{ ...mono, color: '#a855f7', fontSize: '10px' }}>STATUT HOLOMAT</span>
+                          <Camera className="w-4 h-4" style={{ color: tokens.color.accent }} />
+                          <span style={compactLabelStyle}>État actuel</span>
                         </div>
                         {[
-                          { k: 'Caméra', v: prefs.killSwitch.cameraOff ? 'COUPÉE' : holoStatus.camera },
+                          { k: 'Caméra', v: prefs.killSwitch.cameraOff ? 'Coupée' : holoStatus.camera },
                           { k: 'Calibration', v: holoStatus.calibrated ? 'OK (persistée)' : 'non faite' },
                           { k: 'Main dominante', v: dominantHand === 'right' ? 'droite' : 'gauche' },
                           { k: 'Stockage', v: 'users/…/gesture_profile + holomat/calibration.json' },
                         ].map(row => (
                           <div key={row.k} className="flex justify-between gap-2">
-                            <span style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: '10px' }}>{row.k}</span>
-                            <span style={{ ...mono, color: 'rgba(168,85,247,0.8)', fontSize: '10px', textAlign: 'right' }}>{row.v}</span>
+                            <span style={{ ...visionBody, fontSize: 12 }}>{row.k}</span>
+                            <span style={{ ...visionBody, color: tokens.color.text, fontSize: 12, textAlign: 'right' }}>{row.v}</span>
                           </div>
                         ))}
                         <div className="flex flex-col gap-2 mt-2">
-                          <label style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>
-                            SENSIBILITÉ GESTES · {Math.round(sensitivity * 100)}%
+                          <label style={labelStyle}>
+                            Sensibilité des gestes · {Math.round(sensitivity * 100)}%
                           </label>
                           <input
                             type="range" min={0.2} max={1} step={0.05}
@@ -897,43 +908,42 @@ export function SettingsPanel() {
                                 onClick={() => setDominantHand(h)}
                                 className="flex-1 rounded-lg px-2 py-1.5 cursor-pointer"
                                 style={{
-                                  border: `1px solid ${dominantHand === h ? 'rgba(168,85,247,0.5)' : 'rgba(255,255,255,0.1)'}`,
-                                  background: dominantHand === h ? 'rgba(168,85,247,0.2)' : 'transparent',
+                                  border: `1px solid ${dominantHand === h ? tokens.color.borderActive : tokens.color.border}`,
+                                  background: dominantHand === h ? tokens.color.accentSoft : 'transparent',
                                 }}
                               >
-                                <span style={{ ...mono, color: '#a855f7', fontSize: '9px' }}>{h === 'right' ? 'DROITE' : 'GAUCHE'}</span>
+                                <span style={compactLabelStyle}>{h === 'right' ? 'Droite' : 'Gauche'}</span>
                               </button>
                             ))}
                           </div>
                         </div>
                         <div className="flex gap-2 mt-1">
-                          <button
-                            type="button"
+                          <GlassButton
+                            tone="accent"
+                            active
                             disabled={calibrating}
                             onClick={() => void startCalibrate()}
-                            className="flex-1 rounded-lg px-3 py-2 cursor-pointer"
-                            style={{ background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.35)', opacity: calibrating ? 0.6 : 1 }}
+                            style={{ flex: 1 }}
                           >
-                            <span style={{ ...mono, color: '#a855f7', fontSize: '9px' }}>
-                              {calibrating ? 'CALIBRATION…' : 'LANCER CALIBRATION'}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
+                            {calibrating ? 'Calibration…' : 'Lancer la calibration'}
+                          </GlassButton>
+                          <GlassButton
+                            tone="accent"
+                            icon={<Hand className="w-3 h-3" />}
                             onClick={openLiveGestures}
-                            className="flex-1 rounded-lg px-3 py-2 cursor-pointer flex items-center justify-center gap-1"
-                            style={{ background: 'rgba(0,245,255,0.08)', border: '1px solid rgba(0,245,255,0.25)' }}
+                            style={{ flex: 1, justifyContent: 'center' }}
                           >
-                            <Hand className="w-3 h-3" style={{ color: '#00f5ff' }} />
-                            <span style={{ ...mono, color: '#00f5ff', fontSize: '9px' }}>VUE GESTES LIVE</span>
-                          </button>
+                            Vue gestes live
+                          </GlassButton>
                         </div>
-                      </div>
+                        </div>
+                      </VisionChrome>
 
-                      <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: 'rgba(0,5,15,0.5)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                      <VisionChrome title="Déverrouillage de session" level="subtle">
+                        <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2 mb-1">
-                          <Unlock className="w-4 h-4" style={{ color: '#a855f7' }} />
-                          <span style={{ ...mono, color: 'rgba(255,255,255,0.6)', fontSize: '10px' }}>DÉVERROUILLAGE SESSION</span>
+                          <Unlock className="w-4 h-4" style={{ color: tokens.color.accent }} />
+                          <span style={compactLabelStyle}>Facteurs d’identité</span>
                         </div>
                         <Toggle
                           label="Auth caméra / Holomat pour déverrouiller"
@@ -942,7 +952,7 @@ export function SettingsPanel() {
                             ...p,
                             vision: { ...p.vision, sessionUnlock: { ...p.vision.sessionUnlock, enabled: v } },
                           }))}
-                          color="#a855f7"
+                          color={tokens.color.accent}
                           hint="Core enverra session_auth { phase, factors, confidence }"
                         />
                         <Toggle
@@ -952,7 +962,7 @@ export function SettingsPanel() {
                             ...p,
                             vision: { ...p.vision, sessionUnlock: { ...p.vision.sessionUnlock, requireFace: v } },
                           }))}
-                          color="#a855f7"
+                          color={tokens.color.accent}
                         />
                         <Toggle
                           label="Exiger voix"
@@ -961,7 +971,7 @@ export function SettingsPanel() {
                             ...p,
                             vision: { ...p.vision, sessionUnlock: { ...p.vision.sessionUnlock, requireVoice: v } },
                           }))}
-                          color="#a855f7"
+                          color={tokens.color.accent}
                         />
                         <Toggle
                           label="Exiger geste de confirmation"
@@ -970,12 +980,12 @@ export function SettingsPanel() {
                             ...p,
                             vision: { ...p.vision, sessionUnlock: { ...p.vision.sessionUnlock, requireGesture: v } },
                           }))}
-                          color="#a855f7"
+                          color={tokens.color.accent}
                         />
                         <div className="flex flex-col gap-1.5 pt-1">
                           <div className="flex justify-between">
-                            <label style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>CONFIANCE MIN.</label>
-                            <span style={{ ...mono, color: '#a855f7', fontSize: '10px' }}>
+                            <label style={labelStyle}>Confiance minimale</label>
+                            <span style={{ ...visionBody, color: tokens.color.accent }}>
                               {Math.round(prefs.vision.sessionUnlock.minConfidence * 100)}%
                             </span>
                           </div>
@@ -993,38 +1003,39 @@ export function SettingsPanel() {
                           />
                         </div>
                         <div className="flex gap-2 items-start mt-1">
-                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#f59e0b' }} />
-                          <span style={{ ...mono, color: 'rgba(245,158,11,0.75)', fontSize: '9px', lineHeight: 1.4 }}>
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: tokens.color.warning }} />
+                          <span style={{ ...visionBody, color: tokens.color.warning, fontSize: 11 }}>
                             Les droits (admin vs enfant) restent au Policy Engine / Dashboard — ce panneau ne fait que le seuil d’identité.
                           </span>
                         </div>
-                      </div>
+                        </div>
+                      </VisionChrome>
 
                       <div className="flex flex-col gap-2">
-                        <span style={{ ...mono, color: 'rgba(255,255,255,0.45)', fontSize: '10px' }}>MAPPING GESTES → ACTIONS</span>
+                        <span style={labelStyle}>Gestes et actions</span>
                         {bindings.map((b, i) => (
                           <div
                             key={b.id}
                             className="flex items-center justify-between rounded-lg px-3 py-2"
-                            style={{ background: 'rgba(0,5,15,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}
+                            style={{ background: tokens.color.surface, border: `1px solid ${tokens.color.border}`, borderRadius: tokens.radius.md }}
                           >
                             <div>
-                              <p style={{ ...raj, color: 'rgba(255,255,255,0.75)', fontSize: '13px' }}>{b.label}</p>
-                              <p style={{ ...mono, color: 'rgba(168,85,247,0.7)', fontSize: '9px' }}>{b.action}</p>
+                              <p style={visionBody}>{b.label}</p>
+                              <p style={{ ...visionBody, color: tokens.color.textMuted, fontSize: 11 }}>{b.action}</p>
                             </div>
                             <motion.button
                               type="button"
                               onClick={() => setBindings(list => list.map((x, j) => j === i ? { ...x, enabled: !x.enabled } : x))}
                               className="w-11 h-6 rounded-full relative cursor-pointer flex-shrink-0"
                               style={{
-                                background: b.enabled ? 'rgba(168,85,247,0.3)' : 'rgba(255,255,255,0.06)',
-                                border: `1px solid ${b.enabled ? '#a855f7' : 'rgba(255,255,255,0.12)'}`,
+                                background: b.enabled ? tokens.color.accent : tokens.color.surfaceRaised,
+                                border: `1px solid ${b.enabled ? tokens.color.accent : tokens.color.border}`,
                               }}
                             >
                               <motion.div
                                 animate={{ x: b.enabled ? 20 : 2 }}
                                 className="absolute top-0.5 w-5 h-5 rounded-full"
-                                style={{ background: b.enabled ? '#a855f7' : 'rgba(255,255,255,0.3)' }}
+                                style={{ background: b.enabled ? '#fff' : tokens.color.textMuted }}
                               />
                             </motion.button>
                           </div>
@@ -1054,11 +1065,11 @@ export function SettingsPanel() {
                         value={prefs.bargeIn}
                         onChange={v => patch(p => ({ ...p, bargeIn: v }))}
                       />
-                      <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                        <p style={{ ...mono, color: 'rgba(245,158,11,0.85)', fontSize: '10px', lineHeight: 1.45 }}>
+                      <VisionChrome title="Administration" level="subtle">
+                        <p style={{ ...visionBody, color: tokens.color.warning }}>
                           Modèle IA, providers, clés API, services jarvis-* → Dashboard (figma2 / admin). Pas dans ce panneau.
                         </p>
-                      </div>
+                      </VisionChrome>
                     </motion.div>
                   )}
 
@@ -1071,54 +1082,41 @@ export function SettingsPanel() {
                         label="Couper le micro"
                         value={prefs.killSwitch.micMuted}
                         onChange={v => patch(p => ({ ...p, killSwitch: { ...p.killSwitch, micMuted: v } }))}
-                        color="#ef4444"
+                        color={tokens.color.danger}
                       />
                       <Toggle
                         label="Éteindre la caméra"
                         value={prefs.killSwitch.cameraOff}
                         onChange={v => patch(p => ({ ...p, killSwitch: { ...p.killSwitch, cameraOff: v } }))}
-                        color="#ef4444"
+                        color={tokens.color.danger}
                       />
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </div>
+                </div>
+              </GlassPanel>
             </div>
 
             <div
               className="flex items-center justify-end gap-3 px-8 py-4 flex-shrink-0"
-              style={{ borderTop: '1px solid rgba(0,245,255,0.08)' }}
+              style={{ borderTop: `1px solid ${tokens.color.border}` }}
             >
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+              <GlassButton
                 onClick={() => setSettingsOpen(false)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                icon={<RotateCcw className="w-3.5 h-3.5" />}
               >
-                <RotateCcw className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                <span style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>FERMER</span>
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                Fermer
+              </GlassButton>
+              <GlassButton
+                tone={saved ? 'success' : 'accent'}
+                active
                 onClick={handleSave}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl cursor-pointer"
-                style={{
-                  background: saved ? 'rgba(34,197,94,0.15)' : 'rgba(0,245,255,0.12)',
-                  border: `1px solid ${saved ? 'rgba(34,197,94,0.4)' : 'rgba(0,245,255,0.35)'}`,
-                  boxShadow: saved ? '0 0 12px rgba(34,197,94,0.2)' : '0 0 12px rgba(0,245,255,0.1)',
-                }}
+                icon={saved
+                  ? <CheckCircle className="w-3.5 h-3.5" />
+                  : <Save className="w-3.5 h-3.5" />}
               >
-                {saved ? (
-                  <CheckCircle className="w-3.5 h-3.5" style={{ color: '#22c55e' }} />
-                ) : (
-                  <Save className="w-3.5 h-3.5" style={{ color: '#00f5ff' }} />
-                )}
-                <span style={{ ...mono, color: saved ? '#22c55e' : '#00f5ff', fontSize: '10px' }}>
-                  {saved ? 'ENREGISTRÉ' : 'ENREGISTRER'}
-                </span>
-              </motion.button>
+                {saved ? 'Enregistré' : 'Enregistrer'}
+              </GlassButton>
             </div>
           </motion.div>
         </motion.div>

@@ -22,6 +22,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getCoreClient } from '../app/bridge/coreClient';
+import { GlassButton } from '../components/glass/GlassButton';
+import { tokens } from '../ui/tokens';
 import { place } from './composer';
 import { applyPatch } from './protocol/jsonPatch';
 import {
@@ -83,46 +85,35 @@ const ComposeAffordance = ({
       alignItems: 'center',
       gap: 8,
       maxWidth: '80%',
+      zIndex: 2,
     }}
   >
     {refusal && (
       <span
         title={refusal}
         style={{
-          fontSize: 11,
-          lineHeight: 1.3,
-          color: '#fca5a5',
-          background: 'rgba(0,0,0,.55)',
-          border: '1px solid rgba(248,113,113,.35)',
-          borderRadius: 6,
-          padding: '4px 8px',
+          fontFamily: tokens.font.body,
+          fontSize: 12,
+          lineHeight: 1.35,
+          letterSpacing: '-0.01em',
+          color: tokens.color.danger,
+          background: tokens.color.surfaceRaised,
+          border: `1px solid ${tokens.color.border}`,
+          borderRadius: tokens.radius.md,
+          padding: '6px 10px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
           maxWidth: 320,
+          backdropFilter: tokens.glass,
         }}
       >
         {refusal}
       </span>
     )}
-    <button
-      type="button"
-      onClick={onCompose}
-      disabled={composing}
-      style={{
-        fontSize: 11,
-        letterSpacing: '.04em',
-        color: composing ? 'rgba(255,255,255,.45)' : 'rgba(220,235,255,.9)',
-        background: 'rgba(12,20,32,.72)',
-        border: '1px solid rgba(120,170,230,.35)',
-        borderRadius: 6,
-        padding: '5px 10px',
-        cursor: composing ? 'default' : 'pointer',
-        backdropFilter: 'blur(6px)',
-      }}
-    >
-      {composing ? 'Composition…' : 'Composer avec JARVIS'}
-    </button>
+    <GlassButton tone="accent" disabled={composing} onClick={onCompose} style={{ fontSize: 12 }}>
+      {composing ? 'Composition…' : 'Composer avec Jarvis'}
+    </GlassButton>
   </div>
 );
 

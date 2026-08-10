@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { MC_CYAN, mcMono, mcOrb } from '../lib/mcDevTokens';
+import { tokens } from '../../../../ui/tokens';
+import { SUCCESS } from '../../hudTheme';
 
 const CUBE_COUNT = 24;
 
@@ -34,28 +36,27 @@ export function HoloCubeProgress({ pct }: { pct: number }) {
               style={{
                 background: on
                   ? done
-                    ? 'linear-gradient(145deg, #4ade80, #22c55e 55%, #00f5ff)'
-                    : `linear-gradient(145deg, ${MC_CYAN}, #a855f7 70%, #f43f5e)`
-                  : 'rgba(0, 245, 255, 0.06)',
-                border: `1px solid ${on ? (done ? '#22c55e99' : `${MC_CYAN}77`) : 'rgba(0,245,255,0.12)'}`,
+                    ? `linear-gradient(145deg, ${tokens.color.success}, ${SUCCESS} 55%, ${MC_CYAN})`
+                    : `linear-gradient(145deg, ${MC_CYAN}, ${MC_CYAN} 70%, ${MC_CYAN})`
+                  : tokens.color.accentSoft,
+                border: `1px solid ${on ? (done ? `${SUCCESS}99` : `${MC_CYAN}77`) : tokens.color.border}`,
                 boxShadow: on
-                  ? `0 0 8px ${done ? '#22c55e66' : `${MC_CYAN}55`}, inset 0 0 4px rgba(255,255,255,0.35)`
-                  : 'inset 0 0 4px rgba(0,0,0,0.45)',
+                  ? `inset 0 0 4px rgba(255,255,255,0.25)`
+                  : 'inset 0 0 4px rgba(0,0,0,0.25)',
               }}
             />
           );
         })}
       </div>
       <div className="flex justify-between mt-1.5 px-0.5">
-        <span style={{ ...mcMono, fontSize: 8, color: 'rgba(0,245,255,0.45)', letterSpacing: '0.14em' }}>
-          HOLO · CUBES
+        <span style={{ ...mcMono, fontSize: 8, color: tokens.color.textMuted, letterSpacing: '0.02em' }}>
+          Holo · Cubes
         </span>
         <span
           style={{
             ...mcOrb,
             fontSize: 11,
-            color: done ? '#4ade80' : MC_CYAN,
-            textShadow: `0 0 10px ${done ? '#22c55e88' : `${MC_CYAN}88`}`,
+            color: done ? tokens.color.success : MC_CYAN,
           }}
         >
           {pct}%

@@ -4,6 +4,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { acquireCamera, getCameraStream, releaseCamera, subscribeMedia } from '../bridge/mediaDevices';
+import { glassLevel, tokens } from '../../ui/tokens';
 
 interface CameraPreviewProps {
   active?: boolean;
@@ -110,14 +111,30 @@ export function CameraPreview({
 
   if (!active) {
     return (
-      <div className={`relative overflow-hidden ${className}`} style={{ ...style, background: '#000' }} />
+      <div
+        className={`relative overflow-hidden ${className}`}
+        style={{
+          ...style,
+          background: tokens.color.void,
+          border: glassLevel.subtle.border,
+          borderRadius: tokens.radius.md,
+        }}
+      />
     );
   }
 
   return (
     <div
       className={`relative overflow-hidden ${className}`}
-      style={{ width: '100%', height: '100%', background: '#000', ...style }}
+      style={{
+        width: '100%',
+        height: '100%',
+        background: tokens.color.void,
+        border: glassLevel.subtle.border,
+        borderRadius: tokens.radius.md,
+        boxShadow: glassLevel.subtle.boxShadow,
+        ...style,
+      }}
     >
       <video
         ref={videoRef}
@@ -137,15 +154,16 @@ export function CameraPreview({
         >
           <span
             style={{
-              fontFamily: 'Share Tech Mono, monospace',
-              fontSize: 8,
-              letterSpacing: '0.14em',
-              color: err ? '#f59e0b' : 'rgba(232,168,56,0.65)',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontSize: 10,
+              color: err ? tokens.color.warning : tokens.color.textMuted,
               textAlign: 'center',
               padding: 8,
             }}
           >
-            {err ? `CAMÉRA : ${err.slice(0, 48)}` : 'OPTICAL SENSOR…'}
+            {err
+              ? (err === 'indisponible' ? 'En attente d’autorisation…' : `Caméra : ${err.slice(0, 48)}`)
+              : 'Connexion caméra…'}
           </span>
         </div>
       )}

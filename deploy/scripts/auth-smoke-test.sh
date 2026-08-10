@@ -22,9 +22,10 @@ JARVIS_CORE_WS="$WS" "$PY" -m jarvis_core._smoke_auth_face
 
 if [[ "${AUTH_SMOKE_HUD:-0}" == "1" ]]; then
   echo ""
-  HUD_DIR="${ROOT}/vendor/hud"
+  HUD_DIR="${ROOT}/hud"
   if [[ ! -d "${HUD_DIR}/scripts" ]]; then
-    HUD_DIR="${ROOT}/hud"
+    echo "!! hud/scripts absent — AUTH_SMOKE_HUD ignoré"
+    exit 0
   fi
   cd "${HUD_DIR}"
   node scripts/authSmokeBrowser.mjs

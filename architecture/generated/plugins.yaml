@@ -242,7 +242,7 @@ apps:
     risque: home
     intention: home.control
     execute_par: core
-    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant, home, ouvre home, affiche home, affiche-moi home, mission control home, mission contrôle home, mission controle home, ouvre la maison, affiche la maison, allume, allume le salon, eteint, éteint, éteint le salon]
+    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant, home, ouvre home, affiche home, affiche-moi home, mission control home, mission contrôle home, mission controle home, ouvre la maison, affiche la maison, allume, éteint, eteint, allume le salon, éteint le salon]
   - id: music
     nom: Musique
     statut: surface
@@ -256,7 +256,7 @@ apps:
     risque: media
     intention: media.video
     execute_par: core
-    declencheurs: [vidéo, video, film, plex, série, serie, épisode, episode, regarde, lance, mets]
+    declencheurs: [vidéo, video, film, plex, série, serie, épisode, episode, regarde, mets, lance]
   - id: mail
     nom: Courrier
     statut: soon

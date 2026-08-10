@@ -72,3 +72,44 @@ export function stopCommandStt() {
   onInterim = null;
   onFinal = null;
 }
+
+/** Une prise STT navigateur (souvent meilleure que voicebox sur PC). */
+export function listenOnceMs(maxMs = 9000): Promise<string> {
+  const SR = getSR();
+  if (!SR) return Promise.resolve('');
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (text: string) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      try { rec.stop(); } catch { /* */ }
+      resolve(text.trim());
+    };
+
+    const rec = new SR();
+    rec.lang = 'fr-FR';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onresult = (ev: SpeechRecognitionEvent) => {
+      const t = ev.results[0]?.[0]?.transcript ?? '';
+      if (t.trim()) finish(t);
+    };
+    rec.onerror = () => {
+      if (!settled) finish('');
+    };
+    rec.onend = () => {
+      if (!settled) finish('');
+    };
+
+    const timer = window.setTimeout(() => finish(''), maxMs);
+    try {
+      rec.start();
+    } catch {
+      finish('');
+    }
+  });
+}

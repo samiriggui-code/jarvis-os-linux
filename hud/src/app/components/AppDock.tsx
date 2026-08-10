@@ -3,8 +3,10 @@ import { Grid } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getPinnedApps, type HudApp } from '../apps/catalog';
 import { openHudApp } from '../bridge/openHudApp';
-
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
+import { GlassDock } from '../../components/glass/GlassDock';
+import { GlassButton } from '../../components/glass/GlassButton';
+import { tokens } from '../../ui/tokens';
+import { MUTED, monoFont } from './hudTheme';
 
 export function AppDock() {
   const {
@@ -32,21 +34,8 @@ export function AppDock() {
   };
 
   return (
-    <div
-      className="relative z-[60] flex-shrink-0 flex items-center justify-center px-4"
-      style={{
-        height: 56,
-        background: 'rgba(2, 6, 14, 0.88)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-      }}
-    >
-      <div
-        className="flex items-center gap-1 px-2 py-1 rounded-2xl"
-        style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.07)',
-        }}
-      >
+    <div className="relative z-[60] flex-shrink-0 flex items-center justify-center px-4 py-2">
+      <GlassDock gap="xs">
         {pinned.map(app => {
           const active = openApps.some(a => a.id === app.id) || activeAppId === app.id;
           const scale = hovered === app.id ? 1.12 : 1;
@@ -54,46 +43,42 @@ export function AppDock() {
             <button
               key={app.id}
               type="button"
-              title={`${app.name}${app.vpsLimited ? ' (VPS limité)' : ''}${app.adminOnly ? ' (ADMIN)' : ''}`}
+              title={app.name}
               onClick={() => open(app)}
               onMouseEnter={() => setHovered(app.id)}
               onMouseLeave={() => setHovered(null)}
-              className="relative w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer"
+              className="relative w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer glass-btn"
               style={{
                 transform: `scale(${scale})`,
                 transition: 'transform 0.15s ease',
-                background: hovered === app.id ? `${app.color}18` : 'transparent',
+                background: hovered === app.id ? `${app.color}18` : tokens.color.surface,
+                border: `1px solid ${hovered === app.id ? `${app.color}40` : tokens.color.border}`,
               }}
             >
               <app.icon className="w-5 h-5" style={{ color: app.color }} strokeWidth={1.7} />
               {active && (
                 <span
                   className="absolute bottom-0.5 w-1 h-1 rounded-full"
-                  style={{ background: app.color, boxShadow: `0 0 6px ${app.color}` }}
+                  style={{ background: app.color }}
                 />
               )}
             </button>
           );
         })}
 
-        <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 22, background: tokens.color.border, margin: '0 2px' }} />
 
-        <button
-          type="button"
-          title="Toutes les apps"
+        <GlassButton
+          tone="accent"
+          icon={<Grid className="w-5 h-5" />}
           onClick={() => setAppGridOpen(true)}
-          className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer"
-          style={{ background: 'rgba(0,245,255,0.06)' }}
-        >
-          <Grid className="w-5 h-5" style={{ color: '#00f5ff' }} strokeWidth={1.7} />
-        </button>
-      </div>
+          title="Toutes les apps"
+          style={{ width: 40, height: 40, padding: 0, justifyContent: 'center', borderRadius: 14 }}
+        />
+      </GlassDock>
 
-      <span
-        className="absolute right-5 pointer-events-none"
-        style={{ ...mono, fontSize: 8, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.12em' }}
-      >
-        DOCK
+      <span className="absolute right-5 pointer-events-none" style={{ ...monoFont, fontSize: 8, color: MUTED, opacity: 0.5 }}>
+        Apps
       </span>
     </div>
   );

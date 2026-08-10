@@ -1,86 +1,77 @@
 /**
- * Briques agentiques génériques — vague « catalogue riche ».
- *
- * Pas de design system tiers (ReUI/shadcn) importé en runtime : le pixel reste
- * JARVIS (P3/P6). On s'inspire des patterns AG-UI / CopilotKit / ReUI
- * (table, card, status, avatar) mais les props passent par le catalogue Zod.
+ * Briques agentiques — langage Vision / spatial glass.
  */
-import type { CSSProperties } from 'react';
 import type { AgenticProps } from '../registry/renderers';
-
-const mono: CSSProperties = { fontFamily: 'Share Tech Mono, monospace' };
-const raj: CSSProperties = { fontFamily: 'Rajdhani, sans-serif' };
-const orb: CSSProperties = { fontFamily: 'Orbitron, sans-serif' };
-
-const panel: CSSProperties = {
-  background: 'rgba(0, 12, 28, 0.55)',
-  border: '1px solid rgba(0, 245, 255, 0.18)',
-  borderRadius: 12,
-  padding: 12,
-  height: '100%',
-  boxSizing: 'border-box',
-};
+import { VisionButton, VisionPane, useVisionText } from './vision';
 
 const TONE: Record<string, string> = {
-  cyan: '#00f5ff',
-  green: '#22c55e',
-  amber: '#f59e0b',
-  rose: '#f43f5e',
-  violet: '#a855f7',
-  slate: '#94a3b8',
+  cyan: '10, 132, 255',
+  green: '52, 199, 89',
+  amber: '255, 159, 10',
+  rose: '255, 59, 48',
+  violet: '94, 92, 230',
+  slate: '142, 142, 147',
 };
 
-function tone(t: unknown): string {
+function toneRgb(t: unknown): string {
   return TONE[String(t || 'cyan')] || TONE.cyan;
 }
 
+function formatStatusLabel(status: string): string {
+  const s = status.trim();
+  if (!s) return 'Unknown';
+  if (s !== s.toLowerCase() && s !== s.toUpperCase()) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
 export function SectionHeader({ props }: AgenticProps) {
+  const { caption, body } = useVisionText();
   return (
-    <div style={{ ...panel, borderStyle: 'dashed' }}>
-      <p style={{ ...orb, color: 'rgba(0,245,255,0.85)', fontSize: 11, letterSpacing: '0.1em', margin: 0 }}>
-        {String(props.title || 'SECTION')}
-      </p>
+    <VisionPane material="ultraThin">
+      <p style={caption}>{String(props.title || 'Section')}</p>
       {props.subtitle ? (
-        <p style={{ ...mono, color: 'rgba(200,220,255,0.5)', fontSize: 10, margin: '6px 0 0' }}>
-          {String(props.subtitle)}
-        </p>
+        <p style={{ ...body, marginTop: 6 }}>{String(props.subtitle)}</p>
       ) : null}
-    </div>
+    </VisionPane>
   );
 }
 
 export function StatCard({ props }: AgenticProps) {
-  const c = tone(props.tone);
+  const { caption, theme } = useVisionText();
+  const rgb = toneRgb(props.tone);
   return (
-    <div style={panel}>
-      <p style={{ ...mono, color: 'rgba(255,255,255,0.45)', fontSize: 9, margin: 0 }}>
-        {String(props.label || 'STAT')}
-      </p>
-      <p style={{ ...orb, color: c, fontSize: 22, margin: '8px 0 0', textShadow: `0 0 10px ${c}66` }}>
+    <VisionPane material="thin">
+      <p style={caption}>{String(props.label || 'Stat')}</p>
+      <p
+        style={{
+          margin: '10px 0 0',
+          fontSize: 28,
+          fontWeight: 650,
+          letterSpacing: '-0.03em',
+          color: `rgba(${rgb}, 1)`,
+        }}
+      >
         {String(props.value ?? '—')}
         {props.unit ? (
-          <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4 }}>{String(props.unit)}</span>
+          <span style={{ fontSize: 13, opacity: 0.65, marginLeft: 4, fontWeight: 500 }}>
+            {String(props.unit)}
+          </span>
         ) : null}
       </p>
       {props.hint ? (
-        <p style={{ ...mono, color: 'rgba(180,200,220,0.45)', fontSize: 9, marginTop: 8 }}>
-          {String(props.hint)}
-        </p>
+        <p style={{ marginTop: 8, fontSize: 12, color: theme.textMuted }}>{String(props.hint)}</p>
       ) : null}
-    </div>
+    </VisionPane>
   );
 }
 
 export function InfoCard({ props }: AgenticProps) {
+  const { title, body } = useVisionText();
   return (
-    <div style={panel}>
-      <p style={{ ...raj, color: 'rgba(255,255,255,0.92)', fontSize: 15, margin: 0 }}>
-        {String(props.title || 'Info')}
-      </p>
-      <p style={{ ...raj, color: 'rgba(210,225,245,0.8)', fontSize: 13, lineHeight: 1.45, margin: '8px 0 0' }}>
-        {String(props.body || '')}
-      </p>
-    </div>
+    <VisionPane material="regular">
+      <p style={title}>{String(props.title || 'Info')}</p>
+      <p style={{ ...body, marginTop: 8 }}>{String(props.body || '')}</p>
+    </VisionPane>
   );
 }
 
@@ -96,99 +87,111 @@ export function StatusBadge({ props }: AgenticProps) {
     error: TONE.rose,
     unknown: TONE.slate,
   };
-  const c = map[st] || TONE.slate;
+  const rgb = map[st] || TONE.slate;
   return (
     <span
       style={{
-        ...mono,
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 6,
-        fontSize: 10,
-        padding: '4px 10px',
+        gap: 7,
+        fontSize: 12,
+        fontWeight: 560,
+        padding: '6px 12px',
         borderRadius: 999,
-        border: `1px solid ${c}55`,
-        color: c,
-        background: `${c}14`,
+        border: `1px solid rgba(${rgb}, 0.35)`,
+        color: `rgba(${rgb}, 1)`,
+        background: `rgba(${rgb}, 0.12)`,
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
       }}
     >
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}` }} />
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: `rgba(${rgb}, 1)`,
+        }}
+      />
       {String(props.label || st)}
     </span>
   );
 }
 
 export function AvatarChip({ props }: AgenticProps) {
+  const { title, body, theme } = useVisionText();
   const name = String(props.name || '?');
   const initials = String(props.initials || name.slice(0, 2)).toUpperCase();
-  const c = tone(props.tone);
+  const rgb = toneRgb(props.tone);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, ...panel, padding: 10 }}>
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: '50%',
-          background: `${c}22`,
-          border: `1px solid ${c}55`,
-          display: 'grid',
-          placeItems: 'center',
-          ...orb,
-          fontSize: 11,
-          color: c,
-        }}
-      >
-        {initials}
+    <VisionPane material="thin" padding="sm">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: `rgba(${rgb}, 0.18)`,
+            border: `1px solid rgba(${rgb}, 0.35)`,
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: 12,
+            fontWeight: 650,
+            color: `rgba(${rgb}, 1)`,
+          }}
+        >
+          {initials}
+        </div>
+        <div>
+          <p style={{ ...title, fontSize: 14 }}>{name}</p>
+          {props.role ? (
+            <p style={{ ...body, marginTop: 2, fontSize: 12 }}>{String(props.role)}</p>
+          ) : null}
+        </div>
       </div>
-      <div>
-        <p style={{ ...raj, margin: 0, fontSize: 14 }}>{name}</p>
-        {props.role ? (
-          <p style={{ ...mono, margin: '2px 0 0', fontSize: 9, color: 'rgba(180,200,220,0.5)' }}>
-            {String(props.role)}
-          </p>
-        ) : null}
-      </div>
-    </div>
+    </VisionPane>
   );
 }
 
 export function LinkList({ props, emit }: AgenticProps) {
+  const { title, theme } = useVisionText();
   const items = Array.isArray(props.items) ? (props.items as unknown[]).map(String) : [];
   return (
-    <div style={panel}>
-        <p style={{ ...raj, margin: '0 0 8px', fontSize: 14 }}>{String(props.title || 'Liens')}</p>
-      <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <VisionPane>
+      <p style={{ ...title, marginBottom: 10 }}>{String(props.title || 'Liens')}</p>
+      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map((it, i) => {
           const isUrl = /^https?:\/\//i.test(it);
           return (
-            <li key={`${i}-${it.slice(0, 20)}`} style={{ ...mono, fontSize: 11, color: 'rgba(200,220,255,0.8)' }}>
+            <li key={`${i}-${it.slice(0, 20)}`} style={{ fontSize: 13 }}>
               {isUrl ? (
                 <a
                   href={it}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: '#00f5ff' }}
+                  style={{ color: `rgba(${theme.accent}, 1)`, textDecoration: 'none' }}
                   onClick={() => emit('link.open', { url: it })}
                 >
                   {it}
                 </a>
               ) : (
-                it
+                <span style={{ color: theme.text }}>{it}</span>
               )}
             </li>
           );
         })}
       </ul>
-    </div>
+    </VisionPane>
   );
 }
 
 export function KeyValueList({ props }: AgenticProps) {
+  const { title, theme } = useVisionText();
   const rows = Array.isArray(props.rows) ? (props.rows as unknown[]) : [];
   return (
-    <div style={panel}>
-      <p style={{ ...raj, margin: '0 0 8px', fontSize: 14 }}>{String(props.title || 'Détails')}</p>
-      <table style={{ width: '100%', borderCollapse: 'collapse', ...mono, fontSize: 10 }}>
+    <VisionPane>
+      <p style={{ ...title, marginBottom: 10 }}>{String(props.title || 'Détails')}</p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <tbody>
           {rows.map((row, i) => {
             const r = row as { key?: string; value?: string } | string[];
@@ -196,26 +199,25 @@ export function KeyValueList({ props }: AgenticProps) {
             const v = Array.isArray(r) ? String(r[1] ?? '') : String(r.value ?? '');
             return (
               <tr key={i}>
-                <td style={{ padding: '4px 0', color: 'rgba(180,200,220,0.5)', width: '40%' }}>{k}</td>
-                <td style={{ padding: '4px 0', color: 'rgba(230,240,255,0.9)' }}>{v}</td>
+                <td style={{ padding: '6px 0', color: theme.textMuted, width: '40%' }}>{k}</td>
+                <td style={{ padding: '6px 0', color: theme.text }}>{v}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
-    </div>
+    </VisionPane>
   );
 }
 
 export function DataTable({ props }: AgenticProps) {
-  const columns = Array.isArray(props.columns)
-    ? (props.columns as unknown[]).map(String)
-    : [];
+  const { title, theme } = useVisionText();
+  const columns = Array.isArray(props.columns) ? (props.columns as unknown[]).map(String) : [];
   const rows = Array.isArray(props.rows) ? (props.rows as unknown[]) : [];
   return (
-    <div style={{ ...panel, overflow: 'auto' }}>
-      <p style={{ ...raj, margin: '0 0 8px', fontSize: 14 }}>{String(props.title || 'Table')}</p>
-      <table style={{ width: '100%', borderCollapse: 'collapse', ...mono, fontSize: 10 }}>
+    <VisionPane style={{ overflow: 'auto' }}>
+      <p style={{ ...title, marginBottom: 10 }}>{String(props.title || 'Table')}</p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>
             {columns.map((c) => (
@@ -223,9 +225,10 @@ export function DataTable({ props }: AgenticProps) {
                 key={c}
                 style={{
                   textAlign: 'left',
-                  padding: '6px 4px',
-                  color: 'rgba(0,245,255,0.65)',
-                  borderBottom: '1px solid rgba(0,245,255,0.2)',
+                  padding: '8px 6px',
+                  color: theme.textMuted,
+                  fontWeight: 560,
+                  borderBottom: `1px solid rgba(${theme.mode === 'light' ? '0,0,0' : '255,255,255'}, 0.12)`,
                 }}
               >
                 {c}
@@ -244,9 +247,9 @@ export function DataTable({ props }: AgenticProps) {
                   <td
                     key={j}
                     style={{
-                      padding: '6px 4px',
-                      borderBottom: '1px solid rgba(255,255,255,0.06)',
-                      color: 'rgba(220,235,255,0.85)',
+                      padding: '8px 6px',
+                      borderBottom: `1px solid rgba(${theme.mode === 'light' ? '0,0,0' : '255,255,255'}, 0.06)`,
+                      color: theme.text,
                     }}
                   >
                     {cell}
@@ -257,16 +260,16 @@ export function DataTable({ props }: AgenticProps) {
           })}
         </tbody>
       </table>
-    </div>
+    </VisionPane>
   );
 }
 
-/** Mini sparkline SVG — pas de Recharts ici (léger, props-driven). */
 export function MetricChart({ props }: AgenticProps) {
+  const { caption, theme } = useVisionText();
   const series = Array.isArray(props.series)
     ? (props.series as unknown[]).map((n) => Number(n) || 0)
     : [10, 20, 15, 30, 25, 40];
-  const c = tone(props.tone);
+  const rgb = toneRgb(props.tone);
   const w = 280;
   const h = 72;
   const max = Math.max(...series, 1);
@@ -278,117 +281,82 @@ export function MetricChart({ props }: AgenticProps) {
     })
     .join(' ');
   return (
-    <div style={panel}>
-      <p style={{ ...mono, margin: 0, fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>
-        {String(props.label || 'MÉTRIQUE')}
-      </p>
-      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ marginTop: 8, display: 'block' }}>
-        <polyline fill="none" stroke={c} strokeWidth="2" points={pts} />
+    <VisionPane>
+      <p style={caption}>{String(props.label || 'Métrique')}</p>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ marginTop: 10, display: 'block' }}>
+        <polyline
+          fill="none"
+          stroke={`rgba(${rgb}, 1)`}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={pts}
+        />
       </svg>
-    </div>
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: theme.textMuted }}>série · {series.length} pts</p>
+    </VisionPane>
   );
 }
 
 export function DialogCard({ props, emit, state }: AgenticProps) {
+  const { title, body } = useVisionText();
   return (
-    <div
-      style={{
-        ...panel,
-        borderColor: 'rgba(244,63,94,0.35)',
-        background: 'rgba(20, 6, 12, 0.75)',
-      }}
-    >
-      <p style={{ ...orb, margin: 0, fontSize: 11, color: '#f43f5e', letterSpacing: '0.08em' }}>
-        DIALOGUE
+    <VisionPane material="regular">
+      <p style={{ ...title, fontSize: 11, letterSpacing: '0.02em', opacity: 0.7 }}>
+        Dialogue
       </p>
-      <p style={{ ...raj, margin: '8px 0 0', fontSize: 16 }}>{String(props.title || 'Confirmer')}</p>
-      <p style={{ ...raj, margin: '6px 0 12px', fontSize: 13, color: 'rgba(220,230,245,0.8)' }}>
-        {String(props.body || '')}
-      </p>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          type="button"
+      <p style={{ ...title, marginTop: 8 }}>{String(props.title || 'Confirmer')}</p>
+      <p style={{ ...body, margin: '8px 0 14px' }}>{String(props.body || '')}</p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <VisionButton
+          tone="accent"
           disabled={state === 'resolved'}
           onClick={() => emit('dialog.confirm', { id: props.dialogId })}
-          style={{
-            ...mono,
-            fontSize: 10,
-            padding: '6px 12px',
-            borderRadius: 8,
-            border: '1px solid rgba(34,197,94,0.5)',
-            background: 'rgba(34,197,94,0.12)',
-            color: '#22c55e',
-            cursor: 'pointer',
-          }}
         >
           {String(props.confirmLabel || 'Confirmer')}
-        </button>
-        <button
-          type="button"
+        </VisionButton>
+        <VisionButton
           disabled={state === 'resolved'}
           onClick={() => emit('dialog.cancel', { id: props.dialogId })}
-          style={{
-            ...mono,
-            fontSize: 10,
-            padding: '6px 12px',
-            borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.2)',
-            background: 'transparent',
-            color: 'rgba(220,230,245,0.7)',
-            cursor: 'pointer',
-          }}
         >
           {String(props.cancelLabel || 'Annuler')}
-        </button>
+        </VisionButton>
       </div>
-    </div>
+    </VisionPane>
   );
 }
 
 export function ToastStack({ props }: AgenticProps) {
+  const { theme } = useVisionText();
   const items = Array.isArray(props.items) ? (props.items as unknown[]) : [];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((it, i) => {
         const t = typeof it === 'string' ? { text: it, tone: 'cyan' } : (it as { text?: string; tone?: string });
-        const c = tone(t.tone);
+        const rgb = toneRgb(t.tone);
         return (
-          <div
-            key={i}
-            style={{
-              ...mono,
-              fontSize: 10,
-              padding: '8px 10px',
-              borderRadius: 10,
-              border: `1px solid ${c}40`,
-              background: 'rgba(0,8,20,0.85)',
-              color: 'rgba(230,240,255,0.9)',
-              boxShadow: `0 0 12px ${c}22`,
-            }}
-          >
-            {String(t.text || '')}
-          </div>
+          <VisionPane key={i} material="ultraThin" padding="sm">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: `rgba(${rgb}, 1)` }} />
+              <span style={{ fontSize: 13, color: theme.text }}>{String(t.text || '')}</span>
+            </div>
+          </VisionPane>
         );
       })}
       {items.length === 0 ? (
-        <p style={{ ...mono, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Aucune notification</p>
+        <p style={{ fontSize: 12, color: theme.textMuted }}>Aucune notification</p>
       ) : null}
     </div>
   );
 }
 
-/**
- * ServiceHub — la notion de hub : une carte domaine, pas 40 widgets.
- * Statut NUC / VPS / services en une brique composable.
- */
 export function ServiceHub({ props }: AgenticProps) {
+  const { title, body, theme } = useVisionText();
   const services = Array.isArray(props.services) ? (props.services as unknown[]) : [];
   return (
-    <div style={panel}>
-      <p style={{ ...orb, margin: 0, fontSize: 11, color: 'rgba(0,245,255,0.8)', letterSpacing: '0.1em' }}>
-        {String(props.title || 'HUB SERVICES')}
-      </p>
-      <p style={{ ...mono, margin: '4px 0 12px', fontSize: 9, color: 'rgba(180,200,220,0.45)' }}>
+    <VisionPane material="regular">
+      <p style={title}>{String(props.title || 'Hub services')}</p>
+      <p style={{ ...body, margin: '4px 0 12px' }}>
         {String(props.subtitle || 'État des briques — une surface, un domaine')}
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -404,7 +372,7 @@ export function ServiceHub({ props }: AgenticProps) {
             down: TONE.rose,
             error: TONE.rose,
           };
-          const c = map[st] || TONE.slate;
+          const rgb = map[st] || TONE.slate;
           return (
             <div
               key={row.id || i}
@@ -412,25 +380,27 @@ export function ServiceHub({ props }: AgenticProps) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '8px 10px',
-                borderRadius: 8,
-                background: 'rgba(0,8,20,0.5)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                padding: '10px 12px',
+                borderRadius: 14,
+                background: theme.mode === 'light' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.06)',
+                border: `1px solid rgba(${theme.mode === 'light' ? '0,0,0' : '255,255,255'}, 0.08)`,
               }}
             >
               <div>
-                <p style={{ ...raj, margin: 0, fontSize: 13 }}>{String(row.name || row.id || 'service')}</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 560, color: theme.text }}>
+                  {String(row.name || row.id || 'service')}
+                </p>
                 {row.host ? (
-                  <p style={{ ...mono, margin: '2px 0 0', fontSize: 9, color: 'rgba(180,200,220,0.45)' }}>
-                    {String(row.host)}
-                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: theme.textMuted }}>{String(row.host)}</p>
                 ) : null}
               </div>
-              <span style={{ ...mono, fontSize: 10, color: c }}>{st.toUpperCase()}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: `rgba(${rgb}, 1)` }}>
+                {formatStatusLabel(st)}
+              </span>
             </div>
           );
         })}
       </div>
-    </div>
+    </VisionPane>
   );
 }

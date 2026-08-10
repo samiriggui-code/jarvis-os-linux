@@ -8,6 +8,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCoreClient } from '../../bridge/coreClient';
 import { acquireCamera, getCameraStream, releaseCamera } from '../../bridge/mediaDevices';
+import { GlassButton } from '../../../components/glass';
+import { tokens } from '../../../ui/tokens';
 
 const FRAME_MS = 280;
 const JPEG_Q = 0.7;
@@ -18,7 +20,10 @@ type FaceBox = { x: number; y: number; w: number; h: number };
 
 interface Props {
   mode?: Mode;
+  /** Slug SQL (label) — pas la clé buffer. */
   username?: string;
+  /** Obligatoire en mode enroll — clé Holomat (contrat FACE_AUTH_CONTRACT). */
+  userId?: string;
   /** Lance l’envoi de frames Holomat */
   active?: boolean;
   onProgress?: (p: number) => void;
@@ -30,6 +35,7 @@ interface Props {
 export function FaceCamPanel({
   mode = 'enroll',
   username = 'user',
+  userId,
   active = true,
   onProgress,
   onHud,
@@ -77,6 +83,7 @@ export function FaceCamPanel({
     setStatus('Demande accès caméra…');
 
     (async () => {
+      const holdReason = mode === 'enroll' ? 'enrollment' : 'auth';
       try {
         held = true;
         let stream = getCameraStream();
@@ -86,7 +93,7 @@ export function FaceCamPanel({
         // ne pouvaient l'éteindre, et la webcam restait allumée sans qu'aucun
         // compteur ne le sache. `acquireCamera` a déjà son propre repli
         // permissif quand les contraintes idéales sont refusées.
-        if (!live) stream = (await acquireCamera('auth')) || null;
+        if (!live) stream = (await acquireCamera(holdReason)) || null;
         if (cancelled || !stream) return;
         const v = videoRef.current;
         if (!v) return;
@@ -116,10 +123,10 @@ export function FaceCamPanel({
       cancelled = true;
       if (held) {
         held = false;
-        releaseCamera('auth');
+        releaseCamera(mode === 'enroll' ? 'enrollment' : 'auth');
       }
     };
-  }, [retry, active]);
+  }, [retry, active, mode]);
 
   const grabJpeg = useCallback(() => {
     const v = videoRef.current;
@@ -142,6 +149,10 @@ export function FaceCamPanel({
   /* ── Holomat — deps stables uniquement (pas de callbacks / status) ─────── */
   useEffect(() => {
     if (!active || !camLive) return undefined;
+    if (mode === 'enroll' && !userId?.trim()) {
+      setStatus('Création du profil…');
+      return undefined;
+    }
     doneRef.current = false;
     busyRef.current = false;
     setProgress(0);
@@ -159,7 +170,12 @@ export function FaceCamPanel({
       if (mode !== 'enroll') return true;
       try {
         const res = await client.request(
-          { type: 'holomat', action: 'face_enroll_begin', username },
+          {
+            type: 'holomat',
+            action: 'face_enroll_begin',
+            user_id: userId,
+            username,
+          },
           d => d.type === 'FACE_PROGRESS' || d.type === 'holomat_error',
           8000,
         );
@@ -189,6 +205,7 @@ export function FaceCamPanel({
             action: 'face_frame',
             mode,
             username,
+            ...(mode === 'enroll' ? { user_id: userId } : {}),
             jpeg_b64: jpeg,
           },
           d =>
@@ -245,7 +262,7 @@ export function FaceCamPanel({
         timerRef.current = null;
       }
     };
-  }, [active, camLive, mode, username, grabJpeg, pushProgress]);
+  }, [active, camLive, mode, username, userId, grabJpeg, pushProgress]);
 
   return (
     <div
@@ -253,9 +270,9 @@ export function FaceCamPanel({
       style={{
         width: 'min(92vw, 420px)',
         height: 280,
-        background: '#000',
-        border: '1px solid rgba(0,229,255,0.35)',
-        boxShadow: '0 0 24px rgba(0,229,255,0.12)',
+        background: tokens.color.void,
+        border: `1px solid ${tokens.color.border}`,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), 0 16px 40px -18px rgba(0,0,0,0.45)',
       }}
     >
       <video
@@ -272,29 +289,19 @@ export function FaceCamPanel({
 
       {!camLive && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10"
-          style={{ background: 'rgba(0,0,0,0.75)' }}
+          style={{ background: tokens.color.surfaceRaised, backdropFilter: tokens.glass }}
         >
-          <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 9, letterSpacing: '0.12em', color: '#00e5ff' }}>
-            {camError ? `CAMÉRA : ${camError}` : status}
+          <span style={{ fontFamily: tokens.font.body, fontSize: 10, letterSpacing: '0.02em', color: tokens.color.accent }}>
+            {camError ? `Caméra : ${camError}` : status}
           </span>
           {camError && (
-            <button
-              type="button"
+            <GlassButton
+              tone="accent"
+              active
               onClick={() => setRetry(n => n + 1)}
-              style={{
-                fontFamily: 'Share Tech Mono, monospace',
-                fontSize: 8,
-                letterSpacing: '0.14em',
-                padding: '6px 12px',
-                background: '#00e5ff',
-                color: '#000',
-                borderRadius: 6,
-                border: 'none',
-                cursor: 'pointer',
-              }}
             >
-              RÉESSAYER
-            </button>
+              Réessayer
+            </GlassButton>
           )}
         </div>
       )}
@@ -302,14 +309,16 @@ export function FaceCamPanel({
       <div
         className="absolute top-2 left-2 px-1.5 py-0.5 rounded z-10"
         style={{
-          fontFamily: 'Share Tech Mono, monospace',
-          fontSize: 7,
-          letterSpacing: '0.14em',
-          color: '#00e5ff',
-          background: 'rgba(0,0,0,0.55)',
+          fontFamily: tokens.font.body,
+          fontSize: 10,
+          fontWeight: 500,
+          letterSpacing: '0.02em',
+          color: tokens.color.accent,
+          background: tokens.color.surfaceRaised,
+          backdropFilter: tokens.glass,
         }}
       >
-        {camLive ? 'HOLOMAT · CAM LIVE' : 'HOLOMAT · CAM'}
+        {camLive ? 'Holomat · caméra active' : 'Holomat · caméra'}
       </div>
 
       {/* Guide ovale */}
@@ -320,7 +329,7 @@ export function FaceCamPanel({
           right: '18%',
           top: '14%',
           bottom: '22%',
-          border: '1px dashed rgba(0,229,255,0.35)',
+          border: `1px dashed ${tokens.color.borderActive}`,
           borderRadius: '50% / 45%',
         }}
       />
@@ -333,8 +342,7 @@ export function FaceCamPanel({
             top: `${faceBox.y * 100}%`,
             width: `${faceBox.w * 100}%`,
             height: `${faceBox.h * 100}%`,
-            border: '1px solid rgba(0,229,255,0.9)',
-            boxShadow: '0 0 12px rgba(0,229,255,0.45)',
+            border: `1px solid ${tokens.color.accent}`,
             transition: 'left 160ms linear, top 160ms linear, width 160ms linear, height 160ms linear',
           }}
         />
@@ -343,22 +351,21 @@ export function FaceCamPanel({
       <div className="absolute left-2 right-2 bottom-2 z-10">
         <div
           style={{
-            fontFamily: 'Share Tech Mono, monospace',
-            fontSize: 8,
-            letterSpacing: '0.1em',
-            color: 'rgba(0,229,255,0.75)',
+            fontFamily: tokens.font.body,
+            fontSize: 11,
+            letterSpacing: '0.01em',
+            color: tokens.color.text,
             marginBottom: 4,
           }}
         >
           {status} · {Math.round(progress)}%
         </div>
-        <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: 'rgba(0,229,255,0.12)' }}>
+        <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: tokens.color.accentSoft }}>
           <div
             className="h-full rounded-full"
             style={{
               width: `${Math.min(100, progress)}%`,
-              background: '#00e5ff',
-              boxShadow: '0 0 8px #00e5ff',
+              background: tokens.color.accent,
               transition: 'width 0.15s linear',
             }}
           />

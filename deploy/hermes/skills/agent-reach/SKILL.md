@@ -1,11 +1,13 @@
 ---
 name: agent-reach
+version: "1.0"
 description: >-
-  Couche Internet pour Hermes (PAS un cerveau). Recherche web, GitHub, YouTube
-  (sous-titres), Reddit, X/Twitter, RSS, etc. via CLI agent-reach + outils
-  amont. Déléguer fetch → filtrer → synthétiser avec LLM. Amont =
-  github.com/Panniantong/agent-reach (MIT), épinglé dans core/requirements.txt.
-  Ne jamais merger dans core/.
+  TRIGGER — fetch Internet seulement (PAS un cerveau) : « cherche / look up »,
+  lien web, GitHub, YouTube (sous-titres), Reddit, X/Twitter, RSS, page à
+  ouvrir. CLI agent-reach → filtrer → Hermes synthétise. Amont
+  github.com/Panniantong/agent-reach (MIT), épinglé core/requirements.txt —
+  jamais merger dans core/. Si multi-angles / explique / compare / research →
+  charger AUSSI deep-research. Ne PAS charger pour HA, enroll, VPS root, Dashboard.
 ---
 
 # Skill — Agent-Reach (capability layer)
@@ -34,6 +36,10 @@ Données externes → **filtre anti prompt-injection** avant LLM (§ sécurité 
 - « Résume cette vidéo YouTube »
 - Lien Reddit / Twitter / RSS / page web
 
+Recherche **multi-angles / approfondie** (« explique », « compare », « research »,
+avant un rapport) : charger d’abord le skill **deep-research** (méthodologie), puis
+exécuter les fetchs via **ce** skill. deep-research ne remplace pas agent-reach.
+
 **Pas pour** : publier / like / commenter ; domotique ; VPS root ; Dashboard admin.
 
 ## Procédure
@@ -48,6 +54,7 @@ Données externes → **filtre anti prompt-injection** avant LLM (§ sécurité 
    Chemin exact : `python -c "import agent_reach,pathlib;print(pathlib.Path(agent_reach.__file__).parent/'skill')"`
 4. Collecter → **filtrer** → répondre (locale user FR/EN).
 5. Échec : chaînes de retry des références, pas inventer d’API.
+6. Si sources trop faibles après retry → **dire l’échec** (corrective RAG) ; ne pas inventer des faits. Multi-angles → skill **deep-research**.
 
 ## Install (host Hermes / VPS)
 

@@ -47,6 +47,15 @@ export function initTtsCore(): void {
   armGestureUnlock();
 }
 
+/** Déverrouille la lecture WAV (geste utilisateur / clic boot). */
+export function unlockTtsPlayback(): void {
+  unlocked = true;
+  unlockAudio();
+  const run = pending;
+  pending = null;
+  run?.();
+}
+
 export function setTtsOutputDevice(deviceId: string | null): void {
   outputDeviceId = deviceId;
 }

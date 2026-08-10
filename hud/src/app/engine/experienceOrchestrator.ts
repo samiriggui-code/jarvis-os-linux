@@ -138,8 +138,8 @@ export class ExperienceOrchestrator {
         if (!this.alive) break;
       }
 
-      // 3. Durée minimale ET voix en parallèle (skip si waitForAsync a déjà géré voix/progression)
-      if (step.waitForAsync) {
+      // Async seul → pas de voix scriptée ; mais si waitForUser aussi, ne pas skip.
+      if (step.waitForAsync && !step.waitForUser) {
         if (step.pauseAfter && step.pauseAfter > 0) {
           await new Promise(r => setTimeout(r, step.pauseAfter));
         }
@@ -149,39 +149,38 @@ export class ExperienceOrchestrator {
 
       const tasks: Promise<void>[] = [];
 
-      if (step.minDuration && step.minDuration > 0) {
-        tasks.push(new Promise(r => setTimeout(r, step.minDuration)));
-      }
+      if (!step.waitForAsync) {
+        if (step.minDuration && step.minDuration > 0) {
+          tasks.push(new Promise(r => setTimeout(r, step.minDuration)));
+        }
 
-      if (step.voiceLine) {
-        this.patch({ isSpeaking: true, avatarMode: 'speaking' });
-        const voiceLine = step.voiceLine;
-        const stepAvatarMode = step.avatarMode;
-        const voiceTask = (async () => {
-          if (this.ttsEnabled) {
-            await this.speakFn(voiceLine, { rate: 0.92, pitch: 0.85 });
-          } else {
-            // Estimation durée sans TTS réel (~120ms/mot)
-            const words = voiceLine.split(' ').length;
-            await new Promise(r => setTimeout(r, Math.max(800, words * 120)));
-          }
-          if (this.alive) {
-            this.patch({ isSpeaking: false, avatarMode: stepAvatarMode });
-          }
-        })();
-        tasks.push(voiceTask);
+        if (step.voiceLine) {
+          this.patch({ isSpeaking: true, avatarMode: 'speaking' });
+          const voiceLine = step.voiceLine;
+          const stepAvatarMode = step.avatarMode;
+          const voiceTask = (async () => {
+            if (this.ttsEnabled) {
+              await this.speakFn(voiceLine, { rate: 0.92, pitch: 0.85 });
+            } else {
+              const words = voiceLine.split(' ').length;
+              await new Promise(r => setTimeout(r, Math.max(800, words * 120)));
+            }
+            if (this.alive) {
+              this.patch({ isSpeaking: false, avatarMode: stepAvatarMode });
+            }
+          })();
+          tasks.push(voiceTask);
+        }
       }
 
       if (tasks.length > 0) await Promise.all(tasks);
       if (!this.alive) break;
 
-      // 4. Pause après
       if (step.pauseAfter && step.pauseAfter > 0) {
         await new Promise(r => setTimeout(r, step.pauseAfter));
       }
       if (!this.alive) break;
 
-      // 5. Si waitForUser → attendre la confirmation APRÈS la voix/consigne
       if (step.waitForUser) {
         await new Promise<void>(resolve => {
           const unsub = this.subscribe(s => {
@@ -191,7 +190,6 @@ export class ExperienceOrchestrator {
         if (!this.alive) break;
       }
 
-      // 6. onComplete
       step.onComplete?.();
     }
 

@@ -72,6 +72,10 @@ class OrchestratorLifecycleMixin:
         # à tous les clients connectés, et « allume la chambre de Léa » n'a pas à
         # s'afficher sur l'écran du salon.
         self._pending_prompts: dict[str, str] = {}
+        # Hôte (nuc/vps/pi) d'une demande d'approbation Terminal admin en
+        # attente, indexé par `approval_id` — `open_approval()` ne garde pas
+        # de champ libre pour ça dans son enregistrement.
+        self._terminal_hosts: dict[str, str] = {}
         # Remplit `self.intents`, resté vide jusqu'ici. Une intention déclarée
         # sans exécutant reste refusée bruyamment — c'est l'invariant, pas un
         # défaut à masquer.

@@ -14,6 +14,8 @@ import {
   YAxis,
 } from 'recharts'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
+import { GlassButton } from '../components/glass'
+import { tokens } from '../ui/tokens'
 
 type Granularity = 'hour' | 'day' | 'week' | 'month'
 
@@ -68,9 +70,8 @@ type UsagePayload = {
   generated_at?: string
 }
 
-const CORE_WS =
-  (import.meta as { env?: { VITE_CORE_WS?: string } }).env?.VITE_CORE_WS ||
-  'ws://127.0.0.1:8765'
+import { coreWsUrl } from '../lib/coreWs'
+const CORE_WS = coreWsUrl()
 
 const GRANS: { id: Granularity; label: string }[] = [
   { id: 'hour', label: '24 h' },
@@ -181,50 +182,26 @@ export default function DashboardOverview() {
       />
 
       <div className="dash-stat-row">
-        <StatPill label="1 H" value={fmtTokens(t?.hour?.tokens)} color="#A855F7" />
-        <StatPill label="24 H" value={fmtTokens(t?.day?.tokens)} color="#00E5FF" />
+        <StatPill label="1 H" value={fmtTokens(t?.hour?.tokens)} color="#0A84FF" />
+        <StatPill label="24 H" value={fmtTokens(t?.day?.tokens)} color="#0A84FF" />
         <StatPill label="7 J" value={fmtTokens(t?.week?.tokens)} color="#22c55e" />
         <StatPill label="30 J" value={fmtTokens(t?.month?.tokens)} color="#FFC857" />
         <StatPill label="COÛT 30 J" value={fmtUsd(t?.month?.cost)} color="#FF6B4A" />
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         {GRANS.map((g) => (
-          <button
+          <GlassButton
             key={g.id}
-            type="button"
+            active={gran === g.id}
             onClick={() => setGran(g.id)}
-            style={{
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 10,
-              padding: '6px 12px',
-              borderRadius: 8,
-              border: gran === g.id ? '1px solid #00E5FF' : '1px solid rgba(255,255,255,0.1)',
-              background: gran === g.id ? 'rgba(0,229,255,0.12)' : 'rgba(255,255,255,0.03)',
-              color: gran === g.id ? '#00E5FF' : 'rgba(224,244,255,0.55)',
-              cursor: 'pointer',
-            }}
           >
             {g.label}
-          </button>
+          </GlassButton>
         ))}
-        <button
-          type="button"
-          onClick={() => refresh(gran)}
-          style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 10,
-            padding: '6px 12px',
-            borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'transparent',
-            color: 'rgba(224,244,255,0.6)',
-            cursor: 'pointer',
-            marginLeft: 'auto',
-          }}
-        >
+        <GlassButton tone="neutral" onClick={() => refresh(gran)} style={{ marginLeft: 'auto' }}>
           RAFRAÎCHIR
-        </button>
+        </GlassButton>
       </div>
 
       <div className="dash-grid-2" style={{ marginBottom: 14 }}>
@@ -240,7 +217,7 @@ export default function DashboardOverview() {
                   justifyContent: 'center',
                   fontFamily: 'JetBrains Mono',
                   fontSize: 11,
-                  color: 'rgba(224,244,255,0.35)',
+                  color: tokens.color.textMuted,
                 }}
               >
                 Aucun événement local — les appels OpenRouter/Ollama rempliront le graphe.
@@ -250,37 +227,37 @@ export default function DashboardOverview() {
                 <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="tokFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#A855F7" stopOpacity={0.45} />
-                      <stop offset="100%" stopColor="#A855F7" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#0A84FF" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#0A84FF" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" vertical />
                   <XAxis
                     dataKey="label"
-                    tick={{ fill: 'rgba(224,244,255,0.4)', fontSize: 10 }}
+                    tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fill: 'rgba(224,244,255,0.4)', fontSize: 10 }}
+                    tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                     width={42}
                   />
                   <Tooltip
                     contentStyle={{
-                      background: '#0a0e1c',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(14,15,18,0.92)',
+                      border: '1px solid rgba(255,255,255,0.12)',
                       borderRadius: 8,
                       fontSize: 11,
                     }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 10, color: 'rgba(224,244,255,0.5)' }} />
+                  <Legend wrapperStyle={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }} />
                   <Area
                     type="monotone"
                     dataKey="openrouter"
                     name="OpenRouter"
-                    stroke="#A855F7"
+                    stroke="#0A84FF"
                     fill="url(#tokFill)"
                     strokeWidth={2}
                   />
@@ -288,8 +265,8 @@ export default function DashboardOverview() {
                     type="monotone"
                     dataKey="ollama"
                     name="Ollama"
-                    stroke="#00E5FF"
-                    fill="rgba(0,229,255,0.15)"
+                    stroke="#0A84FF"
+                    fill="rgba(10,132,255,0.15)"
                     strokeWidth={2}
                   />
                 </AreaChart>
@@ -336,7 +313,7 @@ export default function DashboardOverview() {
             status={ol?.ok ? 'OK' : ol?.configured ? 'DOWN' : 'OFF'}
             statusColor={ol?.ok ? '#00FF99' : ol?.configured ? '#FF6B4A' : '#FFC857'}
           />
-          <div style={{ marginTop: 12, fontFamily: 'JetBrains Mono', fontSize: 9, color: 'rgba(224,244,255,0.35)', lineHeight: 1.5 }}>
+          <div style={{ marginTop: 12, fontFamily: tokens.font.mono, fontSize: 9, color: tokens.color.textMuted, lineHeight: 1.5 }}>
             Compteurs locaux = chaque completion Core. Crédits OpenRouter / quota ElevenLabs = API compte.
             Ollama VPS : décommenter JARVIS_REMOTE_LLM_URL (tunnel) dans core/.env.
           </div>
@@ -354,21 +331,22 @@ export default function DashboardOverview() {
                 key={k}
                 style={{
                   padding: 12,
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: tokens.radius.md,
+                  background: tokens.color.surface,
+                  border: `1px solid ${tokens.color.border}`,
+                  backdropFilter: 'blur(16px)',
                 }}
               >
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>
+                <div style={{ fontFamily: tokens.font.mono, fontSize: 9, color: tokens.color.textMuted, marginBottom: 8 }}>
                   {k.toUpperCase()}
                 </div>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 16, color: '#e0f4ff', marginBottom: 6 }}>
+                <div style={{ fontFamily: tokens.font.body, fontSize: 16, color: tokens.color.text, marginBottom: 6 }}>
                   {fmtTokens(p?.tokens)}
                 </div>
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(0,229,255,0.7)' }}>
+                <div style={{ fontFamily: tokens.font.mono, fontSize: 10, color: tokens.color.accent }}>
                   {p?.calls ?? 0} appels · {fmtUsd(p?.cost)}
                 </div>
-                <div style={{ marginTop: 8, fontFamily: 'JetBrains Mono', fontSize: 9, color: 'rgba(224,244,255,0.4)' }}>
+                <div style={{ marginTop: 8, fontFamily: tokens.font.mono, fontSize: 9, color: tokens.color.textMuted }}>
                   {Object.keys(bp).length === 0
                     ? '—'
                     : Object.entries(bp)

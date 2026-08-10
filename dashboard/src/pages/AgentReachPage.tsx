@@ -20,8 +20,8 @@ type ReachStatus = {
   error?: string
 }
 
-const CORE_WS = (import.meta as { env?: { VITE_CORE_WS?: string } }).env?.VITE_CORE_WS
-  || 'ws://127.0.0.1:8765'
+import { coreWsUrl } from '../lib/coreWs'
+const CORE_WS = coreWsUrl()
 
 export default function AgentReachPage() {
   const [st, setSt] = useState<ReachStatus | null>(null)
@@ -76,7 +76,7 @@ export default function AgentReachPage() {
       <PlaceholderBanner note="Agent-Reach = couche Internet Hermes (fetch). Pas un LLM. Cookies locaux · install --safe sur VPS." />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <StatPill label="CLI" value={installed ? 'OK' : 'MISSING'} color={installed ? '#00FF99' : '#FF6B4A'} />
-        <StatPill label="CONFIG" value={st?.config_exists ? 'YES' : 'NO'} color={st?.config_exists ? '#00E5FF' : '#FFC857'} />
+        <StatPill label="CONFIG" value={st?.config_exists ? 'YES' : 'NO'} color={st?.config_exists ? '#0A84FF' : '#FFC857'} />
         <StatPill label="HOST" value={HOST.label} />
         <button
           type="button"
@@ -87,9 +87,9 @@ export default function AgentReachPage() {
             fontSize: 10,
             padding: '8px 12px',
             borderRadius: 8,
-            border: '1px solid rgba(0,229,255,0.35)',
-            background: 'rgba(0,229,255,0.08)',
-            color: '#00E5FF',
+            border: '1px solid rgba(168,85,247,0.35)',
+            background: 'rgba(168,85,247,0.08)',
+            color: '#0A84FF',
             cursor: 'pointer',
           }}
         >
@@ -140,7 +140,7 @@ agent-reach doctor`}
               name={p.label}
               meta={p.zero_config ? 'zéro config' : 'cookies / OpenCLI'}
               status={p.zero_config ? 'READY*' : 'SETUP'}
-              statusColor={p.zero_config ? '#00E5FF' : '#FFC857'}
+              statusColor={p.zero_config ? '#0A84FF' : '#FFC857'}
             />
           ))}
           <p style={{ marginTop: 10, fontFamily: 'JetBrains Mono', fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>

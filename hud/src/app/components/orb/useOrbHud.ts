@@ -12,10 +12,10 @@ import {
 
 /** Palette unique orbe / VoiceBar */
 export const ORB_LABELS: Record<OrbState, { label: string; color: string; sub: string }> = {
-  idle: { label: 'VEILLE', color: '#00f5ff', sub: 'DIS « JARVIS … » POUR COMMANDER' },
+  idle: { label: 'VEILLE', color: '#0A84FF', sub: 'DIS « JARVIS … » POUR COMMANDER' },
   listening: { label: 'ÉCOUTE', color: '#22c55e', sub: 'COMMANDES = JARVIS + …' },
   thinking: { label: 'RÉFLEXION', color: '#f59e0b', sub: 'MICRO EN PAUSE' },
-  speaking: { label: 'PAROLE', color: '#a855f7', sub: 'PUIS RETOUR VEILLE' },
+  speaking: { label: 'PAROLE', color: '#0A84FF', sub: 'PUIS RETOUR VEILLE' },
 };
 
 export function mapAiToOrb(ai: 'idle' | 'listening' | 'processing' | 'responding'): OrbState {
@@ -41,7 +41,7 @@ export function useOrbHud() {
   const { aiState, setAiState, messages, addNotification, micTestActive } = useApp();
   const orbState = micTestActive ? 'listening' : mapAiToOrb(aiState);
   const meta = micTestActive
-    ? { label: 'TEST MIC', color: '#19f0d8', sub: 'NIVEAU SEUL — PAS DE STT' }
+    ? { label: 'TEST MIC', color: '#0A84FF', sub: 'NIVEAU SEUL — PAS DE STT' }
     : ORB_LABELS[orbState];
   const [volume, setVolume] = useState(0);
   const [playbackVolume, setPlaybackVolume] = useState(0);

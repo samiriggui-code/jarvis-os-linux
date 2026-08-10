@@ -577,6 +577,25 @@ CAPABILITIES: dict[str, Capability] = {
         note="Topologie DeviceRegistry (Core in-process).",
         triggers=("topologie", "mesh", "réseau jarvis"),
     ),
+    # —— Terminal admin Dashboard — VPS / Pi salon (SSH sortant dédié) ———————
+    #
+    # Pas des tuiles HUD : ces deux intentions n'existent que pour donner un
+    # `risk`/`operation` à la Policy et un exécutant à `IntentExecutor`, côté
+    # Terminal du Dashboard admin (`ws/handlers/terminal.py`). `Owner.CORE` est
+    # exact ici : `remote_exec.py` tourne en process, aucun agent consulté —
+    # contrairement à `system.shell` (NUC) qui, lui, passe par Hermes.
+    "vps-terminal": Capability(
+        app_id="vps-terminal", intent="vps.terminal", owner=Owner.CORE,
+        risk=RiskLevel.VPS, permission="console.read", display=Display.NATIVE,
+        operation=Operation.EXECUTE,
+        note="Dashboard → VPS via SSH dédié (remote_exec.py). Policy VPS allowlist.",
+    ),
+    "pi-terminal": Capability(
+        app_id="pi-terminal", intent="pi.terminal", owner=Owner.CORE,
+        risk=RiskLevel.ADMIN, permission="console.read", display=Display.NATIVE,
+        operation=Operation.EXECUTE,
+        note="Dashboard → Pi salon via SSH dédié (remote_exec.py). Confirmation systématique.",
+    ),
     "objectifs": Capability(
         app_id="objectifs", intent="core.missions", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,

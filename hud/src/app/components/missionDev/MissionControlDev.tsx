@@ -10,10 +10,8 @@ import { useMissionDevRuntime } from './hooks/useMissionDevRuntime';
 import { missionDevProgressPct } from './lib/missionDevLogs';
 import { AgentSurface } from '../../../agentic/AgentSurface';
 import { getCoreClient } from '../../bridge/coreClient';
-
-const orb = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-const raj = { fontFamily: 'Rajdhani, sans-serif' };
+import { ACCENT, DANGER, SUCCESS, bodyFont, monoFont, orbFont } from '../hudTheme';
+import { tokens } from '../../../ui/tokens';
 
 const CURSOR_APP = {
   id: 'cursor',
@@ -24,25 +22,30 @@ const CURSOR_APP = {
 
 function StepRow({ step }: { step: MissionDevStep }) {
   const color =
-    step.status === 'done' ? '#22c55e'
-    : step.status === 'running' ? '#00f5ff'
-    : step.status === 'error' ? '#ef4444'
-    : 'rgba(255,255,255,0.28)';
+    step.status === 'done' ? SUCCESS
+    : step.status === 'running' ? ACCENT
+    : step.status === 'error' ? DANGER
+    : tokens.color.textMuted;
+  const statusLabel =
+    step.status === 'done' ? 'Terminé'
+    : step.status === 'running' ? 'En cours'
+    : step.status === 'error' ? 'Erreur'
+    : 'En attente';
   return (
     <div
       className="flex items-center gap-3 px-3 py-2 rounded-lg"
       style={{
-        background: step.status === 'running' ? 'rgba(0,245,255,0.06)' : 'transparent',
+        background: step.status === 'running' ? tokens.color.accentSoft : 'transparent',
         border: `1px solid ${color}33`,
       }}
     >
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ background: color, boxShadow: step.status === 'running' ? `0 0 8px ${color}` : undefined }}
+        style={{ background: color }}
       />
-      <span style={{ ...raj, color: 'rgba(255,255,255,0.85)', fontSize: 14, flex: 1 }}>{step.label}</span>
-      <span style={{ ...mono, color, fontSize: 9, letterSpacing: '0.08em' }}>
-        {step.status.toUpperCase()}
+      <span style={{ ...bodyFont, color: tokens.color.text, fontSize: 14, flex: 1 }}>{step.label}</span>
+      <span style={{ ...monoFont, color, fontSize: 9, letterSpacing: '0.02em' }}>
+        {statusLabel}
       </span>
     </div>
   );
@@ -89,20 +92,20 @@ export function MissionControlDev() {
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: 'rgba(0,8,20,0.4)' }}>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: tokens.color.surface }}>
       <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-3">
         <div>
-          <p style={{ ...orb, color: '#00f5ff', fontSize: 12, letterSpacing: '0.2em', margin: 0 }}>
-            MISSION CONTROL · DEV
+          <p style={{ ...orbFont, color: ACCENT, fontSize: 12, letterSpacing: '-0.01em', margin: 0 }}>
+            Mission Control · Dev
           </p>
-          <p style={{ ...raj, color: 'rgba(255,255,255,0.9)', fontSize: 18, margin: '4px 0 0' }}>
+          <p style={{ ...bodyFont, color: tokens.color.text, fontSize: 18, margin: '4px 0 0' }}>
             {title || 'Orchestration'}
           </p>
-          <p style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: 10, marginTop: 4 }}>
+          <p style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 10, marginTop: 4 }}>
             {projectName} · {scenario || 'cursor'} · {Math.round(pct)}%
           </p>
           {liveLabel ? (
-            <p style={{ ...mono, color: '#00f5ff', fontSize: 10, marginTop: 6 }}>{liveLabel}</p>
+            <p style={{ ...monoFont, color: ACCENT, fontSize: 10, marginTop: 6 }}>{liveLabel}</p>
           ) : null}
         </div>
         <button
@@ -111,14 +114,14 @@ export function MissionControlDev() {
           disabled={aborting}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer"
           style={{
-            ...mono,
+            ...monoFont,
             fontSize: 9,
-            color: '#f87171',
-            border: '1px solid rgba(248,113,113,0.4)',
-            background: 'rgba(40,0,0,0.35)',
+            color: DANGER,
+            border: `1px solid rgba(255,59,48,0.4)`,
+            background: tokens.color.surfaceRaised,
           }}
         >
-          <Square className="w-3 h-3" /> ABORT
+          <Square className="w-3 h-3" /> Abandonner
         </button>
       </div>
 
@@ -126,7 +129,7 @@ export function MissionControlDev() {
         <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
           <div
             className="h-full transition-all duration-500"
-            style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#00f5ff,#22c55e)' }}
+            style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${ACCENT}, ${SUCCESS})` }}
           />
         </div>
       </div>
@@ -144,9 +147,9 @@ export function MissionControlDev() {
               <div
                 className="h-full flex items-center justify-center p-4 rounded-xl"
                 style={{
-                  border: '1px dashed rgba(0,245,255,0.2)',
-                  ...mono,
-                  color: 'rgba(255,255,255,0.35)',
+                  border: `1px dashed ${tokens.color.borderActive}`,
+                  ...monoFont,
+                  color: tokens.color.textMuted,
                   fontSize: 11,
                 }}
               >
@@ -164,15 +167,15 @@ export function MissionControlDev() {
             onClick={onHandoffToCursor}
             className="w-full py-2.5 rounded-xl cursor-pointer"
             style={{
-              ...orb,
+              ...orbFont,
               fontSize: 11,
-              letterSpacing: '0.14em',
+              letterSpacing: '0.01em',
               color: '#022c22',
-              background: 'linear-gradient(90deg,#22c55e,#4ade80)',
+              background: `linear-gradient(90deg, ${SUCCESS}, #4ade80)`,
               border: 'none',
             }}
           >
-            OUVRIR CURSOR
+            Ouvrir Cursor
           </button>
         </div>
       )}

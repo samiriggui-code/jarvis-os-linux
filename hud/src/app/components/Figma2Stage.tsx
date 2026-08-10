@@ -3,11 +3,12 @@ import { motion } from 'motion/react';
 import { BrainCircuit, RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { postDashboardInputMode } from '../bridge/dashboardBridge';
+import { dashboardOrigin, dashboardUrl } from '../bridge/dashboardUrl';
+import { ACCENT, SUCCESS, DANGER, WARNING, monoFont, orbFont } from './hudTheme';
+import { glassLevel, tokens } from '../../ui/tokens';
 
-const orbFont = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-
-const DASHBOARD_URL = 'http://127.0.0.1:5174/';
+const DASHBOARD_URL = dashboardUrl();
+const glass = glassLevel.regular;
 
 export function Figma2Stage() {
   const { setDashboardOpen, revokeAdminAccess, inputMode } = useApp();
@@ -30,7 +31,7 @@ export function Figma2Stage() {
       if (pending && iframeRef.current?.contentWindow) {
         iframeRef.current.contentWindow.postMessage(
           { type: 'jarvis:navigate', page: pending },
-          'http://127.0.0.1:5174',
+          dashboardOrigin(),
         );
         sessionStorage.removeItem('jarvis.dashboard.pendingPage');
       }
@@ -42,15 +43,15 @@ export function Figma2Stage() {
     <div
       className="w-full h-full flex flex-col rounded-2xl overflow-hidden"
       style={{
-        background: 'rgba(0, 10, 26, 0.88)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(0,245,255,0.18)',
-        boxShadow: '0 0 50px rgba(0,245,255,0.08), inset 0 0 30px rgba(0,0,0,0.4)',
+        background: glass.background,
+        backdropFilter: glass.backdropFilter,
+        border: glass.border,
+        boxShadow: glass.boxShadow,
       }}
     >
       <div
         className="flex items-center gap-3 px-5 py-2.5 flex-shrink-0"
-        style={{ borderBottom: '1px solid rgba(0,245,255,0.12)' }}
+        style={{ borderBottom: `1px solid ${tokens.color.border}` }}
       >
         <motion.button
           type="button"
@@ -58,25 +59,25 @@ export function Figma2Stage() {
           onClick={backToHud}
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer"
           style={{
-            background: 'rgba(0,245,255,0.08)',
-            border: '1px solid rgba(0,245,255,0.35)',
+            background: tokens.color.accentSoft,
+            border: `1px solid ${tokens.color.borderActive}`,
           }}
           title="Retour au HUD"
           {...(inputMode === 'recovery' ? { 'data-jarvis-always-interactive': true } : {})}
         >
-          <ArrowLeft className="w-3.5 h-3.5" style={{ color: '#00f5ff' }} />
-          <span style={{ ...mono, color: '#00f5ff', fontSize: 9, letterSpacing: '0.12em' }}>
-            RETOUR HUD
+          <ArrowLeft className="w-3.5 h-3.5" style={{ color: ACCENT }} />
+          <span style={{ ...monoFont, color: ACCENT, fontSize: 9, letterSpacing: '0.02em' }}>
+            Retour HUD
           </span>
         </motion.button>
 
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0,245,255,0.1)', border: '1px solid rgba(0,245,255,0.3)' }}>
-          <BrainCircuit className="w-3.5 h-3.5" style={{ color: '#00f5ff' }} />
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: tokens.color.accentSoft, border: `1px solid ${tokens.color.borderActive}` }}>
+          <BrainCircuit className="w-3.5 h-3.5" style={{ color: ACCENT }} />
         </div>
         <div>
-          <span style={{ ...orbFont, color: '#00f5ff', fontSize: 12, letterSpacing: '0.15em' }}>DASHBOARD CORE</span>
-          <div style={{ ...mono, color: 'rgba(0,245,255,0.4)', fontSize: 8 }}>
-            HERMES — {DASHBOARD_URL} · {inputMode === 'recovery' ? 'RECOVERY' : 'VOIX'}
+          <span style={{ ...orbFont, color: ACCENT, fontSize: 12 }}>Dashboard Core</span>
+          <div style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 8 }}>
+            Hermes — {DASHBOARD_URL} · {inputMode === 'recovery' ? 'Recovery' : 'Voix'}
           </div>
         </div>
 
@@ -84,21 +85,21 @@ export function Figma2Stage() {
           {status === 'loading' && (
             <>
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
-                <RefreshCw className="w-3 h-3" style={{ color: '#f59e0b' }} />
+                <RefreshCw className="w-3 h-3" style={{ color: WARNING }} />
               </motion.div>
-              <span style={{ ...mono, color: 'rgba(245,158,11,0.8)', fontSize: 9 }}>CONNEXION…</span>
+              <span style={{ ...monoFont, color: WARNING, fontSize: 9, opacity: 0.85 }}>Connexion…</span>
             </>
           )}
           {status === 'ready' && (
             <>
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
-              <span style={{ ...mono, color: 'rgba(34,197,94,0.8)', fontSize: 9 }}>CONNECTÉ</span>
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: SUCCESS }} />
+              <span style={{ ...monoFont, color: SUCCESS, fontSize: 9, opacity: 0.85 }}>Connecté</span>
             </>
           )}
           {status === 'error' && (
             <>
-              <AlertTriangle className="w-3 h-3" style={{ color: '#ef4444' }} />
-              <span style={{ ...mono, color: 'rgba(239,68,68,0.8)', fontSize: 9 }}>SERVEUR INJOIGNABLE</span>
+              <AlertTriangle className="w-3 h-3" style={{ color: DANGER }} />
+              <span style={{ ...monoFont, color: DANGER, fontSize: 9, opacity: 0.85 }}>Serveur injoignable</span>
             </>
           )}
         </div>
@@ -114,9 +115,9 @@ export function Figma2Stage() {
           onError={() => setStatus('error')}
         />
         {status === 'error' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ background: 'rgba(0,4,12,0.92)' }}>
-            <AlertTriangle className="w-8 h-8" style={{ color: '#ef4444' }} />
-            <p style={{ ...mono, color: 'rgba(239,68,68,0.8)', fontSize: 11 }}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ background: tokens.color.surfaceRaised, backdropFilter: tokens.glass }}>
+            <AlertTriangle className="w-8 h-8" style={{ color: DANGER }} />
+            <p style={{ ...monoFont, color: DANGER, fontSize: 11, opacity: 0.85 }}>
               Dashboard Core injoignable sur {DASHBOARD_URL}
             </p>
           </div>

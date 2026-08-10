@@ -1,8 +1,31 @@
 # État de session — JARVIS OS
 
-> **Dernière mise à jour :** 2026-08-08 (P3 Core local — missions, vps.code, gate Spotify)  
+> **Dernière mise à jour :** 2026-08-10 (enrôlement formulaire clic + `title`/`birth_date` DB → NUC ; first_run wipe OK)  
 > **À lire en premier** dans toute nouvelle conversation Claude/Cursor.  
-> Runtime vérifié aligné avec le **working tree local** (hashes) ; commit = ce fichier + deploy.
+> Runtime fronts NUC = `hud/dist` + `dashboard/dist` syncés via `sync-fronts-nuc.ps1 -ReloadNginx` (preuves : index.html timestamps + nginx -t + curl 200).
+>
+> **Enrôlement :** formulaire (prénom → M./Mme/Mlle → date naissance, Jarvis commente, Valider/Reprendre) → face → voix. Après HUD : voix seule. Migration `004_user_profile`.
+
+---
+
+## Vision prochaine évolution
+
+Doc figée : [`docs/architecture/JARVIS-VISION-ORCHESTRATION.md`](../architecture/JARVIS-VISION-ORCHESTRATION.md)  
+Résumé : Core orchestre · agents proposent · Core **vérifie** (preuves ≠ rapport) · voix filtrée · HUD supervise · humain tranche l’archi.
+
+---
+
+## Deploy NUC (méthode validée — ne pas improviser)
+
+| Quoi | Commande | Cible NUC |
+|------|----------|-----------|
+| **Core seul** | `pwsh deploy/scripts/sync-core-only-nuc.ps1` | `/opt/jarvis/core/jarvis_core/` + restart |
+| **HUD + Dashboard** | build local puis `pwsh deploy/scripts/sync-fronts-nuc.ps1` | `/opt/jarvis/hud/dist/` · `/opt/jarvis/dashboard/dist/` |
+| **SSH** | alias `jarvis-nuc-wan` (Windows) | pas `root@192.168.1.37` nu |
+
+Ports prod : Core WS **8765 loopback** · nginx **8080** (HUD + `/ws`). Détail : `deploy/README.md`.
+
+**Samir finalise HUD/dashboard en dev** — remplacement NUC sur demande explicite uniquement.
 
 ---
 
@@ -126,6 +149,7 @@ Réf. architecture : `docs/architecture/JARVIS-Satellites.md` §9 point 7.
 - Chrome / Spotify sur Player si besoin
 - Zigbee / vraies commandes HA
 - Token `JARVIS_SALON_TOKEN` (optionnel)
+- **Hermes skills (2026-08-10)** : DeerFlow **dispatché** — idées dans Hermes skills + `vendor/README.md` § Déjà dispatchés ; `vendor/deerflow2.0-enhanced-main` supprimé. NUC seedé + health ok.
 
 ## Tool Bus (2026-08-07)
 

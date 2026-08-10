@@ -16,8 +16,26 @@ type Listener = (s: MediaDevicesState) => void;
 
 let micStream: MediaStream | null = null;
 let cameraStream: MediaStream | null = null;
+/** Une seule ouverture getUserMedia à la fois — sinon Chrome pend (preview + auth). */
+let cameraOpenInflight: Promise<MediaStream | null> | null = null;
 let state: MediaDevicesState = { mic: 'idle', camera: 'idle' };
 const listeners = new Set<Listener>();
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(() => reject(new Error(`${label} timeout ${ms}ms`)), ms);
+    p.then(
+      (v) => {
+        window.clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        window.clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
 
 function emit() {
   listeners.forEach(fn => fn({ ...state }));
@@ -43,6 +61,47 @@ function deviceConstraints(kind: 'audio' | 'video'): MediaTrackConstraints | boo
   if (camId) return { deviceId: { exact: camId }, width: { ideal: 1280 }, height: { ideal: 720 } };
   // Pas de facingMode exact : beaucoup de webcams USB Windows le rejettent
   return { width: { ideal: 1280 }, height: { ideal: 720 } };
+}
+
+async function queryMicPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  try {
+    // @ts-expect-error — PermissionName 'microphone' selon navigateur
+    const r = await navigator.permissions.query({ name: 'microphone' });
+    if (r.state === 'granted' || r.state === 'denied' || r.state === 'prompt') return r.state;
+  } catch {
+    // Firefox / Safari : Permissions API incomplète pour microphone
+  }
+  return 'unknown';
+}
+
+/** État permission micro (Chrome peut être déjà « granted » sans stream ouvert). */
+export async function getMicPermissionState(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  return queryMicPermission();
+}
+
+/**
+ * Si Chrome a déjà autorisé le micro (icône barre d’adresse), ouvre le stream
+ * sans geste utilisateur. Sinon null — l’UI doit proposer le bouton.
+ */
+export async function tryPrimeMic(): Promise<MediaStream | null> {
+  if (micStream?.getAudioTracks().some((t) => t.readyState === 'live')) {
+    state = { ...state, mic: 'granted', micError: undefined };
+    emit();
+    return micStream;
+  }
+  const perm = await queryMicPermission();
+  if (perm === 'denied') {
+    state = {
+      ...state,
+      mic: 'denied',
+      micError: 'Micro bloqué — cadenas → Micro → Autoriser',
+    };
+    emit();
+    return null;
+  }
+  // granted | unknown : tenter getUserMedia (sans prompt si déjà autorisé)
+  if (perm === 'prompt') return null;
+  return ensureMic();
 }
 
 export async function ensureMic(): Promise<MediaStream | null> {
@@ -73,6 +132,48 @@ export async function ensureMic(): Promise<MediaStream | null> {
   }
 }
 
+async function queryCameraPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  try {
+    // @ts-expect-error — PermissionName 'camera' selon navigateur
+    const r = await navigator.permissions.query({ name: 'camera' });
+    if (r.state === 'granted' || r.state === 'denied' || r.state === 'prompt') return r.state;
+  } catch {
+    // Firefox / Safari : Permissions API incomplète pour camera
+  }
+  return 'unknown';
+}
+
+/** État permission caméra (pour éviter getUserMedia sans geste utilisateur). */
+export async function getCameraPermissionState(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  return queryCameraPermission();
+}
+
+/**
+ * Ouvre la caméra seulement si Chrome a déjà autorisé (pas de prompt).
+ * Si l’état est `prompt`, retourne null — l’UI doit passer par un clic
+ * (AUTORISER CAMÉRA). Un getUserMedia auto sans geste bloque souvent le flux
+ * (OPTICAL SENSOR… + bouton inerte tant que l’inflight 180s tourne).
+ */
+export async function tryPrimeCamera(): Promise<MediaStream | null> {
+  if (cameraStream?.getVideoTracks().some((t) => t.readyState === 'live')) {
+    state = { ...state, camera: 'granted', cameraError: undefined };
+    emit();
+    return cameraStream;
+  }
+  const perm = await queryCameraPermission();
+  if (perm === 'denied') {
+    state = {
+      ...state,
+      camera: 'denied',
+      cameraError: 'Caméra bloquée — cadenas → Caméra → Autoriser',
+    };
+    emit();
+    return null;
+  }
+  if (perm === 'prompt') return null;
+  return ensureCamera();
+}
+
 export async function ensureCamera(): Promise<MediaStream | null> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
     state = { ...state, camera: 'error', cameraError: 'mediaDevices indisponible' };
@@ -84,34 +185,76 @@ export async function ensureCamera(): Promise<MediaStream | null> {
     emit();
     return cameraStream;
   }
+  // Partager l'ouverture en cours (FaceCamView + AuthScene en parallèle).
+  if (cameraOpenInflight) return cameraOpenInflight;
+
   state = { ...state, camera: 'requesting', cameraError: undefined };
   emit();
-  try {
+
+  cameraOpenInflight = (async () => {
     try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: deviceConstraints('video'),
-        audio: false,
-      });
-    } catch {
-      // Fallback ultra-permissif (contraintes idéales refusées)
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const perm = await queryCameraPermission();
+      // Si Chrome affiche la boîte « Autoriser » : NE PAS timeout à 8 s
+      // (sinon refus artificiel pendant que l’utilisateur lit le prompt).
+      const openMs = perm === 'granted' ? 10_000 : 180_000;
+
+      let stream: MediaStream;
+      try {
+        stream = await withTimeout(
+          navigator.mediaDevices.getUserMedia({
+            video: deviceConstraints('video'),
+            audio: false,
+          }),
+          openMs,
+          'getUserMedia(camera)',
+        );
+      } catch (first) {
+        const msg = first instanceof Error ? first.message : String(first);
+        // Permission encore en attente / refus — pas de 2e tentative inutile
+        // si c’est clairement un NotAllowedError.
+        if (/NotAllowed|Permission|denied/i.test(msg) && !/timeout/i.test(msg)) {
+          throw first;
+        }
+        stream = await withTimeout(
+          navigator.mediaDevices.getUserMedia({ video: true, audio: false }),
+          openMs,
+          'getUserMedia(camera-fallback)',
+        );
+      }
+      cameraStream = stream;
+      state = { ...state, camera: 'granted', cameraError: undefined };
+      emit();
+      console.info('[media] caméra OK', cameraStream.getVideoTracks().map(t => t.label));
+      console.info('[CAMERA] stream ready', cameraStream.getVideoTracks().map(t => `${t.label}:${t.readyState}`));
+      return cameraStream;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const denied = /NotAllowed|Permission|denied/i.test(msg);
+      state = {
+        ...state,
+        camera: denied ? 'denied' : 'error',
+        cameraError: denied
+          ? 'Caméra refusée — icône cadenas → Autoriser, puis recliquer'
+          : msg,
+      };
+      emit();
+      console.warn('[media] caméra refusée', msg);
+      return null;
+    } finally {
+      cameraOpenInflight = null;
     }
-    state = { ...state, camera: 'granted', cameraError: undefined };
-    emit();
-    console.info('[media] caméra OK', cameraStream.getVideoTracks().map(t => t.label));
-    return cameraStream;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    state = { ...state, camera: 'denied', cameraError: msg };
-    emit();
-    console.warn('[media] caméra refusée', msg);
-    return null;
-  }
+  })();
+
+  return cameraOpenInflight;
 }
 
 /** Demande caméra + micro (permissions Windows / Chrome). */
 export async function ensureCameraAndMic(): Promise<MediaDevicesState> {
-  await Promise.all([ensureMic(), ensureCamera()]);
+  // Séquentiel — Promise.all(mic+cam) timeout souvent la vidéo sur Windows
+  // (« Timeout starting video source » / getUserMedia timeout) alors que le
+  // micro réussit. Caméra d'abord (face auth), puis micro.
+  await ensureCamera();
+  await ensureMic();
   return getMediaState();
 }
 
@@ -158,6 +301,7 @@ export type CameraReason =
   | 'holomat'       // analyse d'un objet, à la demande
   | 'gesture'       // calibrage / pilotage gestuel
   | 'preview'       // aperçu dans les réglages
+  | 'boot_probe'    // sonde boot Holomat (ne doit pas bloquer l’auth)
   | 'kiosk';        // TV salon : présence / face / gestes en continu
 
 /**
@@ -313,7 +457,7 @@ export function createMicLevelMeter(stream: MediaStream): {
         const v = (data[i] - 128) / 128;
         sum += v * v;
       }
-      return Math.min(1, Math.sqrt(sum / data.length) * 4);
+      return Math.min(1, Math.sqrt(sum / data.length) * 7);
     },
     dispose: () => {
       try { src.disconnect(); } catch { /* */ }

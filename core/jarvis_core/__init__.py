@@ -109,6 +109,16 @@ async def handler(orchestrator: Orchestrator, ws: Any) -> None:
         if dropped and orchestrator.auth is not None:
             orchestrator.auth.on_disconnect(dropped)
         orchestrator.clients.discard(ws)
+        # ⚠ `SequenceRunner` n'a qu'UN verrou global (`_running`), partagé par
+        # tout le Core, pas par connexion. Sans cet abandon, un client fermé en
+        # plein « auth » (onglet fermé, refresh, reconnexion) laisse la
+        # séquence tourner pour de bon — `voice_prompt` (soft_timeout) relance
+        # sa boucle toutes les 45 s indéfiniment — et `run("boot")` refuse
+        # alors de démarrer pour TOUT futur client (« ignorée — auth en
+        # cours ») jusqu'au redémarrage du process. Trouvé en prod 2026-08-10 :
+        # DÉMARRAGE INTERROMPU alors que le Core répondait normalement.
+        if not orchestrator.clients:
+            orchestrator.sequences.abort()
         logger.info("HUD déconnecté (%s client(s))", len(orchestrator.clients))
 
 

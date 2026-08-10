@@ -11,10 +11,10 @@ import {
   type HudApp,
 } from '../apps/catalog';
 import { openHudApp } from '../bridge/openHudApp';
-
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-const display = { fontFamily: 'Orbitron, sans-serif' };
-const body = { fontFamily: 'Rajdhani, sans-serif' };
+import { GlassButton } from '../../components/glass';
+import { tokens } from '../../ui/tokens';
+import { bodyFont, monoFont, orbFont, MUTED, TEXT } from './hudTheme';
+import { visionCaption } from './visionChrome';
 
 export function AppGrid() {
   const {
@@ -50,28 +50,25 @@ export function AppGrid() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 flex flex-col"
-          style={{ zIndex: 150, background: 'rgba(2, 6, 14, 0.94)', backdropFilter: 'blur(24px)' }}
+          style={{ zIndex: 150, background: 'rgba(8, 8, 10, 0.78)', backdropFilter: tokens.glass }}
         >
-          <header
-            className="flex items-center justify-between px-8 py-5 flex-shrink-0"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-          >
+          <header className="flex items-center justify-between px-8 py-5 flex-shrink-0" style={{ borderBottom: `1px solid ${tokens.color.border}` }}>
             <div>
-              <h2 style={{ ...display, color: '#e2f8ff', fontSize: 16, letterSpacing: '0.18em', margin: 0, fontWeight: 600 }}>
+              <h2 style={{ ...orbFont, color: TEXT, fontSize: 18, margin: 0 }}>
                 Applications
               </h2>
-              <p style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: 10, marginTop: 6 }}>
-                Hermes commande · VPS limité · ADMIN = Dashboard
+              <p style={{ ...visionCaption, fontSize: 10, marginTop: 6 }}>
+                Hermes commande · VPS limité · Admin = Dashboard
               </p>
             </div>
-            <button
-              type="button"
+            <GlassButton
+              tone="neutral"
               onClick={() => setAppGridOpen(false)}
-              className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              className="w-9 h-9 !p-0 !rounded-full justify-center"
+              aria-label="Fermer les applications"
             >
-              <X className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.55)' }} />
-            </button>
+              <X className="w-4 h-4" style={{ color: MUTED }} />
+            </GlassButton>
           </header>
 
           <div className="flex gap-2 px-8 py-4 flex-shrink-0 flex-wrap">
@@ -84,11 +81,11 @@ export function AppGrid() {
                   onClick={() => setCat(c)}
                   className="px-3.5 py-1.5 rounded-full cursor-pointer"
                   style={{
-                    background: on ? 'rgba(0,245,255,0.12)' : 'transparent',
-                    border: `1px solid ${on ? 'rgba(0,245,255,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                    background: on ? tokens.color.accentSoft : 'transparent',
+                    border: `1px solid ${on ? tokens.color.borderActive : tokens.color.border}`,
                   }}
                 >
-                  <span style={{ ...mono, color: on ? '#00f5ff' : 'rgba(255,255,255,0.4)', fontSize: 10 }}>
+                    <span style={{ ...monoFont, color: on ? tokens.color.accent : MUTED, fontSize: 10, letterSpacing: '0.02em' }}>
                     {c}
                   </span>
                 </button>
@@ -111,8 +108,8 @@ export function AppGrid() {
                     onClick={() => open(app)}
                     className="group flex flex-col items-center gap-2.5 p-3 rounded-2xl cursor-pointer text-center"
                     style={{
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid rgba(255,255,255,0.06)',
+                      background: tokens.color.surface,
+                      border: `1px solid ${tokens.color.border}`,
                       opacity: soon || locked ? 0.45 : 1,
                       transition: 'background 0.2s, border-color 0.2s, transform 0.2s',
                     }}
@@ -121,8 +118,8 @@ export function AppGrid() {
                       e.currentTarget.style.borderColor = `${app.color}33`;
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                      e.currentTarget.style.background = tokens.color.surface;
+                      e.currentTarget.style.borderColor = tokens.color.border;
                     }}
                   >
                     <div
@@ -134,14 +131,14 @@ export function AppGrid() {
                     >
                       <app.icon className="w-6 h-6" style={{ color: app.color }} strokeWidth={1.6} />
                     </div>
-                    <span style={{ ...body, color: 'rgba(255,255,255,0.78)', fontSize: 13, lineHeight: 1.15 }}>
+                    <span style={{ ...bodyFont, color: TEXT, fontSize: 13, lineHeight: 1.15 }}>
                       {app.name}
                     </span>
-                    <span style={{ ...mono, color: soon ? 'rgba(255,255,255,0.3)' : `${app.color}99`, fontSize: 8, letterSpacing: '0.06em' }}>
-                      {locked ? 'ADMIN' : app.vpsLimited ? 'VPS·LIMIT' : statusLabel(app.status)}
+                    <span style={{ ...monoFont, color: soon ? MUTED : `${app.color}99`, fontSize: 8, letterSpacing: '0.02em' }}>
+                      {locked ? 'Admin' : app.vpsLimited ? 'VPS limité' : statusLabel(app.status)}
                     </span>
                     {(app.risk === 'vps' || app.risk === 'admin') && !soon && (
-                      <span style={{ ...mono, color: 'rgba(255,255,255,0.25)', fontSize: 7 }}>
+                      <span style={{ ...monoFont, color: MUTED, fontSize: 7, letterSpacing: '0.02em' }}>
                         {riskLabel(app.risk)}
                       </span>
                     )}

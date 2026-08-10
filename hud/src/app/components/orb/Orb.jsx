@@ -16,6 +16,8 @@ export default function Orb({
   analyser = null,
   tempo = 0.5,
   size = null,
+  /** 1 = défaut JarvisOrb. Au-delà de ~1.8 l'orbe éclate — plafonné côté shader. */
+  sensitivity = 1,
 }) {
   const hudRef = useRef({ state, volume, playbackVolume });
   hudRef.current = { state, volume, playbackVolume };
@@ -27,9 +29,11 @@ export default function Orb({
         const { state: s, volume: v, playbackVolume: pv } = hudRef.current;
         const t = performance.now() / 1000;
         let level;
+        // Amplitudes d'origine — ne pas sur-amplifier ici (sinon starburst).
         if (s === "speaking") level = pv;
         else if (s === "listening") level = v;
-        else if (s === "thinking") level = 0.25 + 0.2 * Math.abs(Math.sin(t * 2.4));
+        else if (s === "thinking" || s === "processing") level = 0.25 + 0.2 * Math.abs(Math.sin(t * 2.4));
+        else if (s === "responding") level = 0.28 + 0.12 * Math.abs(Math.sin(t * 2.8));
         else level = 0.06 + 0.05 * Math.abs(Math.sin(t * 0.9));
         for (let i = 0; i < data.length; i++) {
           const band = i / data.length;
@@ -62,6 +66,7 @@ export default function Orb({
         tempo={tempo}
         background="transparent"
         size={size}
+        sensitivity={sensitivity}
       />
     </div>
   );

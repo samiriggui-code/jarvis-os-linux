@@ -4,6 +4,66 @@
 
 ---
 
+## 2026-08-10 — Enrôlement formulaire + profil DB
+
+- Boot : orbe centré, espace net avant **JARVIS** (AuthScene + SystemBootGate)
+- FirstSetup : formulaire clic (prénom → civilité → naissance) ; Jarvis commente ; Valider/Reprendre ; puis face (cam+micro) → voix ×3
+- Core DB : migration `004_user_profile` (`users.title`, `users.birth_date`) + enroll WS
+- Preuve : smoke `_smoke_user_profile` OK ; NUC migrate + wipe users (first_run) ; fronts sync OK
+
+## 2026-08-10 — HUD Vision glass + agentic → NUC
+
+- Langage Vision (SF, `#0A84FF`, glass densifié light|night via `--jv-*` / `SpatialTheme`)
+- Agentic : `AgentSurface` ComposeAffordance glass ; `vision.tsx` / Primitives / ApprovalCard sans shout ALL-CAPS
+- Chrome HUD : AppStage / AppGrid / DashboardStage / GlassModal / GlassPill + panneaux VisionChrome
+- **Produit** : `Background` = `SpatialBackdrop` (dégradés colorés) ; toggle Clair/Nuit (auth + TopBar) — plus seulement `?lab=vision`
+- Preuve build : `hud` + `dashboard` `npm run build` OK
+- Preuve deploy : `sync-fronts-nuc.ps1` → `/opt/jarvis/hud/dist` ; `curl :8080` **200**
+
+## 2026-08-10 — CrewAI (idées only, pas de runtime)
+
+- Personas / CR tâches / sequential vs hierarchical → `JARVIS-VISION-ORCHESTRATION.md` § fan-out
+- Structured outputs → note `JARVIS-Tool-Bus.md` (ToolEvent déjà typé)
+- Amont [crewAIInc/crewAI](https://github.com/crewAIInc/crewAI) dans `vendor/README.md` § Déjà dispatchés — **pas** de clone
+
+## 2026-08-10 — memU (idées only, pas d’install)
+
+- Wiki MEMORY renforcé + `deploy/hermes/memories/README.md`
+- Progressive retrieve / 3 magasins figés / refus memU NUC → vision + Outils + registre
+- Amont [NevaMind-AI/memU](https://github.com/NevaMind-AI/memU) dans `vendor/README.md` § Déjà dispatchés
+
+## 2026-08-10 — awesome-llm-apps (idées only, pas de clone)
+
+- Trust-gate + audit trail → `docs/architecture/JARVIS-Tool-Bus.md`
+- Corrective RAG / refus → `deploy/hermes/skills/deep-research` + `agent-reach`
+- Always-on / veille + voice Live réf. → `JARVIS-VISION-ORCHESTRATION.md`
+- Scope creep + evals≠self-rewrite → `.cursor/rules/dev-lifecycle.mdc`
+- Amont listé `vendor/README.md` § Déjà dispatchés
+
+## 2026-08-10 — Dev lifecycle Cursor (idées Addy, sans pack)
+
+- `.cursor/rules/dev-lifecycle.mdc` : `/spec` avant multi-couches, preuves ≠ CR, personas `/ship`
+- Amont [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) listé dans `vendor/README.md` § Déjà dispatchés — **pas** cloné
+- Fan-out personas ajouté dans `JARVIS-VISION-ORCHESTRATION.md`
+
+## 2026-08-10 — DeerFlow dispatché (idées → Hermes skills)
+
+- Pris : `deep-research`, progressive load (`TRIGGER` YAML), convention skill pack, fan-out doc Mission
+- `vendor/deerflow2.0-enhanced-main` **supprimé** ; amont noté dans `vendor/README.md` § Déjà dispatchés
+- NUC : skills seedés + `jarvis-hermes` restart (health ok)
+
+## 2026-08-10 — Skill Hermes deep-research (méthodo DeerFlow)
+
+- `deploy/hermes/skills/deep-research/SKILL.md` — recherche multi-angles ; fetch via `agent-reach` uniquement
+- Renvois : `jarvis-os`, `agent-reach`, `SOUL.md`
+- Seed PS1 : copie **tous** les skills sous `deploy/hermes/skills/` (comme le `.sh`)
+- Décision : skills méthodo Hermes ≠ Capabilities Core ; pas de runtime DeerFlow
+
+## 2026-08-09 — Vision orchestration + deploy NUC documentés
+
+- Doc [`docs/architecture/JARVIS-VISION-ORCHESTRATION.md`](architecture/JARVIS-VISION-ORCHESTRATION.md) + entrée `DECISIONS.md`
+- Scripts deploy alignés prod : `sync-core-only-nuc.ps1`, `sync-core-only-nuc.sh`, `sync-fronts-nuc.ps1`, `sync-to-nuc.sh` (SSH alias, skip pip par défaut, exclusions data NUC)
+
 ## 2026-08-08 — Core P3 (tuiles restantes)
 
 - `core.missions` — magasin `data/missions.json`, exécuteur vocal liste/ajout/clôture

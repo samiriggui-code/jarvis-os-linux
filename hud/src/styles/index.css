@@ -2,15 +2,58 @@
 @import './tailwind.css';
 @import './theme.css';
 
-/* NEXUS AI OS — Global dark override */
+/* Défauts night — SpatialThemeProvider écrase en light (texte sombre + frost dense). */
+:root {
+  --jv-mode: night;
+  --jv-text: rgba(255, 255, 255, 0.94);
+  --jv-text-muted: rgba(255, 255, 255, 0.52);
+  --jv-accent: rgb(10, 132, 255);
+  --jv-accent-rgb: 10, 132, 255;
+  --jv-paper: 255, 255, 255;
+  --jv-void: #08080a;
+  --jv-border: rgba(255, 255, 255, 0.18);
+  --jv-surface: rgba(255, 255, 255, 0.05);
+  --jv-surface-raised: rgba(255, 255, 255, 0.09);
+}
+
+/* HUD — fond suit --jv-void ; texte suit --jv-text */
 html,
 body,
 #root {
-  background: #010812 !important;
-  color: rgba(220, 235, 255, 0.9);
+  background: var(--jv-void, #08080a) !important;
+  color: var(--jv-text, rgba(255, 255, 255, 0.94));
   overflow: hidden;
   height: 100%;
   width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.spatial-lab,
+html.spatial-lab body,
+html.spatial-lab #root {
+  overflow: auto;
+}
+
+.vision-bg {
+  background-color: var(--jv-void, #08080a);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(ellipse 75% 55% at 12% 18%, rgba(255, 255, 255, 0.07), transparent 52%),
+    radial-gradient(ellipse 65% 50% at 88% 72%, rgba(255, 255, 255, 0.05), transparent 50%),
+    radial-gradient(ellipse 120% 90% at 50% 110%, rgba(255, 255, 255, 0.04), transparent 45%);
+  background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%, 100% 100%;
+}
+
+html[data-spatial-mode='light'] .vision-bg {
+  background-image:
+    linear-gradient(rgba(20, 40, 80, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 40, 80, 0.06) 1px, transparent 1px),
+    radial-gradient(ellipse 75% 55% at 12% 18%, rgba(255, 255, 255, 0.55), transparent 52%),
+    radial-gradient(ellipse 65% 50% at 88% 72%, rgba(180, 210, 255, 0.45), transparent 50%),
+    radial-gradient(ellipse 120% 90% at 50% 110%, rgba(255, 255, 255, 0.35), transparent 45%);
 }
 
 /* Chrome Translate — barre EN⇄FR inutile sur le kiosk FR */
@@ -32,7 +75,7 @@ body {
 /* Scrollbar styling */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 245, 255, 0.2) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 *::-webkit-scrollbar {
   width: 4px;
@@ -42,16 +85,16 @@ body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(0, 245, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 245, 255, 0.4);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* Range input accent */
 input[type='range'] {
-  accent-color: #a855f7;
+  accent-color: #0A84FF;
   height: 4px;
 }
 
@@ -63,7 +106,9 @@ input:-webkit-autofill:focus {
 
 /* ——— Orb (nouvelle orbe HUD) ——— */
 .bg-surface-2 {
-  background: rgba(0, 20, 45, 0.85);
+  background: linear-gradient(165deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%);
+  backdrop-filter: blur(44px) saturate(215%) brightness(1.06);
+  -webkit-backdrop-filter: blur(44px) saturate(215%) brightness(1.06);
 }
 
 @keyframes orb-breathe {
@@ -90,6 +135,30 @@ input:-webkit-autofill:focus {
   animation: glass-shine 3.5s ease-in-out infinite alternate;
 }
 
+/* Blobs désactivés — visionOS = fond neutre, pas de halos colorés. */
+.glass-blob { display: none; }
+
+/* Glass System — le reflet interactif (niveau `floating` seulement) ne
+   s'affiche qu'au survol ; inline style ne peut pas exprimer :hover. */
+[data-glass-level='floating']:hover > .glass-glare {
+  opacity: 1;
+}
+.glass-glare {
+  transition: opacity 0.25s ease;
+}
+
+.glass-btn {
+  transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1), border-color 0.2s ease, background 0.2s ease;
+}
+.glass-btn:hover:not(:disabled) {
+  border-color: var(--glass-btn-color, rgba(var(--jv-accent-rgb), 0.45));
+  background: rgba(var(--jv-accent-rgb), 0.1);
+}
+.glass-btn:active:not(:disabled) {
+  transform: scale(0.94);
+  background: rgba(var(--jv-accent-rgb), 0.16);
+}
+
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -98,8 +167,8 @@ input:-webkit-autofill:focus {
   animation: spin-slow 8s linear infinite;
 }
 
-.shadow-glow-purple {
-  box-shadow: 0 0 40px rgba(168, 85, 247, 0.55), 0 0 80px rgba(168, 85, 247, 0.25);
+.shadow-glow-accent {
+  box-shadow: 0 0 40px rgba(10, 132, 255, 0.35), 0 0 80px rgba(10, 132, 255, 0.15);
 }
 .shadow-glow-green {
   box-shadow: 0 0 40px rgba(34, 197, 94, 0.55), 0 0 80px rgba(34, 197, 94, 0.25);
@@ -201,7 +270,7 @@ html[data-persona='kiosk'] .hud-voice-wrap {
     flex-direction: row !important;
     flex-wrap: wrap !important;
     border-right: none !important;
-    border-bottom: 1px solid rgba(0, 245, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     max-height: 7.5rem;
   }
 }

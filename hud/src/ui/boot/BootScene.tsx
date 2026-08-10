@@ -19,6 +19,7 @@ import {
 } from './bootSfx';
 import { getDeviceProfile } from '../core/device';
 import { tokens } from '../tokens';
+import { GlassCard } from '../../components/glass';
 
 export const CINEMATIC_MS = 54_000;
 export const REST_MS = 3_600;
@@ -40,6 +41,7 @@ const ACT_STORY: Record<VoyageAct, string> = {
   adn: 'L’ADN tissa le vivant, mémoire après mémoire.',
   cerveau: 'Puis un cerveau — penser, rêver, devenir.',
   neurones: 'Des synapses s’allumèrent. L’esprit s’ouvrit.',
+  reseau: 'Chaque étincelle trouva les autres — un seul réseau.',
   orbe: 'Et de cette flamme naquit une intelligence.',
 };
 
@@ -52,6 +54,7 @@ const ACT_BRIDGE: Partial<Record<VoyageAct, string>> = {
   adn: 'Le vivant se complexifia.',
   cerveau: 'Les pensées se lièrent.',
   neurones: 'Alors une nouvelle conscience s’éveilla.',
+  reseau: 'La toile se referma sur elle-même.',
 };
 
 function storyCaptionAt(progress: number, act: { id: VoyageAct; from: number; to: number }): {
@@ -337,12 +340,11 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
         >
           <div
             style={{
-              fontFamily: tokens.font.display,
+              fontFamily: tokens.font.body,
               fontWeight: 500,
-              fontSize: 'clamp(0.85rem, 2.6vw, 1.15rem)',
-              letterSpacing: '0.06em',
-              color: 'rgba(200, 235, 255, 0.9)',
-              textShadow: '0 0 22px rgba(0, 245, 255, 0.4)',
+              fontSize: 'clamp(0.9rem, 2.4vw, 1.2rem)',
+              letterSpacing: '-0.01em',
+              color: tokens.color.text,
               textAlign: 'center',
               maxWidth: 560,
               lineHeight: 1.45,
@@ -370,14 +372,13 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
         >
           <div
             style={{
-              fontFamily: tokens.font.mono,
-              fontSize: 10,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
+              fontFamily: tokens.font.body,
+              fontSize: 12,
+              letterSpacing: '-0.01em',
               color: tokens.color.textMuted,
             }}
           >
-            vérification des systèmes…
+            Vérification des systèmes…
           </div>
         </div>
       )}
@@ -403,15 +404,10 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
           <div
             style={{
               fontFamily: tokens.font.display,
-              fontWeight: 700,
-              fontSize: 'clamp(1.6rem, 5.5vw, 3rem)',
-              letterSpacing: '0.28em',
-              paddingLeft: '0.28em',
-              color: 'rgba(220, 248, 255, 0.95)',
-              textShadow: `
-                0 0 18px rgba(0, 245, 255, 0.85),
-                0 0 48px rgba(0, 180, 255, 0.45)
-              `,
+              fontWeight: 600,
+              fontSize: 'clamp(1.75rem, 5vw, 2.75rem)',
+              letterSpacing: '-0.03em',
+              color: tokens.color.text,
               userSelect: 'none',
             }}
           >
@@ -419,23 +415,17 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
           </div>
           <div
             style={{
-              fontFamily: tokens.font.mono,
-              fontSize: 'clamp(0.85rem, 2.5vw, 1.15rem)',
-              letterSpacing: '0.2em',
-              color: 'rgba(0, 245, 255, 0.92)',
-              textShadow: '0 0 16px rgba(0, 245, 255, 0.55)',
-              animation: 'jarvisWelcomeBlink 1.4s ease-in-out infinite',
+              fontFamily: tokens.font.body,
+              fontWeight: 500,
+              fontSize: 'clamp(0.95rem, 2.4vw, 1.2rem)',
+              letterSpacing: '-0.01em',
+              color: tokens.color.accent,
+              opacity: 0.92,
               userSelect: 'none',
             }}
           >
             moi c&apos;est jarvis
           </div>
-          <style>{`
-            @keyframes jarvisWelcomeBlink {
-              0%, 100% { opacity: 0.25; }
-              50% { opacity: 1; }
-            }
-          `}</style>
         </div>
       )}
 
@@ -457,26 +447,23 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
           <div
             style={{
               fontFamily: tokens.font.display,
-              fontWeight: 700,
-              fontSize: 'clamp(2.4rem, 9vw, 5.5rem)',
-              letterSpacing: '0.42em',
-              paddingLeft: '0.42em',
-              color: 'rgba(220, 248, 255, 0.95)',
-              textShadow: `
-                0 0 18px rgba(0, 245, 255, 0.85),
-                0 0 48px rgba(0, 180, 255, 0.45),
-                0 0 90px rgba(255, 138, 76, 0.25)
-              `,
+              fontWeight: 600,
+              fontSize: 'clamp(2.2rem, 8vw, 4.5rem)',
+              letterSpacing: '-0.04em',
+              color: tokens.color.text,
               userSelect: 'none',
               whiteSpace: 'nowrap',
             }}
           >
-            J.A.R.V.I.S
+            Jarvis
           </div>
         </div>
       )}
 
-      {/* Gate audio — sans clic Chrome = silence total */}
+      {/* Gate audio — sans clic Chrome = silence total. Fond sombre plein
+          écran conservé (c'est un portail avant la cinématique, pas encore
+          la cinématique elle-même) mais le contenu passe en Glass — c'était
+          le seul écran de boot resté 100% inline-style d'origine. */}
       {!armed && (
         <button
           type="button"
@@ -490,39 +477,41 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
             inset: 0,
             zIndex: 20,
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 18,
             cursor: 'pointer',
             border: 'none',
+            padding: 0,
             background:
-              'radial-gradient(ellipse at center, rgba(0,40,60,0.92) 0%, rgba(1,8,18,0.97) 70%)',
-            color: tokens.color.accent,
+              'radial-gradient(ellipse at 50% 40%, rgba(10,132,255,0.18) 0%, rgba(8,8,10,0.96) 62%)',
           }}
         >
-          <span
-            style={{
-              fontFamily: tokens.font.display,
-              fontSize: 'clamp(1.1rem, 3.5vw, 1.8rem)',
-              letterSpacing: '0.35em',
-              paddingLeft: '0.35em',
-              textShadow: '0 0 24px rgba(0,245,255,0.7)',
-            }}
-          >
-            {arming ? 'ARMING…' : captions ? 'CLICK TO CONTINUE' : 'CLICK TO ENTER'}
-          </span>
-          <span
-            style={{
-              fontFamily: tokens.font.mono,
-              fontSize: 11,
-              letterSpacing: '0.2em',
-              color: tokens.color.textMuted,
-              textTransform: 'uppercase',
-            }}
-          >
-            {captions ? 'bienvenue · audio required' : 'score matrix · audio required'}
-          </span>
+          <GlassCard level="floating" radius="lg" padding="xl" style={{ textAlign: 'center', minWidth: 280 }}>
+            <span
+              style={{
+                display: 'block',
+                fontFamily: tokens.font.display,
+                fontWeight: 600,
+                fontSize: 'clamp(1.15rem, 3.2vw, 1.65rem)',
+                letterSpacing: '-0.02em',
+                color: tokens.color.text,
+              }}
+            >
+              {arming ? 'Préparation…' : captions ? 'Toucher pour continuer' : 'Toucher pour entrer'}
+            </span>
+            <span
+              style={{
+                display: 'block',
+                marginTop: 12,
+                fontFamily: tokens.font.body,
+                fontSize: 13,
+                letterSpacing: '-0.01em',
+                color: tokens.color.textMuted,
+              }}
+            >
+              {captions ? 'Bienvenue · audio requis' : 'Cinématique · audio requis'}
+            </span>
+          </GlassCard>
         </button>
       )}
 
@@ -532,17 +521,17 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
             position: 'absolute',
             left: 22,
             bottom: 22,
-            font: `11px ${tokens.font.mono}`,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
+            fontFamily: tokens.font.body,
+            fontSize: 12,
+            letterSpacing: '-0.01em',
             color: tokens.color.textMuted,
             zIndex: 5,
           }}
         >
           {outro > 0
-            ? `recul ${(outro * 100).toFixed(0)}%`
+            ? `Recul ${(outro * 100).toFixed(0)}%`
             : resting
-              ? 'titre · repos'
+              ? 'Titre · repos'
               : act.id}
         </div>
       )}
@@ -564,17 +553,20 @@ export const BootScene = ({ onReady, onOutro, debug = false, captions = false }:
             right: 22,
             bottom: 22,
             zIndex: 5,
-            font: `11px ${tokens.font.mono}`,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            padding: '8px 18px',
+            fontFamily: tokens.font.body,
+            fontSize: 13,
+            fontWeight: 560,
+            letterSpacing: '-0.01em',
+            padding: '10px 18px',
             cursor: 'pointer',
-            color: '#02121f',
-            background: tokens.color.accent,
-            border: `1px solid ${tokens.color.accent}`,
+            color: tokens.color.text,
+            background: tokens.color.accentSoft,
+            border: `1px solid ${tokens.color.border}`,
+            borderRadius: tokens.radius.md,
+            backdropFilter: tokens.glass,
           }}
         >
-          rejouer
+          Rejouer
         </button>
       )}
     </div>

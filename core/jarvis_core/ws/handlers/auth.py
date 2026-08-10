@@ -87,9 +87,25 @@ class AuthHandlerMixin:
                 return await self.say(event, ws, **kw)
 
             self.sequences._say = say_to
-            task = asyncio.create_task(
-                self.sequences.run(wanted, **self._say_context(ws))
-            )
+
+            async def _run_and_report() -> None:
+                # Jusqu'ici `run()` était fire-and-forget : le HUD envoyait
+                # `sequence_start` et n'apprenait jamais l'issue. Résultat, la
+                # phrase d'accès vocale de la séquence « auth » ne pouvait
+                # conditionner AUCUNE décision côté client — un facteur
+                # purement décoratif. Ce signal permet à l'appelant d'attendre
+                # une vraie confirmation (2026-08-10).
+                ok = await self.sequences.run(wanted, **self._say_context(ws))
+                try:
+                    await ws.send(json.dumps({
+                        "type": "auth_sequence_result",
+                        "sequence": wanted,
+                        "ok": ok,
+                    }))
+                except Exception:  # noqa: BLE001 — client déjà parti
+                    pass
+
+            task = asyncio.create_task(_run_and_report())
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
             return
@@ -147,6 +163,8 @@ class AuthHandlerMixin:
                     username,
                     display_name=data.get("display_name"),
                     role=str(data.get("role") or "USER"),
+                    title=data.get("title"),
+                    birth_date=data.get("birth_date"),
                 )
                 if em.get("ok"):
                     out["user"] = em.get("user")
@@ -168,6 +186,8 @@ class AuthHandlerMixin:
                         display_name=data.get("display_name"),
                         pin=data.get("pin"),
                         role=enroll_role,
+                        title=data.get("title"),
+                        birth_date=data.get("birth_date"),
                     ),
                 }
             except ValueError as exc:
@@ -191,6 +211,8 @@ class AuthHandlerMixin:
                         voice=bool(data.get("voice", False)),
                         gesture=bool(data.get("gesture", False)),
                         role=enroll_role,
+                        title=data.get("title"),
+                        birth_date=data.get("birth_date"),
                     ),
                 }
             except ValueError as exc:

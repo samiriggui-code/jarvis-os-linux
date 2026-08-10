@@ -1,0 +1,65 @@
+---
+description: >-
+  Dev lifecycle JARVIS (Cursor only) — /spec avant gros chantier, exit criteria
+  = preuves, fan-out /ship personas. Idées Addy Osmani agent-skills ; pas le pack.
+alwaysApply: true
+---
+
+# Dev lifecycle (Cursor) — pas Hermes
+
+Habitudes **agent de code** seulement. Ne pas confondre avec `deploy/hermes/skills/`.
+
+## /spec avant gros chantier
+
+Avant une tâche qui touche **plusieurs couches** (Core + HUD, auth, Policy, deploy NUC, nouveau contrat) :
+
+1. Lire `docs/claude/JARVIS_SESSION_STATE.md` + `docs/DECISIONS.md` (ne pas réouvrir le figé).
+2. Écrire un mini-spec (5–15 lignes) : objectif unique, hors-scope, fichiers/couches touchés, critère de « terminé ».
+3. Aligner le cahier si le comportement produit change (`cahierdecharges.md` / skill cahier).
+
+Anti-excuse : « trop simple pour spécer » → si >1 couche ou décision architecture, spécer quand même.
+
+## Exit criteria = preuves (rapport ≠ preuve)
+
+« Terminé » exige une **preuve** dans le repo ou le runtime, pas un CR agent :
+
+| Type de change | Preuve minimale |
+|----------------|-----------------|
+| Core Python | smoke / gate existant (`_smoke_*`) ou commande de vérif |
+| Contrat WS / Policy | test ou smoke + renvoi DECISIONS si figé |
+| HUD / Dashboard | build ou check type si la zone l’exige ; pas « ça compile dans ma tête » |
+| Deploy NUC | health / status service après sync (si sync demandé) |
+
+Refuser : `docs/architecture/JARVIS-VISION-ORCHESTRATION.md` — Core verify obligatoire.
+
+## /ship personas (fan-out doc — pas runtime Addy)
+
+Avant de déclarer un chantier **prêt à merger / sync prod**, passer mentalement (ou via sous-agents) :
+
+| Persona | Question |
+|---------|----------|
+| Code review | Correctness, scope creep, secrets |
+| Security | Policy, auth, allowlist VPS, pas IA→root |
+| Tests / smokes | Gate branchée ? |
+| Ops | Sync NUC / seed Hermes nécessaire ? |
+
+Fan-out Mission produit (Hermes `delegate_task`) : même doc vision — **pas** installer `addyosmani/agent-skills` dans Hermes ni `vendor/`.
+
+## Scope creep (idée awesome-llm-apps — Cursor only)
+
+Avant de merger / sync une PR ou un gros diff :
+
+1. Relire le **mini-spec** / objectif de session.
+2. Lister ce qui a **débordé** (fichiers hors-scope).
+3. Décider : **garder** / **reverter** / **justifier** (et mettre à jour DECISIONS/cahier si produit).
+
+Anti-excuse : « tant qu’à faire j’ai aussi refactoré X » → hors-scope sauf demande explicite.
+
+## Progressive load
+
+Skills Hermes : `TRIGGER —` dans les `description` YAML (`deploy/hermes/skills/README.md`).  
+Côté Cursor : ne pas coller des skills monstrueux dans les rules ; rules courtes, skills on-demand.
+
+## Evals = gates (pas self-rewrite skills)
+
+Self-improving skills (ADK/Gemini) **refusés**. Amélioration = renforcer `_smoke_*` / `EVAL_MATRIX` / litmus quand une capacité est branchée (pattern eve-analyst). Voir `docs/audit/EVAL_MATRIX.md`.

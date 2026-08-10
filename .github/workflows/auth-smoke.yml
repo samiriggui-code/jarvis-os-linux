@@ -1,0 +1,76 @@
+# AUTH_SMOKE_TEST — gate anti-régression (classe dbfa270)
+#
+# Déclenché sur les chemins auth / holomat / face HUD.
+# Exécute le smoke Core (face_frame < 5 s → FaceEngine) si JARVIS_CORE_WS
+# est défini (runner self-hosted ou secret). Sinon : job skip explicite —
+# le gate local reste obligatoire avant tout gros P1/P2 (voir DECISIONS.md).
+
+name: AUTH_SMOKE_TEST
+
+on:
+  pull_request:
+    paths:
+      - 'core/jarvis_core/vision/**'
+      - 'core/jarvis_core/holomat/**'
+      - 'core/jarvis_core/__init__.py'
+      - 'core/jarvis_core/_smoke_auth_face.py'
+      - 'hud/src/app/bridge/faceAuthLive.ts'
+      - 'hud/src/app/components/auth/**'
+      - 'hud/src/app/bridge/mediaDevices.ts'
+      - 'deploy/scripts/auth-smoke-test.*'
+  workflow_dispatch:
+    inputs:
+      core_ws:
+        description: 'WebSocket Core (ex. ws://127.0.0.1:8765)'
+        required: false
+        default: ''
+
+jobs:
+  auth-smoke-core:
+    name: Camera → face_frame → FaceEngine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve WS URL
+        id: ws
+        env:
+          INPUT_WS: ${{ github.event.inputs.core_ws }}
+          SECRET_WS: ${{ secrets.JARVIS_CORE_WS }}
+          VAR_WS: ${{ vars.JARVIS_CORE_WS }}
+        run: |
+          WS="${INPUT_WS:-${SECRET_WS:-${VAR_WS:-}}}"
+          if [ -z "$WS" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::JARVIS_CORE_WS non défini — CI skip. Gate local obligatoire : deploy/scripts/auth-smoke-test.sh"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "url=$WS" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python
+        if: steps.ws.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install smoke deps
+        if: steps.ws.outputs.skip != 'true'
+        run: |
+          python -m pip install -q websockets opencv-python-headless numpy
+
+      - name: AUTH_SMOKE_TEST (critères 4–5)
+        if: steps.ws.outputs.skip != 'true'
+        working-directory: core
+        env:
+          JARVIS_CORE_WS: ${{ steps.ws.outputs.url }}
+          PYTHONPATH: .
+        run: python -m jarvis_core._smoke_auth_face
+
+      - name: Reminder if skipped
+        if: steps.ws.outputs.skip == 'true'
+        run: |
+          echo "Pour verrouiller en CI : Settings → Secrets/Variables → JARVIS_CORE_WS=ws://…"
+          echo "En local avant P1/P2 auth :"
+          echo "  ./deploy/scripts/auth-smoke-test.sh"
+          echo "  # ou : cd core && JARVIS_CORE_WS=ws://127.0.0.1:8765 python -m jarvis_core._smoke_auth_face"

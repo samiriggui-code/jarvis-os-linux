@@ -2,7 +2,7 @@
  * Pont HUD ↔ Dashboard iframe (postMessage).
  * Jarvis : « ouvre dashboard hermes » → #/hermes dans l’iframe.
  */
-const DASHBOARD_ORIGIN = 'http://127.0.0.1:5174';
+import { dashboardOrigin } from './dashboardUrl';
 
 export type DashboardMsg =
   | { type: 'jarvis:navigate'; page: string }
@@ -17,11 +17,11 @@ export function postDashboardNavigate(page: string) {
     return;
   }
   const msg: DashboardMsg = { type: 'jarvis:navigate', page };
-  iframe.contentWindow.postMessage(msg, DASHBOARD_ORIGIN);
+  iframe.contentWindow.postMessage(msg, dashboardOrigin());
 }
 
 export function postDashboardInputMode(mode: 'voice' | 'recovery') {
   const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Dashboard Core"]');
   if (!iframe?.contentWindow) return;
-  iframe.contentWindow.postMessage({ type: 'jarvis:inputMode', mode } satisfies DashboardMsg, DASHBOARD_ORIGIN);
+  iframe.contentWindow.postMessage({ type: 'jarvis:inputMode', mode } satisfies DashboardMsg, dashboardOrigin());
 }

@@ -1,7 +1,7 @@
 /** FX communs chat / voix → openHudApp + Dashboard nav */
 import { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import type { ChatSideEffects } from '../bridge/chatPipeline';
+import type { ChatSideEffects } from './chatPipeline';
 import { postDashboardNavigate } from './dashboardBridge';
 import { getCoreClient } from './coreClient';
 

@@ -1,20 +1,13 @@
 /**
- * Pont gestuel — monte le producteur MediaPipe et exécute les actions.
+ * Pont gestuel — MediaPipe + actions HUD.
  *
- * Le HUD ne décide de rien : il envoie des confidences (`gestureLive`), et
- * le Core lui renvoie `HAND_POINT` (curseur) et `GESTURE_DETECTED`
- * (action déjà résolue contre le `gesture_profile` de l'utilisateur). Ce
- * composant n'est donc qu'une table d'aiguillage entre un nom d'action et
- * l'état du HUD.
- *
- * Monté seulement session déverrouillée : pendant l'auth faciale la caméra
- * sert déjà, et faire tourner la détection de mains en plus ne coûterait que
- * du CPU pour une interface où il n'y a rien à cliquer.
+ * Caméra : uniquement si panneau gestes ouvert (ou policy sans sleep).
+ * Ne plus allumer la webcam au unlock — auth = voix, cameraSleepByDefault.
  */
 import { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getCoreClient } from '../bridge/coreClient';
-import { gesturesPolicyEnabled } from '../../ui/core/devicePolicy';
+import { gesturesPolicyEnabled, getDevicePolicy } from '../../ui/core/devicePolicy';
 import { startGestureBridge, stopGestureBridge } from '../bridge/gestureLive';
 import { clickAtCursor, disposeCursor, moveCursor } from '../bridge/gestureCursor';
 
@@ -31,6 +24,7 @@ export function GestureBridge() {
     activeAppId,
     focusApp,
     addNotification,
+    gestureOpen,
   } = useApp();
 
   const latest = useRef({ appGridOpen, rightPanel, openApps, activeAppId });
@@ -39,10 +33,11 @@ export function GestureBridge() {
   useEffect(() => {
     if (!sessionUnlocked) return;
     if (!gesturesPolicyEnabled()) return;
+    if (getDevicePolicy().cameraSleepByDefault && !gestureOpen) return;
 
     let alive = true;
 
-    startGestureBridge().then(ok => {
+    startGestureBridge().then((ok) => {
       if (!alive || ok) return;
       addNotification({
         type: 'warning',
@@ -74,7 +69,7 @@ export function GestureBridge() {
           break;
         case 'stack_next':
         case 'stack_prev': {
-          const ids = now.openApps.map(a => a.id);
+          const ids = now.openApps.map((a) => a.id);
           if (ids.length < 2) break;
           const current = now.activeAppId ?? ids[0];
           focusApp(cycle(ids, current, action === 'stack_next' ? 1 : -1));
@@ -85,7 +80,7 @@ export function GestureBridge() {
       }
     };
 
-    const off = getCoreClient().subscribe(data => {
+    const off = getCoreClient().subscribe((data) => {
       if (data.type === 'HAND_POINT') {
         const x = Number(data.x);
         const y = Number(data.y);
@@ -104,8 +99,14 @@ export function GestureBridge() {
       stopGestureBridge();
       disposeCursor();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionUnlocked]);
+  }, [
+    sessionUnlocked,
+    gestureOpen,
+    addNotification,
+    setAppGridOpen,
+    setRightPanel,
+    focusApp,
+  ]);
 
   return null;
 }

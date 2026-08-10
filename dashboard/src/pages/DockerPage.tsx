@@ -14,7 +14,7 @@ export default function DockerPage() {
     <PageShell>
       <PlaceholderBanner note="Docker VPS = Traefik + Ollama secours. Core/Hermes/voix = NUC. Liste non live tant que Tool Manager absent." />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        <StatPill label="HOST" value={HOST.role} color="#00E5FF" />
+        <StatPill label="HOST" value={HOST.role} color="#0A84FF" />
         <StatPill label="LIVE API" value="OFF" color="#FFC857" />
         <StatPill label="CORE" value="NUC" color="#22c55e" />
       </div>
@@ -28,7 +28,7 @@ export default function DockerPage() {
               name={c.name}
               meta={`${c.image} · ${c.ports} · ${c.note}`}
               status={c.status}
-              statusColor={c.status === 'NUC' ? '#00E5FF' : '#FFC857'}
+              statusColor={c.status === 'NUC' ? '#0A84FF' : '#FFC857'}
             />
           ))}
         </Card>
@@ -41,11 +41,11 @@ export default function DockerPage() {
           <div style={{
             padding: 12,
             borderRadius: 8,
-            border: '1px dashed rgba(0,229,255,0.25)',
-            background: 'rgba(0,229,255,0.04)',
+            border: '1px dashed rgba(168,85,247,0.25)',
+            background: 'rgba(168,85,247,0.04)',
             fontFamily: 'JetBrains Mono',
             fontSize: 11,
-            color: '#00E5FF',
+            color: '#0A84FF',
             marginBottom: 12,
             wordBreak: 'break-all',
           }}>

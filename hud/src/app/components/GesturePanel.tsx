@@ -2,18 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Hand, Camera, Activity, ChevronRight, Zap } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-
-const orb = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-const raj = { fontFamily: 'Rajdhani, sans-serif' };
+import { VisionChrome, visionBody, visionCaption, visionMono } from './visionChrome';
+import { GlassButton, GlassPanel } from '../../components/glass/';
+import { tokens } from '../../ui/tokens';
 
 const GESTURES = [
-  { name: 'BALAYAGE DROITE', desc: 'Naviguer / Sélectionner', icon: '→', color: '#00f5ff' },
-  { name: 'BALAYAGE GAUCHE', desc: 'Retour / Fermer', icon: '←', color: '#00f5ff' },
-  { name: 'DEUX DOIGTS', desc: 'Défiler / Zoomer', icon: '✌', color: '#a855f7' },
-  { name: 'PAUME OUVERTE', desc: 'Pause / Arrêter l\'IA', icon: '✋', color: '#f59e0b' },
-  { name: 'PINCEMENT', desc: 'Fermer le panneau', icon: '🤏', color: '#ef4444' },
-  { name: 'INDEX LEVÉ', desc: 'Activer la voix', icon: '☝', color: '#22c55e' },
+  { name: 'Balayage à droite', desc: 'Naviguer ou sélectionner', icon: '→', color: tokens.color.accent },
+  { name: 'Balayage à gauche', desc: 'Revenir ou fermer', icon: '←', color: tokens.color.accent },
+  { name: 'Deux doigts', desc: 'Défiler ou zoomer', icon: '✌', color: tokens.color.accent },
+  { name: 'Paume ouverte', desc: 'Mettre l’IA en pause', icon: '✋', color: tokens.color.warning },
+  { name: 'Pincement', desc: 'Fermer le panneau', icon: '🤏', color: tokens.color.danger },
+  { name: 'Index levé', desc: 'Activer la voix', icon: '☝', color: tokens.color.success },
 ];
 
 // Simplified hand skeleton points
@@ -28,56 +27,45 @@ const HAND_POINTS = {
 };
 
 function HandSkeleton({ gesture }: { gesture: string }) {
-  const isOpenPalm = gesture === 'PAUME OUVERTE';
-  const isPinch = gesture === 'PINCEMENT';
+  const isOpenPalm = gesture === 'Paume ouverte';
+  const isPinch = gesture === 'Pincement';
 
   return (
     <svg width="320" height="300" viewBox="0 0 320 300" fill="none">
-      {/* Palm outline */}
       <motion.polygon
         points={HAND_POINTS.palm.map(p => `${p.x},${p.y}`).join(' ')}
-        fill="rgba(0,245,255,0.04)"
-        stroke="rgba(0,245,255,0.25)"
+        fill={tokens.color.accentSoft}
+        stroke={tokens.color.borderActive}
         strokeWidth="1"
         animate={{ opacity: isOpenPalm ? [0.5, 1, 0.5] : 1 }}
         transition={{ duration: 1, repeat: Infinity }}
       />
 
-      {/* Finger connections */}
       {[HAND_POINTS.thumb, HAND_POINTS.index, HAND_POINTS.middle, HAND_POINTS.ring, HAND_POINTS.pinky].map((finger, fi) => (
         <g key={fi}>
-          {/* Connection from palm to finger base */}
           <line
             x1={HAND_POINTS.wrist.x} y1={HAND_POINTS.wrist.y}
             x2={finger[0].x} y2={finger[0].y}
-            stroke="rgba(0,245,255,0.15)" strokeWidth="1" strokeDasharray="2 2"
+            stroke={tokens.color.border} strokeWidth="1" strokeDasharray="2 2"
           />
-          {/* Finger segments */}
           {finger.map((pt, si) => si < finger.length - 1 ? (
             <motion.line
               key={si}
               x1={pt.x} y1={pt.y}
               x2={finger[si + 1].x} y2={finger[si + 1].y}
-              stroke={isPinch && (fi === 0 || fi === 1) ? '#a855f7' : '#00f5ff'}
+              stroke={tokens.color.accent}
               strokeWidth="2"
               strokeLinecap="round"
-              animate={{
-                stroke: isPinch && (fi === 0 || fi === 1)
-                  ? ['#a855f7', '#00f5ff', '#a855f7']
-                  : isOpenPalm
-                  ? ['#00f5ff', '#22c55e', '#00f5ff']
-                  : ['#00f5ff', 'rgba(0,245,255,0.6)', '#00f5ff'],
-              }}
+              animate={{ opacity: isPinch && (fi === 0 || fi === 1) ? [0.5, 1, 0.5] : [0.65, 1, 0.65] }}
               transition={{ duration: 1.5, repeat: Infinity }}
             />
           ) : null)}
-          {/* Joint dots */}
           {finger.map((pt, si) => (
             <motion.circle
               key={si}
               cx={pt.x} cy={pt.y} r={si === finger.length - 1 ? 5 : 3.5}
-              fill={si === finger.length - 1 ? 'rgba(0,245,255,0.6)' : 'rgba(0,245,255,0.4)'}
-              stroke="#00f5ff" strokeWidth="1"
+              fill={tokens.color.accentSoft}
+              stroke={tokens.color.accent} strokeWidth="1"
               animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }}
               transition={{ duration: 2, repeat: Infinity, delay: si * 0.1 + fi * 0.05 }}
             />
@@ -85,9 +73,8 @@ function HandSkeleton({ gesture }: { gesture: string }) {
         </g>
       ))}
 
-      {/* Wrist dot */}
       <circle cx={HAND_POINTS.wrist.x} cy={HAND_POINTS.wrist.y} r={6}
-        fill="rgba(0,245,255,0.3)" stroke="#00f5ff" strokeWidth="1.5" />
+        fill={tokens.color.accentSoft} stroke={tokens.color.accent} strokeWidth="1.5" />
     </svg>
   );
 }
@@ -126,199 +113,89 @@ export function GesturePanel() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 flex items-center justify-center overflow-hidden p-3"
-          style={{ zIndex: 170, background: 'rgba(0, 4, 12, 0.92)', backdropFilter: 'blur(12px)' }}
+          style={{ zIndex: 170, backdropFilter: tokens.glass }}
         >
           <motion.div
             initial={{ scale: 0.92, y: 16 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.92, y: 16 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col"
-            style={{
-              maxHeight: 'calc(100dvh - 1.5rem)',
-              background: 'rgba(0, 10, 25, 0.95)',
-              border: '1px solid rgba(0,245,255,0.2)',
-              boxShadow: '0 0 60px rgba(0,245,255,0.1)',
-            }}
+            className="w-full max-w-3xl overflow-hidden flex flex-col"
+            style={{ maxHeight: 'calc(100dvh - 1.5rem)' }}
           >
-            {/* Header — always visible */}
-            <div
-              className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-              style={{ borderBottom: '1px solid rgba(0,245,255,0.12)', background: 'rgba(0, 10, 25, 0.98)' }}
+            <VisionChrome
+              eyebrow="Système"
+              title={<span className="flex items-center gap-2"><Hand className="w-5 h-5" style={{ color: tokens.color.accent }} />Gestes</span>}
+              level="floating"
+              trailing={<div className="flex items-center gap-2"><GlassButton tone="neutral" onClick={openVisionSettings}>Paramètres Vision</GlassButton><GlassButton tone="danger" aria-label="Fermer les gestes" onClick={() => setGestureOpen(false)} icon={<X className="w-4 h-4" />} /></div>}
             >
-              <div className="flex items-center gap-3">
-                <Hand className="w-5 h-5" style={{ color: '#00f5ff' }} />
-                <div>
-                  <h2 style={{ ...orb, color: '#00f5ff', fontSize: '15px', letterSpacing: '0.15em', margin: 0 }}>
-                    CONTRÔLE GESTUEL
-                  </h2>
-                  <p style={{ ...mono, color: 'rgba(0,245,255,0.4)', fontSize: '10px', marginTop: 4 }}>
-                    Holomat · preview mock — config dans Paramètres → Vision
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={openVisionSettings}
-                  className="px-3 py-2 rounded-xl cursor-pointer"
-                  style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)' }}
-                >
-                  <span style={{ ...mono, color: '#a855f7', fontSize: '9px' }}>PARAMÈTRES VISION</span>
-                </motion.button>
-                <motion.button
-                whileHover={{ scale: 1.1, rotate: 90 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setGestureOpen(false)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer"
-                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
-              >
-                <X className="w-5 h-5" style={{ color: '#ef4444' }} />
-              </motion.button>
-              </div>
-            </div>
+              <p style={{ ...visionBody, marginBottom: tokens.space.md }}>Aperçu Holomat · configuration disponible dans Paramètres → Vision.</p>
+              <div className="flex flex-1 min-h-0 gap-3 overflow-hidden">
+                <GlassPanel level="subtle" padding={0} className="relative overflow-hidden flex-shrink-0" style={{ width: '55%', minHeight: 360 }}>
+                  <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(${tokens.color.border} 1px, transparent 1px), linear-gradient(90deg, ${tokens.color.border} 1px, transparent 1px)`, backgroundSize: '24px 24px', opacity: 0.35 }} />
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ border: `1px solid ${tokens.color.border}`, background: tokens.color.surfaceRaised }}>
+                    <Camera className="w-3 h-3" style={{ color: tokens.color.accent }} />
+                    <span style={visionCaption}>Caméra active · 60 ips</span>
+                    <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full" style={{ background: tokens.color.success }} />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center"><HandSkeleton gesture={activeGesture} /></div>
+                  <GlassPanel level="regular" padding="sm" className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                    <span style={{ ...visionMono, color: currentGesture.color }}>{activeGesture}</span>
+                  </GlassPanel>
+                </GlassPanel>
 
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-              {/* Camera preview */}
-              <div
-                className="relative overflow-hidden flex-shrink-0"
-                style={{ width: '55%', minHeight: 0, background: 'rgba(0,4,12,0.8)', borderRight: '1px solid rgba(0,245,255,0.1)' }}
-              >
-                {/* Simulated camera feed */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage: `
-                      radial-gradient(ellipse at 50% 50%, rgba(0,245,255,0.03) 0%, transparent 60%),
-                      linear-gradient(rgba(0,245,255,0.02) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(0,245,255,0.02) 1px, transparent 1px)
-                    `,
-                    backgroundSize: '100% 100%, 20px 20px, 20px 20px',
-                  }}
-                />
-
-                {/* Corner markers */}
-                {[
-                  { top: 12, left: 12 },
-                  { top: 12, right: 12 },
-                  { bottom: 12, left: 12 },
-                  { bottom: 12, right: 12 },
-                ].map((pos, i) => (
-                  <div
-                    key={i}
-                    className="absolute w-5 h-5"
-                    style={{
-                      ...pos,
-                      borderTop: i < 2 ? '1.5px solid rgba(0,245,255,0.5)' : 'none',
-                      borderBottom: i >= 2 ? '1.5px solid rgba(0,245,255,0.5)' : 'none',
-                      borderLeft: i % 2 === 0 ? '1.5px solid rgba(0,245,255,0.5)' : 'none',
-                      borderRight: i % 2 === 1 ? '1.5px solid rgba(0,245,255,0.5)' : 'none',
-                    }}
-                  />
-                ))}
-
-                {/* CAMERA badge */}
-                <div
-                  className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full"
-                  style={{ background: 'rgba(0,5,15,0.8)', border: '1px solid rgba(0,245,255,0.2)' }}
-                >
-                  <Camera className="w-3 h-3" style={{ color: '#00f5ff' }} />
-                  <span style={{ ...mono, color: 'rgba(0,245,255,0.7)', fontSize: '9px' }}>CAMÉRA ACTIVE — 60 ips</span>
-                  <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full" style={{ background: '#22c55e' }} />
-                </div>
-
-                {/* Hand skeleton */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <HandSkeleton gesture={activeGesture} />
-                </div>
-
-                {/* Gesture label overlay */}
-                <div
-                  className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl"
-                  style={{
-                    background: `${currentGesture.color}12`,
-                    border: `1px solid ${currentGesture.color}40`,
-                    backdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <span style={{ ...orb, color: currentGesture.color, fontSize: '11px', letterSpacing: '0.1em' }}>
-                    {activeGesture}
-                  </span>
-                </div>
-              </div>
-
-              {/* Right panel */}
-              <div className="flex-1 min-h-0 p-4 overflow-y-auto flex flex-col gap-3">
-                {/* Detection status */}
-                <div className="rounded-xl p-3" style={{ background: 'rgba(0,8,20,0.5)', border: '1px solid rgba(0,245,255,0.1)' }}>
+                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                  <GlassPanel level="subtle" padding="md">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Activity className="w-3.5 h-3.5" style={{ color: '#00f5ff' }} />
-                      <span style={{ ...mono, color: 'rgba(0,245,255,0.6)', fontSize: '10px' }}>ÉTAT DE DÉTECTION</span>
+                      <Activity className="w-3.5 h-3.5" style={{ color: tokens.color.accent }} />
+                      <span style={visionCaption}>État de détection</span>
                     </div>
-                    <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full" style={{ background: detecting ? '#22c55e' : '#ef4444' }} />
+                    <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full" style={{ background: detecting ? tokens.color.success : tokens.color.danger }} />
                   </div>
-
-                  {/* Confidence meter */}
                   <div className="flex items-center justify-between mb-1">
-                    <span style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: '9px' }}>CONFIANCE</span>
-                    <motion.span
-                      key={Math.round(confidence)}
-                      animate={{ opacity: [0.5, 1] }}
-                      style={{ ...mono, color: '#00f5ff', fontSize: '12px' }}
-                    >
-                      {confidence.toFixed(1)}%
-                    </motion.span>
+                    <span style={visionCaption}>Confiance</span>
+                    <motion.span key={Math.round(confidence)} animate={{ opacity: [0.5, 1] }} style={{ ...visionMono, color: tokens.color.accent }}>{confidence.toFixed(1)}%</motion.span>
                   </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      animate={{ width: `${confidence}%` }}
-                      transition={{ duration: 0.5 }}
-                      style={{ background: `linear-gradient(90deg, #00f5ff80, #00f5ff)`, boxShadow: '0 0 6px rgba(0,245,255,0.6)' }}
-                    />
-                  </div>
-                </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: tokens.color.surfaceRaised }}><motion.div className="h-full rounded-full" animate={{ width: `${confidence}%` }} transition={{ duration: 0.5 }} style={{ background: tokens.color.accent }} /></div>
+                  </GlassPanel>
 
-                {/* Current gesture details */}
-                <div className="rounded-xl p-3" style={{ background: `${currentGesture.color}08`, border: `1px solid ${currentGesture.color}25` }}>
-                  <p style={{ ...mono, color: 'rgba(255,255,255,0.4)', fontSize: '9px', marginBottom: 4 }}>GESTE ACTIF</p>
-                  <p style={{ ...raj, color: currentGesture.color, fontSize: '18px', textShadow: `0 0 10px ${currentGesture.color}` }}>
-                    {currentGesture.icon} {currentGesture.name}
-                  </p>
+                  <GlassPanel level="subtle" padding="md">
+                  <p style={{ ...visionCaption, marginBottom: 4 }}>Geste actif</p>
+                  <p style={{ ...visionMono, color: currentGesture.color, fontSize: 16, margin: 0 }}>{currentGesture.icon} {currentGesture.name}</p>
                   <div className="flex items-center gap-1 mt-1">
-                    <ChevronRight className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.3)' }} />
-                    <span style={{ ...raj, color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>{currentGesture.desc}</span>
+                    <ChevronRight className="w-3 h-3" style={{ color: tokens.color.textMuted }} />
+                    <span style={visionBody}>{currentGesture.desc}</span>
                   </div>
-                </div>
+                  </GlassPanel>
 
-                {/* Gesture reference */}
-                <div>
-                  <p style={{ ...mono, color: 'rgba(255,255,255,0.3)', fontSize: '9px', marginBottom: 8 }}>RÉFÉRENCE DES GESTES</p>
+                <GlassPanel level="subtle" padding="md">
+                  <p style={{ ...visionCaption, marginBottom: 8 }}>Référence des gestes</p>
                   <div className="flex flex-col gap-1.5">
                     {GESTURES.map(g => (
-                      <motion.button
+                      <GlassButton
                         key={g.name}
-                        whileHover={{ x: 4 }}
                         onClick={() => setActiveGesture(g.name)}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-left cursor-pointer"
+                        active={g.name === activeGesture}
+                        tone={g.color === tokens.color.danger ? 'danger' : g.color === tokens.color.warning ? 'warning' : g.color === tokens.color.success ? 'success' : 'accent'}
+                        className="w-full text-left"
                         style={{
-                          background: g.name === activeGesture ? `${g.color}10` : 'rgba(255,255,255,0.02)',
-                          border: `1px solid ${g.name === activeGesture ? `${g.color}30` : 'transparent'}`,
+                          justifyContent: 'flex-start',
                         }}
+                        icon={<span style={{ fontSize: 14 }}>{g.icon}</span>}
                       >
-                        <span style={{ fontSize: '14px' }}>{g.icon}</span>
                         <div className="flex flex-col">
-                          <span style={{ ...mono, color: g.name === activeGesture ? g.color : 'rgba(255,255,255,0.5)', fontSize: '9px' }}>{g.name}</span>
-                          <span style={{ ...raj, color: 'rgba(255,255,255,0.3)', fontSize: '10px' }}>{g.desc}</span>
+                          <span style={{ ...visionMono, color: g.name === activeGesture ? g.color : tokens.color.text }}>{g.name}</span>
+                          <span style={{ ...visionBody, fontSize: 11 }}>{g.desc}</span>
                         </div>
                         <Zap className="w-3 h-3 ml-auto" style={{ color: g.name === activeGesture ? g.color : 'transparent' }} />
-                      </motion.button>
+                      </GlassButton>
                     ))}
                   </div>
+                </GlassPanel>
                 </div>
               </div>
-            </div>
+            </VisionChrome>
           </motion.div>
         </motion.div>
       )}

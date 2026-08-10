@@ -413,6 +413,17 @@ const CUES: Record<VoyageAct, () => void> = {
     tone(65, t, 0.9, 'sine', 0.4);
     noiseBurst(t, 0.35, 0.22, 2500);
   },
+  // Le réseau se stabilise : arpège plus lent, timbre plus rond (triangle,
+  // pas square) — l'électricité de `neurones` se réchauffe déjà vers
+  // le swell harmonique de `orbe`.
+  reseau: () => {
+    const t = now();
+    [392, 523, 659, 784].forEach((f, i) => {
+      tone(f, t + i * 0.09, 0.5, 'triangle', 0.16);
+    });
+    tone(55, t, 1.4, 'sine', 0.45, 40);
+    noiseBurst(t, 0.4, 0.28, 1400, 0.25);
+  },
   orbe: () => {
     const t = now();
     noiseBurst(t, 0.6, 0.5, 900);

@@ -1,6 +1,7 @@
 /** Pages Dashboard Core — cahier §13.7 + host VPS + Recovery */
 export type Page =
   | 'recovery'
+  | 'hud'
   | 'dashboard'
   | 'command'
   | 'hermes'
@@ -20,6 +21,7 @@ export type Page =
 
 export const PAGE_TITLES: Record<Page, string> = {
   recovery: 'Recovery / Diagnostic',
+  hud: 'HUD · Surface kiosk',
   dashboard: 'Dashboard · Tokens & stats',
   command: 'Command Center',
   hermes: 'Hermes Core',
@@ -31,7 +33,7 @@ export const PAGE_TITLES: Record<Page, string> = {
   reach: 'Agent-Reach · Internet',
   apps: 'Applications',
   docker: 'Docker',
-  terminal: 'Terminal VPS',
+  terminal: 'Terminal · NUC / VPS / Pi',
   deploy: 'Déploiements',
   system: 'Système / Monitoring',
   ai: 'IA / Providers',

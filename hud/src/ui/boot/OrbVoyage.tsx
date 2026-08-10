@@ -49,6 +49,7 @@ export type VoyageAct =
   | 'adn'
   | 'cerveau'
   | 'neurones'
+  | 'reseau'
   | 'orbe';
 
 /**
@@ -61,7 +62,8 @@ export type VoyageAct =
  *   vague     mer / flow wave — le vivant de surface
  *   adn       ADN humain — le vivant
  *   cerveau   cerveau — l'organe de la conscience
- *   neurones  réseau neuronal — l'information s'allume
+ *   neurones  impulsions électriques — l'information s'allume, multicolore
+ *   reseau    réseau neuronal — se structure en grappe sphérique ambre
  *   orbe      JARVIS — la conscience condensée en IA
  *
  * L'ordre n'est pas décoratif : chaque figure est l'étape suivante du même
@@ -79,6 +81,7 @@ const ACT_IDS: VoyageAct[] = [
   'adn',
   'cerveau',
   'neurones',
+  'reseau',
   'orbe',
 ];
 
@@ -104,6 +107,7 @@ const ACT_TINT: Record<VoyageAct, [number, number, number]> = {
   adn: [0.45, 0.95, 0.9],
   cerveau: [0.95, 0.55, 0.75],
   neurones: [0.7, 0.85, 1.0],
+  reseau: [1.0, 0.9, 0.72], // ambre — amorce la teinte chaude de l'orbe
   orbe: [1.0, 1.0, 1.0], // neutre — stopMix JarvisOrb intact
 };
 
@@ -127,6 +131,7 @@ const ACT_FIT: Record<VoyageAct, number> = {
   adn: 1.35, // hélice plus grosse dans le cadre
   cerveau: 1.05, // profil complet avec tronc
   neurones: 1.55,
+  reseau: 1.5, // grappe compacte — cadrage proche de l'orbe finale
   orbe: 1.62, // plus petite dans le cadre — orbe entière visible + texte bas
 };
 
@@ -145,6 +150,7 @@ const ACT_SHIFT: Record<VoyageAct, number> = {
   adn: 0,
   cerveau: 0.18, // un peu de bas pour le tronc
   neurones: 0,
+  reseau: 0,
   orbe: 0.42, // descendue — plus de calotte coupée en haut
 };
 
@@ -166,6 +172,7 @@ const ACT_RIM: Record<VoyageAct, number> = {
   adn: 0.05,
   cerveau: 0.12,
   neurones: 0.05,
+  reseau: 0.5, // volume qui se referme — pont vers le rim élevé de l'orbe
   orbe: 0.95,
 };
 
@@ -194,6 +201,7 @@ const ACT_SURFACE: Record<VoyageAct, number> = {
   adn: 0.35, // brins bien présents
   cerveau: 0.55, // plis / profil lisibles
   neurones: 0,
+  reseau: 0,
   orbe: 0,
 };
 
@@ -217,6 +225,7 @@ const ACT_SPIN: Record<VoyageAct, number> = {
   adn: 0,
   cerveau: 0.0,
   neurones: 0.12,
+  reseau: 0.08, // rotation calme — la grappe se stabilise
   orbe: 0,
 };
 
@@ -242,6 +251,7 @@ const ACT_SPIN_QUANT: Record<VoyageAct, number> = {
   adn: 0,
   cerveau: 0,
   neurones: 0,
+  reseau: 0,
   orbe: 0,
 };
 
@@ -261,10 +271,11 @@ const ACT_FLOW: Record<VoyageAct, number> = {
   adn: 0,
   cerveau: 0,
   neurones: 0,
+  reseau: 0,
   orbe: 0,
 };
 
-/** Impulsions synaptiques visibles (battement + flash) — acte neurones. */
+/** Impulsions / flash sur les nœuds — actes neurones et reseau. */
 const ACT_PULSE: Record<VoyageAct, number> = {
   galaxies: 0,
   voyage: 0,
@@ -274,6 +285,7 @@ const ACT_PULSE: Record<VoyageAct, number> = {
   adn: 0,
   cerveau: 0,
   neurones: 1,
+  reseau: 0.6, // plus calme que neurones — la grappe se stabilise
   orbe: 0,
 };
 
@@ -287,6 +299,7 @@ const ACT_SEA: Record<VoyageAct, number> = {
   adn: 0,
   cerveau: 0,
   neurones: 0,
+  reseau: 0,
   orbe: 0,
 };
 
@@ -303,6 +316,7 @@ const ACT_PAL_LO: Record<VoyageAct, [number, number, number]> = {
   adn: [0.05, 0.25, 0.35],
   cerveau: [0.35, 0.12, 0.28],
   neurones: [0.1, 0.2, 0.55],
+  reseau: [0.22, 0.14, 0.04], // ambre sombre — socle des nœuds
   orbe: [0.23, 0.24, 0.58], // indigo JarvisOrb (unused si amt=0)
 };
 
@@ -315,18 +329,28 @@ const ACT_PAL_HI: Record<VoyageAct, [number, number, number]> = {
   adn: [0.55, 0.95, 0.92],
   cerveau: [0.95, 0.55, 0.75],
   neurones: [0.85, 0.95, 1.15],
+  reseau: [1.0, 0.86, 0.5], // or chaud — nœuds au flash
   orbe: [0.5, 0.83, 0.96], // limbe cyan JarvisOrb (unused si amt=0)
 };
 
 const ACT_PAL_AMT: Record<VoyageAct, number> = {
-  galaxies: 0.72,
+  // ⚠ Ce mélange écrase `starCol` (la couleur PAR POINT, calculée dans
+  // figures.ts) vers `ACT_PAL_LO/HI` (deux couleurs FIXES pour tout l'acte).
+  // Sur `galaxies` et `neurones`, un amt élevé noyait donc le travail fait
+  // au niveau du point (noyau chaud, teintes multicolores par hub) dans un
+  // dégradé à deux tons qui, lui, n'a pas bougé — c'est ce qui rendait ces
+  // deux actes visuellement identiques après coup. Baissé pour laisser
+  // passer la couleur par point ; gardé haut ailleurs où la figure DOIT
+  // rester dans sa palette (adn, cerveau, tunnel).
+  galaxies: 0.32,
   voyage: 0.88,
   solaire: 0.35,
   terre: 0.0, // garder starCol océan/continent — pas de lavage palette
   vague: 0.15,
   adn: 0.82,
   cerveau: 0.78,
-  neurones: 0.65,
+  neurones: 0.15,
+  reseau: 0.5, // s'estompe déjà vers stopMix — transition en douceur
   orbe: 0.0, // COULEURS JarvisOrb (stopMix) — pas de lavage Storm
 };
 
@@ -346,6 +370,7 @@ const ACT_TILT: Record<VoyageAct, number> = {
   adn: 0.55, // trois-quarts pour lire la double hélice
   cerveau: 0.25, // profil latéral
   neurones: 0.48,
+  reseau: 0.4,
   orbe: 0.32,
 };
 
@@ -361,6 +386,7 @@ const ACT_ROLL: Record<VoyageAct, number> = {
   adn: 0.22,
   cerveau: 0.08, // profil stable
   neurones: -0.18,
+  reseau: -0.1,
   orbe: 0,
 };
 
@@ -374,6 +400,7 @@ const ACT_FOV: Record<VoyageAct, number> = {
   adn: 42,
   cerveau: 38,
   neurones: 42,
+  reseau: 42,
   orbe: 40,
 };
 

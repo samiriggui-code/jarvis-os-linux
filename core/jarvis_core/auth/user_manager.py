@@ -63,6 +63,8 @@ def _row_to_user(row: UserRow) -> User:
         display_name=row.display_name,
         role=Role(row.role),
         pin_hash=row.pin_hash,
+        title=getattr(row, "title", None),
+        birth_date=getattr(row, "birth_date", None),
         face_enrolled=bool(row.face_enrolled),
         voice_enrolled=bool(row.voice_enrolled),
         gesture_enrolled=bool(row.gesture_enrolled),
@@ -130,6 +132,8 @@ class UserManager:
         display_name: str | None = None,
         role: Role | None = None,
         pin: str | None = None,
+        title: str | None = None,
+        birth_date: str | None = None,
         face_enrolled: bool = False,
         voice_enrolled: bool = False,
         gesture_enrolled: bool = False,
@@ -143,6 +147,13 @@ class UserManager:
         if role is None:
             role = Role.ADMIN if self.is_first_run() else Role.USER
 
+        title_n = (title or "").strip().lower() or None
+        if title_n and title_n not in {"monsieur", "madame", "mademoiselle"}:
+            raise ValueError(f"civilité invalide : {title}")
+        birth_n = (birth_date or "").strip() or None
+        if birth_n and len(birth_n) != 10:
+            raise ValueError("birth_date attendu YYYY-MM-DD")
+
         now = _utcnow()
         user_id = str(uuid.uuid4())
         pin_hash = hash_pin(pin) if pin else None
@@ -155,6 +166,8 @@ class UserManager:
                     display_name=display_name or username,
                     role=role.value,
                     pin_hash=pin_hash,
+                    title=title_n,
+                    birth_date=birth_n,
                     face_enrolled=face_enrolled,
                     voice_enrolled=voice_enrolled,
                     gesture_enrolled=gesture_enrolled,

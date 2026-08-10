@@ -79,8 +79,8 @@ const POLICY_BY_PERSONA: Record<DevicePersona, Omit<DevicePolicy, 'persona' | 't
     gesturesAllowed: false,
     cinematicBoot: false,
     uiDensity: 'compact',
-    authFactors: { face: true, voice: false, pin: false },
-    unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
+    authFactors: { face: false, voice: true, pin: false },
+    unlock: { requireFaceInFrame: false, requireVoicePhrase: true },
     sessionSecurity: 'remote',
     idleLockMinutes: 10,
   },
@@ -91,8 +91,8 @@ const POLICY_BY_PERSONA: Record<DevicePersona, Omit<DevicePolicy, 'persona' | 't
     gesturesAllowed: false,
     cinematicBoot: true,
     uiDensity: 'comfortable',
-    authFactors: { face: true, voice: false, pin: false },
-    unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
+    authFactors: { face: false, voice: true, pin: false },
+    unlock: { requireFaceInFrame: false, requireVoicePhrase: true },
     // Tablette murale maison : lock, pas de logout à la fermeture.
     sessionSecurity: 'household',
     idleLockMinutes: 10,
@@ -100,35 +100,34 @@ const POLICY_BY_PERSONA: Record<DevicePersona, Omit<DevicePolicy, 'persona' | 't
   laptop: {
     micAlwaysReady: true,
     cameraSleepByDefault: true,
-    gesturesAllowed: false, // faux positifs devant le portable
+    gesturesAllowed: true,
     cinematicBoot: true,
     uiDensity: 'comfortable',
-    authFactors: { face: true, voice: false, pin: false },
-    unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
+    authFactors: { face: false, voice: true, pin: false },
+    unlock: { requireFaceInFrame: false, requireVoicePhrase: true },
     sessionSecurity: 'remote',
     idleLockMinutes: 10,
   },
   desktop: {
     micAlwaysReady: true,
     cameraSleepByDefault: true,
-    gesturesAllowed: false, // gestes pas au point — faux positifs grille apps
+    gesturesAllowed: true,
     cinematicBoot: true,
     uiDensity: 'spacious',
-    authFactors: { face: true, voice: false, pin: false },
-    unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
+    authFactors: { face: false, voice: true, pin: false },
+    unlock: { requireFaceInFrame: false, requireVoicePhrase: true },
     sessionSecurity: 'household',
     idleLockMinutes: 15,
   },
   kiosk: {
     micAlwaysReady: true,
-    // TV salon : micro wake OK ; caméra OFF hors auth/lock (Celeron 2 cœurs —
-    // flux + GPU Chromium à 70 %+ sinon). Gestes OFF.
+    // TV salon : micro wake OK ; caméra OFF hors gestes explicites.
     cameraSleepByDefault: true,
     gesturesAllowed: false,
     cinematicBoot: true,
     uiDensity: 'spacious',
-    authFactors: { face: true, voice: false, pin: false },
-    unlock: { requireFaceInFrame: true, requireVoicePhrase: false },
+    authFactors: { face: false, voice: true, pin: false },
+    unlock: { requireFaceInFrame: false, requireVoicePhrase: true },
     sessionSecurity: 'household',
     idleLockMinutes: 0, // écran allumé en permanence
   },
@@ -161,19 +160,22 @@ export function resetDevicePolicy(): void {
   cached = null;
 }
 
-/** Gestes : OFF par défaut. Opt-in uniquement `?gestures=1` ou localStorage `jarvis_gestures=1`. */
+/**
+ * Gestes Holomat / MediaPipe.
+ * Priorité : `?gestures=0|1` → localStorage `jarvis_gestures` → persona.
+ * Laptop/desktop : ON par défaut. Phone/tablet/kiosk : OFF (opt-in `?gestures=1`).
+ */
 export function gesturesPolicyEnabled(): boolean {
-  if (!getDevicePolicy().gesturesAllowed) return false;
   if (typeof window === 'undefined') return false;
   const forced = new URLSearchParams(window.location.search).get('gestures');
-  if (forced === '1') return true;
-  if (forced === '0') return false;
+  if (forced === '0' || forced === 'false') return false;
+  if (forced === '1' || forced === 'true') return true;
   try {
     const stored = window.localStorage.getItem('jarvis_gestures');
-    if (stored === '1') return true;
     if (stored === '0') return false;
+    if (stored === '1') return true;
   } catch { /* */ }
-  return false;
+  return getDevicePolicy().gesturesAllowed;
 }
 
 /** Pose `data-persona` + densité CSS sur <html> (échelle TV 40″). */

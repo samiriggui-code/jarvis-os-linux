@@ -26,7 +26,6 @@ class HolomatHandlerMixin:
         # reste indépendant : un device sans cam n'éteint pas le service.
         camera = "unknown" if self._camera_ok is None else ("ok" if self._camera_ok else "missing")
 
-        from ...vision.face_mesh import ALGO_NAME
         from ...vision.face_engine import PRESENCE_HITS_NEEDED
 
         if action == "camera":
@@ -49,7 +48,12 @@ class HolomatHandlerMixin:
                 "calibrated": bool(calib.get("calibrated")),
                 "calibration": calib,
                 "face_engine": face_ready,
-                "algo": ALGO_NAME if face_ready else None,
+                # Algo RÉELLEMENT chargé (`FaceRunner.status()["algo"]`), pas une
+                # constante — un NUC sans AVX bascule sur opencv_sface en silence
+                # côté moteur, et rien ne devait plus jamais l'affirmer autrement
+                # ici (bug trouvé le 2026-08-10 : ce champ répondait toujours
+                # « mediapipe_facemesh », même en secours OpenCV).
+                "algo": face_state.get("algo") if face_ready else None,
                 "face": face_state,
             }))
             return

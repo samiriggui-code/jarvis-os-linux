@@ -11,8 +11,8 @@ export function HoloFace({ phase = 'idle', progress = 0 }: { phase?: HoloFacePha
   const color =
     phase === 'ok' ? '#22c55e' :
     phase === 'denied' ? '#ef4444' :
-    phase === 'listening' ? '#19f0d8' :
-    '#00e5ff';
+    phase === 'listening' ? '#0A84FF' :
+    '#0A84FF';
 
   const pulse = phase === 'scanning' || phase === 'listening';
 

@@ -422,7 +422,10 @@ plus petit, ou un modèle distant payant pour Hermes seul.
    « Discovery ≠ droits » (SOUL.md), pour un LLM on n'enseigne pas ce qu'on refuse.
    Rien ne le documente : quelqu'un « corrigera » l'une des deux un jour.
 4. **Trois magasins de mémoire** : `core/jarvis_core/memory.py`, l'outil `memory`
-   d'Hermes, et `deploy/hermes/memories/MEMORY.md`.
+   d'Hermes, et `deploy/hermes/memories/MEMORY.md` (wiki Markdown — idée memU).
+   Progressive retrieve avant tâche non triviale ; agent distille, store rappelle.
+   **Pas** de 4ᵉ store (memU cloud/sidecar, vector tiers). Voir
+   `deploy/hermes/memories/README.md` + § mémoire dans `JARVIS-VISION-ORCHESTRATION.md`.
 5. **Doublons voix** : `text_to_speech`, `wake_word.py` et `voice_mode.py` côté Hermes
    font doublon avec `core/jarvis_core/voice/`.
 

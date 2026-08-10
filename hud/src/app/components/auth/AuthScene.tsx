@@ -4,12 +4,13 @@
  * Cahier §10.1 / §13.10 — piloté par ExperienceOrchestrator (§3.5)
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { SkipForward, UserPlus } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { FaceCamView } from './FaceCamView';
-import { EmmaHologram3D } from './EmmaHologram3D';
-import { Orb } from '../orb';
+import { AuthVoiceWave } from './AuthVoiceWave';
+import { OrbSpatial } from './OrbSpatial';
 import { speakDev, initTtsDev, stopDev } from '../../bridge/ttsDev';
 import { runFaceAuthFlow } from '../../engine/faceAuthSimulator';
 import { runFaceVerifyLive } from '../../bridge/faceAuthLive';
@@ -26,15 +27,35 @@ import {
   ensureMic,
   getCameraStream,
   getMediaState,
-  withCamera,
+  tryPrimeCamera,
+  tryPrimeMic,
 } from '../../bridge/mediaDevices';
 import { isCoreOnline } from '../CoreBridge';
 import { DEV_BUILD, isAuthBypassEnabled } from '../../bridge/devAuthBypass';
 import { isBootAlreadyOk, markBootOk } from './SystemBootGate';
+import { Background } from '../Background';
+import { ThemeModeToggle } from '../ThemeModeToggle';
+import { GlassButton, GlassCard, GlassPanel } from '../../../components/glass';
+import { tokens } from '../../../ui/tokens';
+import { ACCENT, DANGER, MUTED, SUCCESS, TEXT, WARNING, orbFont } from '../hudTheme';
+import { visionTitle, visionCaption, visionBody } from '../visionChrome';
 
-/* ─── Fonts ─────────────────────────────────────────────────────────────────── */
-const orbF = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
+const orbF = orbFont;
+
+const BOOT_LABELS: Record<string, string> = {
+  hermes: 'Noyau Hermes',
+  voice: 'Système vocal',
+  face: 'Reconnaissance faciale',
+  holomat: 'Vision Holomat',
+  users: 'Base utilisateurs',
+  agents: 'Réseau d’agents',
+};
+
+const displayStatus = (value: string) =>
+  value
+    .toLocaleLowerCase('fr-FR')
+    .replace(/_/g, ' ')
+    .replace(/(^|[\s·-])([\p{L}])/gu, (_, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('fr-FR')}`);
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 type BootCheck = {
@@ -105,8 +126,6 @@ export function AuthScene({ onRequestEnroll }: Props) {
     obstruction: false,
     retry: 0,
   });
-  /** Rampe 0→100 en boucle, uniquement pour le mode démo `?holo=1`. */
-  const [holoDemo, setHoloDemo] = useState(0);
   const [orchState, setOrchState]   = useState<OrchestratorState>({
     stepIndex: -1,
     currentStep: null,
@@ -162,6 +181,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
 
   /** Login User Manager puis unlock HUD — plus de unlock local seul. */
   const armMedia = useCallback(async () => {
+    // Doit être appelé depuis un geste utilisateur (clic) si perm === prompt.
     setMediaHint('Demande caméra + micro…');
     const s = await ensureCameraAndMic();
     const camOk = s.camera === 'granted'
@@ -179,6 +199,27 @@ export function AuthScene({ onRequestEnroll }: Props) {
     else setMediaHint('Micro refusé — caméra OK');
     return s;
   }, [resolveCamWaiters]);
+
+  /** Arme sans prompt navigateur — si besoin d’un clic, attend AUTORISER CAMÉRA. */
+  const ensureCameraReady = useCallback(async (): Promise<boolean> => {
+    const primed = await tryPrimeCamera();
+    void tryPrimeMic().catch(() => null);
+    const live = Boolean(
+      primed?.getVideoTracks().some((t) => t.readyState === 'live')
+      || getCameraStream()?.getVideoTracks().some((t) => t.readyState === 'live'),
+    );
+    if (live) {
+      setCameraGranted(true);
+      setMediaArmed(true);
+      setCamEpoch((e) => e + 1);
+      setMediaHint('');
+      resolveCamWaiters(true);
+      return true;
+    }
+    setCameraGranted(false);
+    setMediaHint('Cliquez AUTORISER CAMÉRA pour activer le capteur');
+    return waitForCameraGrant();
+  }, [resolveCamWaiters, waitForCameraGrant]);
 
   const coreUnlock = useCallback(async (meta: { method: string; confidence?: number; user_id?: string; username?: string }) => {
     try {
@@ -213,7 +254,53 @@ export function AuthScene({ onRequestEnroll }: Props) {
     }
   }, []);
 
-  /** Enrôlement : visage admin connu — plus de PIN. */
+  /**
+   * Deuxième facteur — phrase d'accès vocale, APRÈS un visage reconnu.
+   *
+   * Avant : la séquence Core « auth » démarrait dès l'entrée sur cet écran,
+   * en parallèle du scan facial, sans que rien côté HUD n'attende son issue
+   * — un facteur purement décoratif. Ici on ne la lance qu'une fois le
+   * visage confirmé, et on attend vraiment le résultat avant de déverrouiller
+   * (2026-08-10, retour utilisateur : « deux facteurs, visage puis voix »).
+   */
+  const confirmVoicePassphrase = useCallback((): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      const client = getCoreClient();
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        unsubscribe();
+        resolve(ok);
+      };
+      const unsubscribe = client.subscribe((data) => {
+        if (data.type === 'auth_sequence_result' && data.sequence === 'auth') {
+          finish(Boolean(data.ok));
+        }
+      });
+      // Générosité volontaire : la séquence Core relance deux fois avant de
+      // se taire (`WAIT_RELANCES_S`), et l'audio de narration prend du temps
+      // avant même d'atteindre l'attente réelle. Passé ce délai on abandonne
+      // et on coupe proprement la séquence côté Core (`sequence_stop`).
+      const timer = window.setTimeout(() => {
+        try { client.send({ type: 'auth', action: 'sequence_stop' }); } catch { /* */ }
+        finish(false);
+      }, 40_000);
+      try {
+        client.send({ type: 'auth', action: 'sequence_start', sequence: 'auth' });
+      } catch {
+        finish(false);
+      }
+    });
+  }, []);
+
+  /**
+   * Bouton enroll après `no_profile` : ouvrir FirstSetup directement.
+   * Ne PAS exiger un visage admin — aucun profil facial n'existe encore
+   * (sinon boucle : « admin non reconnu » pour créer le premier admin).
+   * Gate admin réelle = session déjà ouverte / skill family-enroll.
+   */
   const requestEnroll = useCallback(async () => {
     if (enrollGateBusy) return;
     setEnrollGateBusy(true);
@@ -221,32 +308,6 @@ export function AuthScene({ onRequestEnroll }: Props) {
     try {
       if (!isCoreOnline()) {
         setEnrollGateError('Core hors ligne');
-        return;
-      }
-      const result = await runFaceVerifyLive({
-        reason: 'enroll_admin',
-        isAlive: () => aliveRef.current,
-        patchHud: (hudText, hudSubtext) => {
-          orchRef.current?.patchHud({ hudText, hudSubtext });
-        },
-      });
-      if (!result.ok || !result.user_id) {
-        setEnrollGateError('Visage admin non reconnu — réessayez');
-        return;
-      }
-      const res = await authLogin({
-        user_id: result.user_id,
-        username: result.username,
-        method: 'face',
-        confidence: result.confidence ?? 0.95,
-      });
-      if (!res.ok) {
-        setEnrollGateError(res.error || 'Autorisation admin refusée');
-        return;
-      }
-      const role = String(res.event?.user?.role || '').toUpperCase();
-      if (role && role !== 'ADMIN') {
-        setEnrollGateError('Seul un administrateur peut enrôler');
         return;
       }
       onRequestEnroll?.();
@@ -351,7 +412,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
         }
         console.warn('[boot] aucun boot_state — Core injoignable');
         setCheckStatus('hermes', 'failed');
-        finish('NOYAU COGNITIF INJOIGNABLE');
+        finish('Noyau cognitif injoignable');
       }, 15_000);
 
       // La cinématique ne précède plus le check : c'est AuthScene qui
@@ -392,26 +453,32 @@ export function AuthScene({ onRequestEnroll }: Props) {
           // ici faisait attendre `face.presence` 45 s à vide, tuait la branche
           // face, puis annonçait « Je n'ai personne devant le capteur » alors
           // que le scan n'avait même pas commencé.
-          finish(data.ok === false ? 'DÉMARRAGE INTERROMPU' : null);
+          finish(data.ok === false ? 'Démarrage interrompu' : null);
         }
       });
 
-      // HOLOMAT VISION : le Core ne peut pas sonder une caméra qu'il ne tient
-      // pas. On l'ouvre ici et on lui rapporte le résultat — c'est ce qui
-      // sépare « moteur de reconnaissance chargé » de « flux caméra ouvert ».
-      //
-      // ⚠ On REND la caméra aussitôt le résultat rapporté. C'est une sonde,
-      // pas un usage : savoir si l'objectif répond ne justifie pas de filmer
-      // ensuite. Le battement d'extinction de `withCamera` couvre l'enchaînement
-      // immédiat sur le scan facial, qui la redemandera de lui-même.
-      void withCamera('auth', async stream => {
-        client.send({
-          type: 'holomat',
-          action: 'camera',
-          ok: !!stream,
-          error: stream ? undefined : getMediaState().cameraError,
+      // HOLOMAT : ne PAS ouvrir getUserMedia au boot (withCamera puis release).
+      // Sur Windows ça timeout 10 s, laisse Chrome « en cours d'utilisation »,
+      // puis coupe → le vrai scan face_auth échoue ensuite.
+      // Présence caméra = enumerateDevices uniquement ; ouverture = geste /
+      // face_auth_flow (ensureCameraReady / AUTORISER CAMÉRA).
+      void navigator.mediaDevices?.enumerateDevices?.()
+        .then((devs) => {
+          const hasCam = devs.some((d) => d.kind === 'videoinput');
+          try {
+            client.send({
+              type: 'holomat',
+              action: 'camera',
+              ok: hasCam,
+              error: hasCam ? undefined : 'no_videoinput',
+            });
+          } catch { /* */ }
+        })
+        .catch(() => {
+          try {
+            client.send({ type: 'holomat', action: 'camera', ok: false, error: 'enumerate_failed' });
+          } catch { /* */ }
         });
-      });
     });
 
     /* — Définition des steps — */
@@ -463,31 +530,38 @@ export function AuthScene({ onRequestEnroll }: Props) {
         hudSubtext: 'Initialisation capteurs',
         orbState: 'processing' as const,
         avatarMode: 'scanning' as const,
-        // Pas d'armMedia() ici : waitForAsync() l'appelle déjà, attendu, juste
-        // en dessous. Un second appel non attendu ici court-circuitait le
-        // premier — deux getUserMedia() concurrents sur le même périphérique,
-        // cause plausible de « Timeout starting video source ».
+        // Ne PAS appeler ensureCamera() ici sans geste : Chrome refuse / pend
+        // (OPTICAL SENSOR… + inflight partagé avec le bouton Autoriser).
         waitForAsync: async () => {
           const orch = orchRef.current;
           if (!orch) return;
           setOfferEnroll(false);
           setEnrollHint('');
-          setEnrollGateOpen(false);
           setEnrollGateError('');
-          setEnrollAdminPin('');
+          // Reset offre enroll seulement (offerEnroll). L’ancienne gate PIN
+          // (enrollGateOpen / enrollAdminPin) n’existe plus — ne pas la rappeler.
 
-          await armMedia();
-
-          // Caméra armée (ou refusée) : maintenant seulement on démarre la
-          // narration Core. Les frames `face_frame` partent juste après.
-          if (isCoreOnline() && !faceFailDemo) {
-            try {
-              getCoreClient().send({ type: 'auth', action: 'sequence_start', sequence: 'auth' });
-            } catch {
-              // Core injoignable : le HUD continue, l'écran restera muet.
-            }
+          orch.patchHud({
+            hudText: 'FACE AUTH',
+            hudSubtext: 'Préparation capteur optique',
+            orbState: 'processing',
+            avatarMode: 'scanning',
+          });
+          const camReady = await ensureCameraReady();
+          if (!aliveRef.current) return;
+          if (!camReady) {
+            orch.patchHud({
+              hudText: 'CAMÉRA REQUISE',
+              hudSubtext: getMediaState().cameraError || 'Autorisez la caméra dans le navigateur',
+              orbState: 'listening',
+              avatarMode: 'listening',
+            });
+            return;
           }
 
+          // Pas de `sequence_start` ici — la phrase d'accès vocale ne se
+          // déclenche plus qu'APRÈS un visage reconnu (deuxième facteur),
+          // jamais en parallèle du scan facial. Voir `confirmVoicePassphrase`.
           const useLive = isCoreOnline() && !faceFailDemo;
           let ok = false;
           let failReason = '';
@@ -519,13 +593,35 @@ export function AuthScene({ onRequestEnroll }: Props) {
                 },
               });
               if (result.ok) {
-                ok = true;
                 faceUserRef.current = {
                   user_id: result.user_id,
                   username: result.username,
                   confidence: result.confidence,
                 };
-                break;
+                orch.patchHud({
+                  hudText: 'PHRASE D\'ACCÈS',
+                  hudSubtext: 'Visage reconnu — dites la phrase pour confirmer',
+                  orbState: 'listening',
+                  avatarMode: 'listening',
+                });
+                const voiceOk = await confirmVoicePassphrase();
+                if (!aliveRef.current) return;
+                if (voiceOk) {
+                  ok = true;
+                  break;
+                }
+                // Visage reconnu mais pas de confirmation vocale : on ne
+                // déverrouille pas — deux facteurs requis, on retente.
+                faceUserRef.current = null;
+                orch.patchHud({
+                  hudText: 'PHRASE NON RECONNUE',
+                  hudSubtext: 'Visage reconnu, confirmez avec la phrase d\'accès',
+                  orbState: 'listening',
+                  avatarMode: 'listening',
+                });
+                await new Promise(r => setTimeout(r, 1200));
+                if (!aliveRef.current) return;
+                continue;
               }
               failReason = result.reason || '';
               failHudSubtext = result.hudSubtext || '';
@@ -534,12 +630,14 @@ export function AuthScene({ onRequestEnroll }: Props) {
                 failReason === 'timeout' ||
                 failReason === 'no_camera';
               if (soft) {
+                // Textes Core en priorité (FACE_* hudText/hudSubtext).
                 orch.patchHud({
-                  hudText: failReason === 'no_camera' ? 'CAMÉRA REQUISE' : 'PRÉSENCE REQUISE',
-                  hudSubtext:
-                    failReason === 'no_camera'
+                  hudText: result.hudText
+                    || (failReason === 'no_camera' ? 'CAMÉRA REQUISE' : 'SCAN FACIAL'),
+                  hudSubtext: failHudSubtext
+                    || (failReason === 'no_camera'
                       ? (getMediaState().cameraError || 'Autorisez la caméra dans le navigateur')
-                      : 'Placez-vous face à la caméra',
+                      : 'Placez votre visage face à la caméra'),
                   orbState: 'listening',
                   avatarMode: 'listening',
                 });
@@ -596,8 +694,8 @@ export function AuthScene({ onRequestEnroll }: Props) {
               setOfferEnroll(true);
               setEnrollHint(
                 coreAuthRef.current.userCount > 0
-                  ? 'Profil facial absent ou non reconnu. Validation admin requise avant enrôlement.'
-                  : 'Aucun profil facial sur ce Core — premier enrôlement.',
+                  ? 'Aucun visage enregistré sur ce Core. Créez le premier profil (admin).'
+                  : 'Premier démarrage — créez le profil administrateur.',
               );
             }
             // Pas de throw : on reste sur face — pas de PIN de secours.
@@ -714,12 +812,12 @@ export function AuthScene({ onRequestEnroll }: Props) {
   const isVoiceScan = false;
 
   const accentColor = denied || bootBlocked
-    ? '#ef4444'
+    ? DANGER
     : isComplete
-      ? '#22c55e'
+      ? SUCCESS
       : orchState.orbState === 'listening'
-        ? '#19f0d8'
-        : '#00e5ff';
+        ? ACCENT
+        : ACCENT;
 
   const faceMode = denied
     ? 'denied' as const
@@ -731,38 +829,26 @@ export function AuthScene({ onRequestEnroll }: Props) {
     orchState.currentStep?.id === 'face_auth_flow' ||
     (faceHologram.phase !== 'waiting' && faceHologram.progress > 0 && !factors.face);
 
-  /** `?holo=1` en dev : force le hologramme pour régler l'effet sans devoir
-   *  refaire une authentification faciale complète à chaque retouche. */
-  const forceHolo =
-    import.meta.env.DEV &&
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).has('holo');
-
-  useEffect(() => {
-    if (!forceHolo) return;
-    const id = setInterval(() => setHoloDemo(p => (p >= 100 ? 0 : p + 2)), 120);
-    return () => clearInterval(id);
-  }, [forceHolo]);
 
   /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
     <motion.div
-      className="fixed inset-0 z-[300] flex flex-col items-center overflow-x-hidden overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-[300] flex flex-col items-center overscroll-contain overflow-x-hidden"
       style={{
-        background: 'radial-gradient(ellipse at 50% 30%, #071828 0%, #020509 70%)',
-        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
-        paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
+        height: '100dvh',
+        maxHeight: '100dvh',
+        overflowY: isAuth ? 'hidden' : 'auto',
+        paddingTop: 'max(0.35rem, env(safe-area-inset-top))',
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Scanlines */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-20"
-        style={{ background: 'repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,229,255,0.04) 3px 6px)' }}
-      />
+      <Background />
+      <div className="absolute top-3 right-3 z-20">
+        <ThemeModeToggle compact />
+      </div>
 
       {/* Phase BOOT */}
       <AnimatePresence>
@@ -774,293 +860,400 @@ export function AuthScene({ onRequestEnroll }: Props) {
             blocked={bootBlocked !== null}
             footer={
               bootBlocked ? (
-                <button
-                  type="button"
-                  onClick={() => window.location.reload()}
-                  className="rounded-xl px-4 py-2 cursor-pointer"
-                  style={{
-                    ...orbF,
-                    fontSize: 10,
-                    letterSpacing: '0.12em',
-                    color: '#ef4444',
-                    border: '1px solid rgba(239,68,68,0.4)',
-                    background: 'rgba(239,68,68,0.08)',
-                  }}
-                >
-                  RECHARGER
-                </button>
+                <GlassButton tone="danger" active onClick={() => window.location.reload()} style={{ ...orbFont }}>
+                  Recharger
+                </GlassButton>
               ) : undefined
             }
           />
         )}
       </AnimatePresence>
 
-      {/* Contenu principal — visible après boot */}
+      {/* Auth : titre + sections équilibrées, orbe hors transform (bas-droite) */}
       <AnimatePresence>
         {isAuth && (
           <motion.div
             key="main"
-            className="flex flex-col items-center gap-3 sm:gap-5 w-full max-w-md px-4 sm:px-6 py-4 my-auto min-h-0"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            className="relative z-10 flex flex-col items-center w-full flex-1 min-h-0 px-3 sm:px-4 overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.35 }}
+            style={{
+              paddingBottom: 'max(5.5rem, calc(env(safe-area-inset-bottom) + 4.5rem))',
+              paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
+            }}
           >
-            {/* Titre */}
-            <div className="text-center">
-              <h1 style={{ ...orbF, color: accentColor, fontSize: 'clamp(20px,4vw,32px)', letterSpacing: '0.38em', textShadow: `0 0 30px ${accentColor}66` }}>
-                J.A.R.V.I.S
-              </h1>
-              <p style={{ ...mono, color: 'rgba(0,229,255,0.4)', fontSize: 9, letterSpacing: '0.25em', marginTop: 6 }}>
-                BOOT AUTHENTICATION SEQUENCE
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <FactorChip label="VISAGE" ok={factors.face} />
-            </div>
-
-            {/* Caméra Holomat + reconstruction holographique par-dessus.
-                Même boîte, aucune modification de la mise en page : le canvas
-                d'EmmaHologram3D est transparent (`alpha: true`, clear à 0), il
-                se superpose au flux réel. La progression vient de la VRAIE
-                confiance biométrique renvoyée par YuNet/SFace — le hologramme
-                se construit au rythme de la reconnaissance, il ne joue pas une
-                animation décorative dans le vide. */}
-            <div className="flex items-end justify-center w-full shrink-0">
-              <div className="relative w-full flex justify-center" style={{ maxHeight: '40dvh' }}>
-                <FaceCamView
-                  key={`face-cam-${camEpoch}`}
-                  progress={scanProgress}
-                  active={inFaceFlow || scanProgress > 0 || mediaArmed || cameraGranted}
-                  label={factors.face ? 'HOLOMAT · OK' : 'HOLOMAT · CAM'}
-                />
-                {(inFaceFlow || forceHolo) && (
-                  <div
-                    className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden mx-auto"
-                    style={{
-                      width: 'min(92vw, 420px)',
-                      height: '100%',
-                      opacity: Math.min(0.92, 0.25 + faceHologram.progress / 130),
-                      transition: 'opacity 400ms linear',
-                      mixBlendMode: 'screen',
-                    }}
-                  >
-                    <EmmaHologram3D
-                      size={Math.min(280, typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.32) : 280)}
-                      progress={forceHolo ? holoDemo : faceHologram.progress}
-                      buildPhase={forceHolo ? 'reconstruction' : faceHologram.phase}
-                      speaking={orchState.isSpeaking}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {!cameraGranted && (
-              <button
-                type="button"
-                onClick={() => void armMedia()}
-                className="w-full max-w-xs rounded-xl px-4 py-3 cursor-pointer shrink-0"
-                style={{
-                  ...orbF,
-                  fontSize: 10,
-                  letterSpacing: '0.12em',
-                  color: '#00e5ff',
-                  background: 'rgba(0,229,255,0.1)',
-                  border: '1px solid rgba(0,229,255,0.45)',
-                }}
-              >
-                AUTORISER CAMÉRA + MICRO
-              </button>
-            )}
-            {mediaHint && (
-              <p style={{ ...mono, color: 'rgba(245,158,11,0.85)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
-                {mediaHint}
-              </p>
-            )}
-            {offerEnroll && (
-              <div className="w-full max-w-sm flex flex-col items-center gap-2 shrink-0">
-                <p style={{ ...mono, color: 'rgba(255,255,255,0.72)', fontSize: 10, letterSpacing: '0.08em', textAlign: 'center' }}>
-                  {enrollHint}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void requestEnroll()}
-                  disabled={enrollGateBusy}
-                  className="flex items-center gap-2 rounded-xl px-4 py-2 cursor-pointer"
+            <div
+              className="flex flex-col w-full h-full min-h-0 mx-auto"
+              style={{
+                maxWidth: 'min(720px, 100%)',
+                justifyContent: 'center',
+                gap: 'clamp(10px, 1.8vh, 16px)',
+              }}
+            >
+              {/* Titre de page */}
+              <header className="text-center shrink-0">
+                <p
                   style={{
-                    background: 'rgba(25,240,216,0.1)',
-                    border: '1px solid rgba(25,240,216,0.45)',
-                    opacity: enrollGateBusy ? 0.6 : 1,
+                    ...visionCaption,
+                    color: ACCENT,
+                    fontSize: 11,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    margin: 0,
                   }}
                 >
-                  <UserPlus className="w-4 h-4" style={{ color: '#19f0d8' }} />
-                  <span style={{ ...orbF, color: '#19f0d8', fontSize: 10, letterSpacing: '0.12em' }}>
-                    {enrollGateBusy ? 'VISAGE ADMIN…' : 'ENRÔLER — VISAGE ADMIN'}
-                  </span>
-                </button>
-                {enrollGateError && (
-                  <p style={{ ...mono, color: 'rgba(239,68,68,0.85)', fontSize: 9, letterSpacing: '0.08em', textAlign: 'center' }}>
-                    {enrollGateError}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Message HUD courant */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={orchState.hudText}
-                className="text-center shrink-0"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <p style={{ ...mono, color: 'rgba(255,255,255,0.75)', fontSize: 12, letterSpacing: '0.06em' }}>
-                  {orchState.hudText}
+                  Jarvis
                 </p>
-                {orchState.hudSubtext && (
-                  <p style={{ ...mono, color: 'rgba(0,229,255,0.45)', fontSize: 9, letterSpacing: '0.1em', marginTop: 3 }}>
-                    {orchState.hudSubtext}
-                  </p>
-                )}
-              </motion.div>
-            </AnimatePresence>
+                <h1
+                  style={{
+                    ...orbF,
+                    color: TEXT,
+                    fontSize: 'clamp(20px, 3.6vw, 28px)',
+                    margin: '4px 0 0',
+                    letterSpacing: '-0.02em',
+                    fontWeight: 600,
+                  }}
+                >
+                  Identification
+                </h1>
+                <p style={{ ...visionBody, marginTop: 4, fontSize: 12, color: MUTED }}>
+                  Holomat · authentification faciale
+                </p>
+              </header>
 
-            {/* Overlay scan barre */}
-            <PhaseOverlay
-              stepId={orchState.currentStep?.id ?? ''}
-              scanProgress={scanProgress}
-              accentColor={accentColor}
-              hudText={orchState.hudText}
-            />
-
-            {/* Dev only — pas de PIN session */}
-            {DEV_BUILD && orchState.isRunning && orchState.hudText !== 'SYSTÈME PRÊT' && (
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                onClick={() => unlockSession({ method: 'dev_skip' })}
-                className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2 cursor-pointer shrink-0"
-                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}
+              {/* Caméra | panneau — côte à côte */}
+              <div
+                className="w-full min-h-0"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 1fr)',
+                  gap: 'clamp(10px, 1.5vw, 16px)',
+                  alignItems: 'stretch',
+                }}
               >
-                <SkipForward className="w-3.5 h-3.5" style={{ color: '#f59e0b' }} />
-                <span style={{ ...mono, color: '#f59e0b', fontSize: 9, letterSpacing: '0.08em' }}>
-                  MODE DÉMO — PASSER L&apos;AUTH
-                </span>
-              </motion.button>
-            )}
+                {/* Colonne caméra — dimensions conservées */}
+                <div
+                  className="flex flex-col items-center min-h-0"
+                  style={{ gap: 'clamp(6px, 1vh, 10px)' }}
+                >
+                  <div className="flex justify-center shrink-0">
+                    <FactorChip label="Visage" ok={factors.face} />
+                  </div>
+
+                  <div
+                    className="relative w-full min-h-0 overflow-hidden"
+                    style={{
+                      height: 'clamp(140px, 28dvh, 260px)',
+                      maxHeight: 'clamp(140px, 28dvh, 260px)',
+                      borderRadius: tokens.radius.md,
+                    }}
+                  >
+                    <FaceCamView
+                      key={`face-cam-${camEpoch}`}
+                      progress={scanProgress}
+                      fill
+                      active={cameraGranted}
+                      label={factors.face ? 'Holomat · prêt' : inFaceFlow ? 'Analyse…' : 'Holomat · caméra'}
+                    />
+                  </div>
+
+                  {(inFaceFlow || mediaArmed || cameraGranted) && (
+                    <div className="w-full shrink-0" style={{ maxHeight: 22 }}>
+                      <AuthVoiceWave
+                        mode={
+                          denied
+                            ? 'denied'
+                            : factors.face
+                              ? 'ok'
+                              : orchState.isSpeaking
+                                ? 'speaking'
+                                : scanProgress > 5
+                                  ? 'processing'
+                                  : 'listening'
+                        }
+                        level={Math.min(1, Math.max(0.08, scanProgress / 100))}
+                        speakLevel={0.45}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Colonne statut / enrôlement */}
+                <GlassPanel
+                  level="regular"
+                  radius="md"
+                  padding="sm"
+                  className="w-full min-h-0"
+                  style={{
+                    pointerEvents: 'auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    height: '100%',
+                  }}
+                >
+                  <div className="flex flex-col items-center justify-center gap-2 text-center w-full">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={`${orchState.hudText}|${orchState.hudSubtext}`}
+                        initial={{ opacity: 0, y: 3 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <p style={{ ...visionTitle, fontSize: 14, color: TEXT, margin: 0 }}>
+                          {displayStatus(orchState.hudText || 'Authentification faciale')}
+                        </p>
+                        {orchState.hudSubtext ? (
+                          <p style={{ ...visionBody, fontSize: 11, color: ACCENT, marginTop: 4, opacity: 0.9 }}>
+                            {displayStatus(orchState.hudSubtext)}
+                          </p>
+                        ) : null}
+                      </motion.div>
+                    </AnimatePresence>
+
+                    {inFaceFlow && (
+                      <div className="w-full max-w-[12rem] h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(10,132,255,0.15)' }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${scanProgress}%`, background: accentColor, transition: 'width 0.15s linear' }}
+                        />
+                      </div>
+                    )}
+
+                    {!cameraGranted && (
+                      <GlassButton tone="accent" active onClick={() => void armMedia()} style={{ ...orbF, fontSize: 12, padding: '6px 12px' }}>
+                        Autoriser la caméra
+                      </GlassButton>
+                    )}
+                    {mediaHint && (
+                      <p style={{ ...visionCaption, color: WARNING, fontSize: 9, margin: 0 }}>
+                        {mediaHint}
+                      </p>
+                    )}
+
+                    {offerEnroll && (
+                      <GlassCard
+                        level="subtle"
+                        radius="md"
+                        padding="xs"
+                        eyebrow="Enrôlement"
+                        title="Créer le profil admin"
+                        subtitle={enrollHint}
+                        className="w-full"
+                      >
+                        <div className="flex flex-col items-center gap-1.5">
+                          <GlassButton
+                            tone="accent"
+                            active
+                            disabled={enrollGateBusy}
+                            icon={<UserPlus className="w-3.5 h-3.5" />}
+                            onClick={() => void requestEnroll()}
+                            style={{ fontSize: 12, padding: '6px 12px' }}
+                          >
+                            {enrollGateBusy ? 'Ouverture…' : 'Commencer l’enrôlement'}
+                          </GlassButton>
+                          {enrollGateError && (
+                            <p style={{ ...visionCaption, color: DANGER, fontSize: 9, textAlign: 'center', margin: 0 }}>
+                              {enrollGateError}
+                            </p>
+                          )}
+                        </div>
+                      </GlassCard>
+                    )}
+
+                    {DEV_BUILD && orchState.isRunning && orchState.hudText !== 'SYSTÈME PRÊT' && (
+                      <GlassButton
+                        tone="warning"
+                        active
+                        icon={<SkipForward className="w-3 h-3" />}
+                        onClick={() => unlockSession({ method: 'dev_skip' })}
+                        style={{ fontSize: 11, padding: '5px 10px' }}
+                      >
+                        Mode démo — passer
+                      </GlassButton>
+                    )}
+                  </div>
+                </GlassPanel>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Orbe — desktop */}
-      {isAuth && (
-        <motion.div
-          className="hidden md:flex absolute right-6 bottom-6 flex-col items-center gap-1 pointer-events-none"
-          initial={{ opacity: 0, scale: 0.6 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div style={{ width: 64, height: 64 }}>
-            <Orb
-              state={orchState.orbState}
-              volume={isVoiceScan ? 0.6 : 0.1}
+      {/* Orbe auth — portal body = jamais coupée par overflow/transform parents */}
+      {isAuth &&
+        createPortal(
+          <div
+            className="pointer-events-none"
+            style={{
+              position: 'fixed',
+              right: 'max(20px, env(safe-area-inset-right))',
+              bottom: 'max(28px, calc(env(safe-area-inset-bottom) + 20px))',
+              zIndex: 400,
+              width: 96,
+              height: 96,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'visible',
+            }}
+            aria-hidden
+          >
+            <OrbSpatial
+              size={72}
+              veille
+              state={
+                orchState.isSpeaking
+                  ? 'speaking'
+                  : orchState.orbState === 'listening' || isVoiceScan
+                    ? 'listening'
+                    : 'idle'
+              }
+              volume={orchState.isSpeaking ? 0.45 : 0.12}
               playbackVolume={0}
             />
-          </div>
-          <span style={{ ...mono, color: 'rgba(0,229,255,0.4)', fontSize: 7, letterSpacing: '0.1em' }}>
-            IDLE
-          </span>
-        </motion.div>
-      )}
+          </div>,
+          document.body,
+        )}
     </motion.div>
   );
 }
-
 /* ─── Boot overlay ───────────────────────────────────────────────────────────── */
 const CHECK_COLORS: Record<BootCheck['status'], string> = {
-  ok: '#22c55e',
-  loading: '#00e5ff',
-  failed: '#ef4444',
-  // Sondée par personne (composant non enregistré côté Core). Ni verte ni
-  // rouge : on n'en sait rien, et prétendre le contraire est le bug d'origine.
-  skipped: 'rgba(255,255,255,0.18)',
-  pending: 'rgba(255,255,255,0.25)',
+  ok: SUCCESS,
+  loading: ACCENT,
+  failed: DANGER,
+  skipped: MUTED,
+  pending: MUTED,
 };
 
 function BootOverlay(
   { checks, msg, subtext, blocked, footer }:
   { checks: BootCheck[]; msg: string; subtext: string; blocked: boolean; footer?: React.ReactNode },
 ) {
-  const accent = blocked ? '#ef4444' : '#00e5ff';
+  const accent = blocked ? DANGER : ACCENT;
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-start gap-3 sm:gap-4 px-4 sm:px-8 overflow-y-auto"
-      style={{ background: '#020509', paddingTop: 'min(10vh, 72px)' }}
+      className="absolute inset-0 z-10 flex flex-col items-center px-3 overflow-hidden"
+      style={{
+        height: '100%',
+        paddingTop: 'max(1rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+        justifyContent: 'space-between',
+        gap: 12,
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.6 }}
+      transition={{ duration: 0.5 }}
     >
-      {/* Orbe haute — tiers supérieur, pas centrée avec la checklist */}
-      <div className="shrink-0" style={{ width: 88, height: 88, marginBottom: 8 }}>
-        <Orb state={blocked ? 'idle' : 'thinking'} volume={blocked ? 0.05 : 0.4} playbackVolume={0} />
-      </div>
-
-      <motion.p
-        style={{ ...orbF, color: accent, fontSize: 11, letterSpacing: '0.4em', textShadow: `0 0 16px ${accent}88` }}
-        // Un écran d'échec ne clignote pas : il se fige. La pulsation dit
-        // « ça travaille », et ça ne travaille plus.
-        animate={blocked ? { opacity: 1 } : { opacity: [0.4, 1, 0.4] }}
-        transition={blocked ? { duration: 0 } : { duration: 1.4, repeat: Infinity }}
-      >
-        {msg}
-      </motion.p>
-
-      {/* Checks */}
-      <div className="flex flex-col gap-1.5 w-full max-w-xs">
-        {checks.map(c => (
-          <div key={c.label} className="flex items-center gap-2.5">
-            <div className="w-4 flex items-center justify-center flex-shrink-0">
-              {c.status === 'ok'      && <span style={{ color: CHECK_COLORS.ok, fontSize: 10 }}>✓</span>}
-              {c.status === 'failed'  && <span style={{ color: CHECK_COLORS.failed, fontSize: 10 }}>✕</span>}
-              {c.status === 'loading' && (
-                <motion.span
-                  style={{ color: CHECK_COLORS.loading, fontSize: 10 }}
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 0.6, repeat: Infinity }}
-                >▸</motion.span>
-              )}
-              {c.status === 'skipped' && <span style={{ color: CHECK_COLORS.skipped, fontSize: 10 }}>–</span>}
-              {c.status === 'pending' && <span style={{ color: 'rgba(0,229,255,0.2)', fontSize: 10 }}>·</span>}
-            </div>
-            <span style={{
-              ...mono, fontSize: 9, letterSpacing: '0.12em',
-              color: CHECK_COLORS[c.status],
-            }}>
-              {c.label}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Message courant */}
-      <AnimatePresence mode="wait">
-        <motion.p
-          key={subtext}
-          style={{ ...mono, color: 'rgba(255,255,255,0.5)', fontSize: 10, textAlign: 'center', letterSpacing: '0.06em' }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+      {/* Orbe + titre de page en haut */}
+      <header className="flex flex-col items-center shrink-0 pt-3" style={{ gap: 20 }}>
+        <div
+          className="flex items-center justify-center"
+          style={{ width: 104, height: 104, overflow: 'visible', flexShrink: 0 }}
         >
-          {subtext}
-        </motion.p>
-      </AnimatePresence>
+          <OrbSpatial size={80} veille={!blocked} state={blocked ? 'idle' : 'listening'} />
+        </div>
+        <div className="text-center">
+          <p
+            style={{
+              ...visionCaption,
+              color: accent,
+              fontSize: 12,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              margin: 0,
+              fontWeight: 600,
+            }}
+          >
+            JARVIS
+          </p>
+          <h1
+            style={{
+              ...visionTitle,
+              color: TEXT,
+              fontSize: 'clamp(18px, 3.2vw, 24px)',
+              margin: '10px 0 0',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            Vérification système
+          </h1>
+          <motion.p
+            style={{ ...visionBody, color: accent, fontSize: 12, marginTop: 8 }}
+            animate={blocked ? { opacity: 1 } : { opacity: [0.55, 1, 0.55] }}
+            transition={blocked ? { duration: 0 } : { duration: 1.8, repeat: Infinity }}
+          >
+            {displayStatus(msg)}
+          </motion.p>
+        </div>
+      </header>
 
-      {/* Secours. Une brique vitale est tombée : l'entrée par code reste le
-          seul chemin, et elle doit être ici — la scène d'auth, elle, n'est
-          jamais atteinte. */}
-      {blocked && footer}
+      {/* Checklist centrée */}
+      <GlassPanel
+        level="regular"
+        radius="md"
+        padding="sm"
+        className="w-full"
+        style={{ maxWidth: 360, flex: '0 1 auto' }}
+      >
+        <p style={{ ...visionCaption, color: accent, marginBottom: 6, fontSize: 10 }}>Contrôles</p>
+
+        <div className="flex flex-col gap-1 w-full">
+          {checks.map((c) => (
+            <div
+              key={c.label}
+              className="flex items-center gap-2"
+              style={{
+                padding: '5px 8px',
+                borderRadius: tokens.radius.sm,
+                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${tokens.color.border}`,
+              }}
+            >
+              <div className="w-4 flex items-center justify-center flex-shrink-0">
+                {c.status === 'ok' && <span style={{ color: CHECK_COLORS.ok, fontSize: 11 }}>✓</span>}
+                {c.status === 'failed' && <span style={{ color: CHECK_COLORS.failed, fontSize: 11 }}>✕</span>}
+                {c.status === 'loading' && (
+                  <motion.span
+                    style={{ color: CHECK_COLORS.loading, fontSize: 11 }}
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ duration: 0.8, repeat: Infinity }}
+                  >
+                    ●
+                  </motion.span>
+                )}
+                {c.status === 'skipped' && <span style={{ color: CHECK_COLORS.skipped, fontSize: 11 }}>–</span>}
+                {c.status === 'pending' && (
+                  <span style={{ color: MUTED, fontSize: 11, opacity: 0.5 }}>·</span>
+                )}
+              </div>
+              <span style={{ ...visionBody, fontSize: 12, color: CHECK_COLORS[c.status], flex: 1 }}>
+                {BOOT_LABELS[c.component] ?? displayStatus(c.label)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={subtext}
+            style={{ ...visionBody, fontSize: 11, textAlign: 'center', marginTop: 8 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {displayStatus(subtext)}
+          </motion.p>
+        </AnimatePresence>
+
+        {blocked && footer ? <div style={{ marginTop: 8 }}>{footer}</div> : null}
+      </GlassPanel>
+
+      {/* spacer bas pour équilibre vertical */}
+      <div className="shrink-0" style={{ height: 24 }} aria-hidden />
     </motion.div>
   );
 }
@@ -1071,59 +1264,15 @@ function FactorChip({ label, ok }: { label: string; ok: boolean }) {
     <div
       className="flex items-center gap-1.5 px-3 py-1 rounded-full"
       style={{
-        border: `1px solid ${ok ? 'rgba(34,197,94,0.5)' : 'rgba(0,229,255,0.2)'}`,
-        background: ok ? 'rgba(34,197,94,0.1)' : 'rgba(0,10,25,0.6)',
+        border: `1px solid ${ok ? tokens.color.success : tokens.color.border}`,
+        background: ok ? 'color-mix(in srgb, #34C759 14%, transparent)' : tokens.color.surface,
+        backdropFilter: tokens.glass,
       }}
     >
-      <div className="w-1.5 h-1.5 rounded-full" style={{ background: ok ? '#22c55e' : 'rgba(0,229,255,0.3)' }} />
-      <span style={{ ...mono, color: ok ? '#22c55e' : 'rgba(255,255,255,0.35)', fontSize: 8, letterSpacing: '0.1em' }}>
+      <div className="w-1.5 h-1.5 rounded-full" style={{ background: ok ? tokens.color.success : tokens.color.textMuted }} />
+      <span style={{ ...visionCaption, color: ok ? tokens.color.success : tokens.color.textMuted, fontSize: 10 }}>
         {label}
       </span>
     </div>
-  );
-}
-
-/* ─── Phase overlay (barre de scan) ─────────────────────────────────────────── */
-function PhaseOverlay({ stepId, scanProgress, accentColor, hudText }: {
-  stepId: string; scanProgress: number; accentColor: string; hudText: string;
-}) {
-  const isFaceScan  = stepId === 'face_auth_flow' || stepId.startsWith('face_scan');
-  const isVoiceAuth = stepId === 'voice_prompt' || stepId === 'voice_scan' || stepId === 'voice_ok';
-
-  if (!isFaceScan && !isVoiceAuth) return null;
-
-  const label = isFaceScan ? hudText : 'CANAL VOCAL SÉCURISÉ';
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        key={stepId}
-        className="w-full flex flex-col gap-2"
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0 }}
-      >
-        <div className="flex items-center gap-2">
-          <motion.div
-            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ background: accentColor }}
-            animate={{ opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 0.8, repeat: Infinity }}
-          />
-          <span style={{ ...mono, color: accentColor, fontSize: 9, letterSpacing: '0.18em' }}>
-            {label}
-          </span>
-        </div>
-
-        {isFaceScan && (
-          <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: 'rgba(0,229,255,0.1)' }}>
-            <motion.div
-              className="h-full rounded-full"
-              style={{ width: `${scanProgress}%`, background: accentColor, boxShadow: `0 0 8px ${accentColor}` }}
-            />
-          </div>
-        )}
-      </motion.div>
-    </AnimatePresence>
   );
 }

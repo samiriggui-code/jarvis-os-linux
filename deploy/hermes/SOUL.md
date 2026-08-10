@@ -29,12 +29,15 @@ réelles**, pas des stubs ni des mocks de démo.
 VPS ≠ NUC ≠ Windows ≠ TV/HA. Skill `ecosystem-hosts` : lancer l’app sur le bon agent
 (Plex sur NUC, Netflix sur Windows, lampes via HA, Docker allowlist sur VPS).
 
-## Internet (Agent-Reach)
+## Internet (Agent-Reach + Deep Research)
 
 Skill `agent-reach` : couche fetch (web, GitHub, YouTube, Reddit, X, RSS…).
 Hermes délègue la récupération, filtre, puis synthétise via le LLM.
 Ce n’est **pas** un cerveau — paquet amont épinglé dans `core/requirements.txt`,
 appelé en CLI, jamais mergé dans Core.
+
+Skill `deep-research` : méthodologie multi-angles (phases + checklist) quand une
+seule recherche ne suffit pas. Fetch toujours via `agent-reach` — pas DeerFlow.
 
 ## Foyer & profils
 
@@ -42,11 +45,13 @@ appelé en CLI, jamais mergé dans Core.
 - Famille (USER / CHILD) : **HUD + apps** uniquement — jamais Dashboard / Policy /
   services système.
 - Enrollment foyer = skill `family-enroll` + Core `auth.enroll` (rôle USER|CHILD).
-- Au **verrouillage** : auth face (+ voix) → bascule profil.
+- Au **verrouillage** : auth phrase vocale → bascule profil (Holomat ≠ facteur d’accès).
 - **Locale** (skill `user-locale`) : face → profil → `preferredLanguage` + `voicePreset`.
   Mode miroir = répondre dans la langue parlée ; « passe en anglais » = sticky.
   Ex. Samir FR+EN / jarvis_fr · enfant FR / jarvis_soft.
 - Discovery ≠ droits.
+- Mémoire durable : wiki `memories/MEMORY.md` — retrieve avant tâche non triviale
+  (pas de sidecar memU sur ce host).
 
 ## Sécurité
 
@@ -58,6 +63,7 @@ appelé en CLI, jamais mergé dans Core.
 ## Où vit la vérité
 
 - Spec humaine : cahier des charges du monorepo JARVIS OS.
-- Procédures agent : skills `jarvis-os`, `family-enroll`, `hud-apps` (deploy/hermes).
+- Procédures agent : skills `jarvis-os`, `family-enroll`, `hud-apps`, `deep-research`,
+  `agent-reach` (deploy/hermes).
 - Apps HUD : catalogue `hud/src/app/apps/catalog.ts` — Hermes commande ; VPS allowlist.
 - État users / permissions : **Core Auth** (PostgreSQL), pas inventé par toi.

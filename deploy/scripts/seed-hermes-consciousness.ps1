@@ -38,12 +38,17 @@ if ((-not (Test-Path $soulDst)) -or $ForceSoul) {
   Write-Host "SOUL.md kept (pass -ForceSoul to overwrite): $soulDst"
 }
 
-foreach ($skill in @("jarvis-os", "family-enroll")) {
-  $from = Join-Path $Src "skills\$skill"
-  $to = Join-Path $HermesHome "skills\$skill"
-  New-Item -ItemType Directory -Force -Path $to | Out-Null
-  Copy-Item (Join-Path $from "*") $to -Recurse -Force
-  Write-Host "skill $skill -> $to"
+# Tous les skills produit sous deploy/hermes/skills/ (aligné seed .sh)
+$skillsRoot = Join-Path $Src "skills"
+if (Test-Path $skillsRoot) {
+  Get-ChildItem $skillsRoot -Directory | ForEach-Object {
+    $skill = $_.Name
+    $from = $_.FullName
+    $to = Join-Path $HermesHome "skills\$skill"
+    New-Item -ItemType Directory -Force -Path $to | Out-Null
+    Copy-Item (Join-Path $from "*") $to -Recurse -Force
+    Write-Host "skill $skill -> $to"
+  }
 }
 
 $memSrc = Join-Path $Src "memories\MEMORY.md"

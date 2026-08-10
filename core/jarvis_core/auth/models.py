@@ -55,6 +55,8 @@ class User:
     display_name: str
     role: Role
     pin_hash: str | None = None
+    title: str | None = None  # monsieur | madame | mademoiselle
+    birth_date: str | None = None  # YYYY-MM-DD
     face_enrolled: bool = False
     voice_enrolled: bool = False
     gesture_enrolled: bool = False
@@ -73,6 +75,8 @@ class User:
             "username": self.username,
             "display_name": self.display_name,
             "role": self.role.value,
+            "title": self.title,
+            "birth_date": self.birth_date,
             "permissions": sorted(self.permissions()),
             "biometrics": {
                 "face": self.face_enrolled,

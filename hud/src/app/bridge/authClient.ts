@@ -19,6 +19,8 @@ export type AuthUser = {
   username: string;
   display_name?: string;
   role: string;
+  title?: string | null;
+  birth_date?: string | null;
   permissions?: string[];
   biometrics?: { face?: boolean; voice?: boolean; gesture?: boolean };
 };
@@ -92,6 +94,10 @@ export async function authEnroll(opts: {
   gesture?: boolean;
   /** USER | CHILD | GUEST — jamais ADMIN sauf first_run côté Core */
   role?: 'USER' | 'CHILD' | 'GUEST' | 'ADMIN';
+  /** monsieur | madame | mademoiselle */
+  title?: string;
+  /** YYYY-MM-DD */
+  birth_date?: string;
 }): Promise<{ ok: boolean; error?: string; user?: AuthUser }> {
   const pin = opts.pin ?? getEnrollPin();
   const data = await client().request(
@@ -105,6 +111,8 @@ export async function authEnroll(opts: {
       voice: opts.voice ?? true,
       gesture: opts.gesture ?? false,
       role: opts.role,
+      title: opts.title,
+      birth_date: opts.birth_date,
     },
     d => d.type === 'auth_enroll_result',
   );

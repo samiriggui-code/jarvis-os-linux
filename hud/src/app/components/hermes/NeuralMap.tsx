@@ -3,9 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Waypoints } from 'lucide-react';
 import { HERMES_NODES, HERMES_NODE_LIST, type NodeId } from './hermesNodes';
 import { NodeDetailPanel } from './NodeDetailPanel';
-
-const orbFont = { fontFamily: 'Orbitron, sans-serif' };
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
+import { ACCENT, monoFont, orbFont } from '../hudTheme';
+import { tokens } from '../../../ui/tokens';
 
 const SATELLITES = HERMES_NODE_LIST.filter(n => n.id !== 'hermes');
 const RX = 43;
@@ -60,11 +59,11 @@ export function NeuralMap() {
       <div className="relative flex-1 min-w-0 h-full" onClick={() => setSelected(null)}>
         <div
           className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full pointer-events-none"
-          style={{ zIndex: 20, background: 'rgba(0,8,22,0.8)', border: '1px solid rgba(0,245,255,0.2)' }}
+          style={{ zIndex: 20, background: tokens.color.surfaceRaised, border: `1px solid ${tokens.color.border}`, backdropFilter: tokens.glass }}
         >
-          <Waypoints className="w-2.5 h-2.5" style={{ color: '#00f5ff' }} />
-          <span style={{ ...mono, color: 'rgba(0,245,255,0.7)', fontSize: 8, letterSpacing: '0.08em' }}>
-            SCHÉMA DE CONNECTIVITÉ HERMES — CLIQUER UN NŒUD
+          <Waypoints className="w-2.5 h-2.5" style={{ color: ACCENT }} />
+          <span style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 8, letterSpacing: '0.02em' }}>
+            Schéma de connectivité Hermes — cliquer un nœud
           </span>
         </div>
 
@@ -93,7 +92,7 @@ export function NeuralMap() {
               <line
                 key={`edge-${aId}-${bId}`}
                 x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                stroke="rgba(0,245,255,0.5)"
+                stroke="rgba(10,132,255,0.5)"
                 strokeWidth={0.15}
                 strokeDasharray="1 1.4"
                 opacity={dim ? 0.05 : 0.3}
@@ -112,23 +111,23 @@ export function NeuralMap() {
             animate={{ rotate: 360 }}
             transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
             className="absolute rounded-full"
-            style={{ width: 74, height: 74, border: '1px dashed rgba(0,245,255,0.3)' }}
+            style={{ width: 74, height: 74, border: '1px dashed rgba(10,132,255,0.3)' }}
           />
           <motion.button
             onClick={e => { e.stopPropagation(); setSelected('hermes'); }}
             whileHover={{ scale: 1.06 }}
-            animate={{ boxShadow: ['0 0 16px rgba(0,245,255,0.4)', '0 0 28px rgba(0,245,255,0.7)', '0 0 16px rgba(0,245,255,0.4)'] }}
+            animate={{ boxShadow: ['0 0 16px rgba(10,132,255,0.4)', '0 0 28px rgba(10,132,255,0.7)', '0 0 16px rgba(10,132,255,0.4)'] }}
             transition={{ boxShadow: { duration: 2.5, repeat: Infinity } }}
             className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer relative"
             style={{
-              background: 'radial-gradient(circle, rgba(0,245,255,0.25) 0%, rgba(0,8,20,0.9) 100%)',
-              border: `1.5px solid ${selected === 'hermes' ? '#ffffff' : 'rgba(0,245,255,0.6)'}`,
+              background: `radial-gradient(circle, rgba(10,132,255,0.25) 0%, ${tokens.color.surfaceRaised} 100%)`,
+              border: `1.5px solid ${selected === 'hermes' ? tokens.color.text : tokens.color.borderActive}`,
             }}
           >
-            <HERMES_NODES.hermes.icon className="w-6 h-6" style={{ color: '#00f5ff' }} />
+            <HERMES_NODES.hermes.icon className="w-6 h-6" style={{ color: ACCENT }} />
           </motion.button>
-          <span style={{ ...orbFont, color: '#00f5ff', fontSize: 9, letterSpacing: '0.15em', marginTop: 6, textShadow: '0 0 8px #00f5ff' }}>
-            HERMES
+          <span style={{ ...orbFont, color: ACCENT, fontSize: 9, letterSpacing: '-0.01em', marginTop: 6 }}>
+            Hermes
           </span>
         </div>
 
@@ -167,9 +166,9 @@ export function NeuralMap() {
               </motion.button>
               <span
                 className="whitespace-nowrap"
-                style={{ ...mono, color: dim ? 'rgba(255,255,255,0.25)' : n.color, fontSize: 7.5, letterSpacing: '0.05em', marginTop: 4 }}
+                style={{ ...monoFont, color: dim ? tokens.color.textMuted : n.color, fontSize: 7.5, letterSpacing: '0.01em', marginTop: 4 }}
               >
-                {n.name.toUpperCase()}
+                {n.name}
               </span>
             </div>
           );
@@ -185,7 +184,7 @@ export function NeuralMap() {
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="flex-shrink-0 h-full overflow-hidden"
-            style={{ borderLeft: '1px solid rgba(0,245,255,0.12)', background: 'rgba(0,6,18,0.7)' }}
+            style={{ borderLeft: `1px solid ${tokens.color.border}`, background: tokens.color.surface, backdropFilter: tokens.glass }}
           >
             <div className="w-[260px] h-full flex flex-col">
               <div className="flex justify-end p-1.5 flex-shrink-0">

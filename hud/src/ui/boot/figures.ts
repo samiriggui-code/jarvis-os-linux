@@ -33,6 +33,7 @@ export type FigureId =
   | 'adn'
   | 'cerveau'
   | 'neurones'
+  | 'reseau'
   | 'orbe';
 
 export const FIGURE_IDS: FigureId[] = [
@@ -44,6 +45,7 @@ export const FIGURE_IDS: FigureId[] = [
   'adn',
   'cerveau',
   'neurones',
+  'reseau',
   'orbe',
 ];
 
@@ -165,7 +167,10 @@ const galaxies: Builder = (n, pos, vr, rnd) => {
   const SPIRAL = 4.2;
   const ARM_DIST = 0.55;
   const THICK = 0.032;
-  const CORE = 0.22;
+  // Noyau resserré (0.22 → 0.14) : un point chaud dense au lieu d'une tache
+  // diffuse — la référence (Rotating Galaxy Animation) lit un trou noir
+  // entouré d'un anneau incandescent, pas un dégradé mou.
+  const CORE = 0.14;
   const ARM_X_MEAN = 1.38;
   const ARM_X_DIST = 0.44;
   const ARM_Z_MEAN = 0.34;
@@ -184,6 +189,17 @@ const galaxies: Builder = (n, pos, vr, rnd) => {
   /** Largeur du bras : fil près du noyau, ruban dehors. */
   const armWidth = (u: number): number => lerp(0.022, 0.155, u * u);
 
+  // Jitter isotrope PROPORTIONNEL AU RAYON, technique reprise telle quelle de
+  // la référence (Rotating Galaxy Animation, script.js) :
+  // `pow(random, power) * signe * randomness * radius`, appliqué par axe.
+  // C'est ce qui donne le bras SERRÉ près du noyau et ÉPARS/POUSSIÉREUX loin
+  // du centre — un effet que mon jitter tangentiel seul (largeur de ruban
+  // constante par palier) n'obtenait pas.
+  const RANDOMNESS = 0.85;
+  const RAND_POWER = 3.4;
+  const radialJitter = (rad: number): number =>
+    Math.pow(rnd(), RAND_POWER) * (rnd() < 0.5 ? 1 : -1) * RANDOMNESS * rad;
+
   const writeStar = (o: number, x: number, z: number, kind: 'core' | 'arm') => {
     const rad = Math.hypot(x, z);
     const u = radialU(rad);
@@ -191,15 +207,19 @@ const galaxies: Builder = (n, pos, vr, rnd) => {
     // Écarte le long de la tangente — élargit le bras sans le flouter partout
     const tang = rad > 1e-6 ? [-z / rad, x / rad] as const : [1, 0] as const;
     const side = gauss(rnd) * w;
-    pos[o] = x + tang[0] * side;
-    pos[o + 1] = gauss(rnd) * THICK * lerp(0.65, 1.55, u);
-    pos[o + 2] = z + tang[1] * side;
+    pos[o] = x + tang[0] * side + (kind === 'arm' ? radialJitter(rad) * 0.4 : 0);
+    pos[o + 1] = gauss(rnd) * THICK * lerp(0.65, 1.55, u) + (kind === 'arm' ? radialJitter(rad) * 0.12 : 0);
+    pos[o + 2] = z + tang[1] * side + (kind === 'arm' ? radialJitter(rad) * 0.4 : 0);
 
     const flash = luminosity(rnd);
     if (kind === 'core') {
-      vr[o] = 0.75 + flash * 0.95;
-      vr[o + 1] = 1.45 + flash * 1.25;
-      vr[o + 2] = lerp(0.65, 0.98, rnd()); // or / blanc chaud
+      // Incandescent : gros points très brillants, quasi blanc au centre du
+      // noyau — c'est ce qui donne le "trou noir cerné de feu" de la
+      // référence plutôt qu'un simple amas d'étoiles jaunes.
+      const hot = 1 - Math.min(1, rad / (CORE * 1.3));
+      vr[o] = 0.95 + flash * 1.35 + hot * 0.6;
+      vr[o + 1] = 1.75 + flash * 1.55 + hot * 0.9;
+      vr[o + 2] = lerp(0.55, 0.98, Math.max(rnd(), hot)); // or → blanc au cœur
       return;
     }
 
@@ -216,7 +236,12 @@ const galaxies: Builder = (n, pos, vr, rnd) => {
     vr[o + 2] = temp;
   };
 
-  const bgN = Math.floor(n * 0.12);
+  const bgN = Math.floor(n * 0.1);
+  // Traînée de comète — arc qui s'échappe du noyau vers le bord, cyan/blanc,
+  // jamais aligné sur un bras (angle indépendant) : c'est la diagonale qui
+  // traverse l'image sur la référence et qui évite que la galaxie se lise
+  // comme un disque parfaitement symétrique.
+  const cometN = Math.floor(n * 0.02);
   const dustN = Math.floor(n * 0.1);
   const coreN = Math.floor(n * 0.12);
   let i = 0;
@@ -235,7 +260,23 @@ const galaxies: Builder = (n, pos, vr, rnd) => {
     vr[o + 2] = ht.temp;
   }
 
-  const dustEnd = bgN + dustN;
+  const cometEnd = bgN + cometN;
+  const cometAng = 0.9; // fixe (pas d'un bras) — la diagonale de la référence
+  for (; i < cometEnd; i++) {
+    const o = i * 3;
+    const t = Math.pow(rnd(), 0.7); // dense près du noyau, éparse au bout
+    const r = lerp(CORE * 1.1, 2.35, t);
+    const wobble = gauss(rnd) * lerp(0.02, 0.16, t);
+    pos[o] = Math.cos(cometAng) * r + wobble;
+    pos[o + 1] = (rnd() - 0.5) * lerp(0.02, 0.22, t) + t * 0.35;
+    pos[o + 2] = Math.sin(cometAng) * r - wobble * 0.6;
+    const flash = luminosity(rnd);
+    vr[o] = lerp(0.55, 0.22, t) + flash * 0.5;
+    vr[o + 1] = lerp(1.2, 0.35, t) + flash * 0.8;
+    vr[o + 2] = -0.85 + t * 0.15; // cyan électrique → blanc bleuté
+  }
+
+  const dustEnd = cometEnd + dustN;
   for (; i < dustEnd; i++) {
     const o = i * 3;
     const arm = Math.floor(rnd() * ARMS);
@@ -604,15 +645,17 @@ const adn: Builder = (n, pos, vr, rnd) => {
       continue;
     }
 
-    // Brin — tube dense et lumineux
+    // Brin — tube dense et lumineux. Les deux brins en contraste net
+    // (cyan / or) plutôt que cyan / neutre — la double hélice se lit tout
+    // de suite comme DEUX brins distincts, pas un seul brin flou.
     const ca = rnd() * TAU;
     const cr = STRAND_R * Math.sqrt(rnd());
     pos[o] = ox * HR + sx * Math.cos(ca) * cr;
     pos[o + 1] = s * HEIGHT + Math.sin(ca) * cr;
     pos[o + 2] = oz * HR + sz * Math.cos(ca) * cr;
-    vr[o] = 0.7 + luminosity(rnd) * 1.6;
-    vr[o + 1] = 0.95 + luminosity(rnd) * 1.25;
-    vr[o + 2] = strandA ? -0.75 : -0.05;
+    vr[o] = 0.85 + luminosity(rnd) * 1.75;
+    vr[o + 1] = 1.05 + luminosity(rnd) * 1.35;
+    vr[o + 2] = strandA ? -0.8 : 0.55;
   }
 };
 
@@ -690,10 +733,12 @@ const cerveau: Builder = (n, pos, vr, rnd) => {
     pos[o + 1] = y + 0.1;
     pos[o + 2] = z;
 
-    const ridge = smoothstep(-0.15, 0.7, fold);
-    vr[o] = 0.45 + luminosity(rnd) * 1.1 + ridge * 0.65;
-    vr[o + 1] = 0.35 + ridge * 1.15 + luminosity(rnd) * 0.7;
-    vr[o + 2] = lerp(0.15, 0.85, ridge);
+    // Contraste de crête renforcé — les sillons doivent se LIRE (creux
+    // sombres, crêtes vives), pas rester dans une bouillie mi-teinte.
+    const ridge = smoothstep(-0.2, 0.62, fold);
+    vr[o] = 0.4 + luminosity(rnd) * 1.3 + ridge * 0.95;
+    vr[o + 1] = 0.28 + ridge * 1.55 + luminosity(rnd) * 0.75;
+    vr[o + 2] = lerp(0.08, 0.92, ridge * ridge);
   }
 };
 
@@ -704,12 +749,21 @@ const cerveau: Builder = (n, pos, vr, rnd) => {
 const neurones: Builder = (n, pos, vr, rnd) => {
   const HUBS = 28;
   const DEGREE = 3;
+  // Palette électrique par hub — 4 teintes vives et discrètes (cyan, magenta,
+  // vert, or) plutôt qu'un dégradé continu : c'est ce qui donne le lisant
+  // "neurone électrique multicolore" de la référence (Neural Colored
+  // Simulation) au lieu d'un nuage bleu-violet uniforme. `vr.z` (température)
+  // traverse `stopMix`/`starCol` dans le nuanceur — valeurs choisies pour
+  // tomber sur les bandes cyan / vert / or / magenta de cette rampe.
+  const HUE_ANCHORS = [-0.85, -0.5, 0.58, 0.85];
   const hubs: [number, number, number][] = [];
+  const hubHue: number[] = [];
   for (let h = 0; h < HUBS; h++) {
     const [dx, dy, dz] = randomDirection(rnd);
     // Volume large — les liens doivent traverser l espace, pas se croiser en boule
     const r = 0.55 + rnd() * 0.75;
     hubs.push([dx * r * 1.05, dy * r * 0.85, dz * r * 1.1]);
+    hubHue.push(HUE_ANCHORS[Math.floor(rnd() * HUE_ANCHORS.length)]!);
   }
 
   const edges: [number, number][] = [];
@@ -741,7 +795,8 @@ const neurones: Builder = (n, pos, vr, rnd) => {
     const roll = rnd();
 
     if (roll < 0.16) {
-      const hub = hubs[Math.floor(rnd() * HUBS)]!;
+      const hi = Math.floor(rnd() * HUBS);
+      const hub = hubs[hi]!;
       const [dx, dy, dz] = randomDirection(rnd);
       const pr = 0.02 + rnd() * 0.03;
       pos[o] = hub[0] + dx * pr;
@@ -749,12 +804,14 @@ const neurones: Builder = (n, pos, vr, rnd) => {
       pos[o + 2] = hub[2] + dz * pr;
       vr[o] = 1.5 + luminosity(rnd) * 1.6;
       vr[o + 1] = 1.2 + luminosity(rnd) * 1.1;
-      vr[o + 2] = lerp(-0.45, 0.25, rnd());
+      vr[o + 2] = hubHue[hi]! + (rnd() - 0.5) * 0.06;
       continue;
     }
 
     if (roll < 0.78) {
-      // Axone — fil continu le long d une seule arete
+      // Axone — fil continu le long d une seule arete, degrade de la teinte
+      // d un hub vers l autre : deux neurones de couleur differente restent
+      // lisibles chacun de leur cote, au lieu d un cable monochrome.
       const e = edges[Math.floor(rnd() * E)]!;
       const ha = hubs[e[0]]!;
       const hb = hubs[e[1]]!;
@@ -765,12 +822,13 @@ const neurones: Builder = (n, pos, vr, rnd) => {
       pos[o + 2] = lerp(ha[2], hb[2], t) - bend * 0.25;
       vr[o] = 0.35 + luminosity(rnd) * 0.45;
       vr[o + 1] = 0.4 + luminosity(rnd) * 0.55;
-      vr[o + 2] = lerp(-0.95, -0.35, rnd());
+      vr[o + 2] = lerp(hubHue[e[0]]!, hubHue[e[1]]!, t) + (rnd() - 0.5) * 0.08;
       continue;
     }
 
     if (roll < 0.92) {
-      // Impulsion — un paquet sur l axone
+      // Impulsion — un paquet sur l axone, quasi blanc au pic (flash franc,
+      // comme la référence) plutôt que de rester dans la teinte du câble.
       const e = edges[Math.floor(rnd() * E)]!;
       const ha = hubs[e[0]]!;
       const hb = hubs[e[1]]!;
@@ -780,11 +838,12 @@ const neurones: Builder = (n, pos, vr, rnd) => {
       pos[o + 2] = lerp(ha[2], hb[2], t);
       vr[o] = 2.0 + luminosity(rnd) * 2.2;
       vr[o + 1] = 1.7 + luminosity(rnd) * 1.8;
-      vr[o + 2] = lerp(0.2, 0.95, luminosity(rnd));
+      vr[o + 2] = lerp(hubHue[e[0]]!, hubHue[e[1]]!, t) * 0.4; // désature vers le blanc
       continue;
     }
 
-    const hub = hubs[Math.floor(rnd() * HUBS)]!;
+    const hi = Math.floor(rnd() * HUBS);
+    const hub = hubs[hi]!;
     const [dx, dy, dz] = randomDirection(rnd);
     const pr = 0.035 + rnd() * 0.04;
     pos[o] = hub[0] + dx * pr;
@@ -792,7 +851,140 @@ const neurones: Builder = (n, pos, vr, rnd) => {
     pos[o + 2] = hub[2] + dz * pr;
     vr[o] = 0.9 + luminosity(rnd) * 1.2;
     vr[o + 1] = 1.05 + luminosity(rnd) * 1.0;
-    vr[o + 2] = lerp(0.15, 0.8, rnd());
+    vr[o + 2] = hubHue[hi]! + (rnd() - 0.5) * 0.1;
+  }
+};
+
+/**
+ * Réseau neuronal — grappe sphérique de nœuds ambre reliés par un maillage
+ * fin, flottant dans un léger champ d'étoiles (référence : Neural Network,
+ * CodeWithBhurtel #48). Volontairement plus CALME et plus CHAUD que
+ * `neurones` (électrique, multicolore) : c'est le pont visuel vers l'orbe,
+ * qui est lui aussi sphérique et chaud sur son limbe (stopMix).
+ */
+const reseau: Builder = (n, pos, vr, rnd) => {
+  const RADIUS = 0.85;
+  // Sphère de Fibonacci en 5 couches concentriques, chaque nœud relié aux
+  // plus proches de la couche PRÉCÉDENTE — technique reprise telle quelle de
+  // la référence (Neural Network, `generateCrystallineSphere`). C'est ce qui
+  // donne la structure en poupées russes du screenshot #48, pas un maillage
+  // uniforme entre nœuds pris au hasard.
+  const LAYERS = 5;
+  const GOLDEN = (1 + Math.sqrt(5)) / 2;
+  // Fond étoilé — la référence flotte dans l'espace, pas sur fond neutre.
+  const starN = Math.floor(n * 0.14);
+
+  const nodes: [number, number, number][] = [[0, 0, 0]]; // racine au centre
+  const layerIndex: number[][] = [[0]];
+  for (let layer = 1; layer <= LAYERS; layer++) {
+    const r = RADIUS * (layer / LAYERS);
+    const count = Math.max(4, Math.floor(layer * 3.2));
+    const idxs: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const phi = Math.acos(1 - (2 * (i + 0.5)) / count);
+      const theta = TAU * ((i / GOLDEN) % 1);
+      nodes.push([
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi),
+      ]);
+      idxs.push(nodes.length - 1);
+    }
+    layerIndex.push(idxs);
+  }
+  const NODES = nodes.length;
+
+  const distSq = (a: number, b: number): number => {
+    const pa = nodes[a]!;
+    const pb = nodes[b]!;
+    const dx = pa[0] - pb[0];
+    const dy = pa[1] - pb[1];
+    const dz = pa[2] - pb[2];
+    return dx * dx + dy * dy + dz * dz;
+  };
+
+  const edges: [number, number][] = [];
+  const seen = new Set<string>();
+  const addEdge = (a: number, b: number) => {
+    if (a === b) return;
+    const key = a < b ? a + ':' + b : b + ':' + a;
+    if (seen.has(key)) return;
+    seen.add(key);
+    edges.push([a, b]);
+  };
+
+  // Chaque couche se relie à 2-3 nœuds de la couche précédente.
+  for (let layer = 1; layer <= LAYERS; layer++) {
+    const prev = layerIndex[layer - 1]!;
+    for (const i of layerIndex[layer]!) {
+      const sorted = prev.slice().sort((a, b) => distSq(i, a) - distSq(i, b));
+      const linkCount = layer === 1 ? 1 : Math.min(3, sorted.length);
+      for (let k = 0; k < linkCount; k++) addEdge(i, sorted[k]!);
+    }
+  }
+  // Quelques traverses au sein d'une même couche — referme la toile.
+  for (let layer = 1; layer <= LAYERS; layer++) {
+    const idxs = layerIndex[layer]!;
+    for (const i of idxs) {
+      const near = idxs.filter((j) => j !== i).sort((a, b) => distSq(i, a) - distSq(i, b)).slice(0, 2);
+      for (const j of near) addEdge(i, j);
+    }
+  }
+  // Traverses longue-portée éparses — la toile n'est pas parfaitement concentrique.
+  const outer = nodes.map((_, i) => i).filter((i) => i !== 0);
+  for (let k = 0; k < 16; k++) {
+    const a = outer[Math.floor(rnd() * outer.length)]!;
+    const b = outer[Math.floor(rnd() * outer.length)]!;
+    addEdge(a, b);
+  }
+  const E = edges.length;
+
+  let i = 0;
+  for (; i < starN; i++) {
+    const o = i * 3;
+    const [dx, dy, dz] = randomDirection(rnd);
+    const r = RADIUS * (1.6 + rnd() * 2.4);
+    pos[o] = dx * r;
+    pos[o + 1] = dy * r;
+    pos[o + 2] = dz * r;
+    const ht = starType(rnd);
+    vr[o] = ht.size * (0.25 + rnd() * 0.2);
+    vr[o + 1] = 0.04 + luminosity(rnd) * 0.22;
+    vr[o + 2] = ht.temp;
+  }
+
+  for (; i < n; i++) {
+    const o = i * 3;
+    const roll = rnd();
+
+    if (roll < 0.22) {
+      // Nœud — gros point chaud, quasi blanc au centre (référence : billes
+      // ambre/blanches aux intersections du maillage).
+      const hub = nodes[Math.floor(rnd() * NODES)]!;
+      const [dx, dy, dz] = randomDirection(rnd);
+      const pr = 0.018 + rnd() * 0.022;
+      pos[o] = hub[0] + dx * pr;
+      pos[o + 1] = hub[1] + dy * pr;
+      pos[o + 2] = hub[2] + dz * pr;
+      const flash = luminosity(rnd);
+      vr[o] = 1.6 + flash * 1.7;
+      vr[o + 1] = 1.5 + flash * 1.3;
+      vr[o + 2] = 0.42 + flash * 0.4; // ambre chaud → blanc au flash
+      continue;
+    }
+
+    // Fil — droit et fin (maillage géométrique, pas organique comme les
+    // axones de `neurones`) : quasiment aucun bruit de courbure.
+    const e = edges[Math.floor(rnd() * E)]!;
+    const ha = nodes[e[0]]!;
+    const hb = nodes[e[1]]!;
+    const t = rnd();
+    pos[o] = lerp(ha[0], hb[0], t);
+    pos[o + 1] = lerp(ha[1], hb[1], t);
+    pos[o + 2] = lerp(ha[2], hb[2], t);
+    vr[o] = 0.22 + luminosity(rnd) * 0.3;
+    vr[o + 1] = 0.28 + luminosity(rnd) * 0.35;
+    vr[o + 2] = 0.3 + rnd() * 0.2; // ambre discret
   }
 };
 
@@ -841,6 +1033,7 @@ const BUILDERS: Record<FigureId, Builder> = {
   adn,
   cerveau,
   neurones,
+  reseau,
   orbe,
 };
 

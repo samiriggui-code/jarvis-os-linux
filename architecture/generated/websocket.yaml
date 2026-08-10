@@ -25,13 +25,13 @@ evenements_emis:
     ecoute_par_le_hud: true
   - type: VOICE_ENROLL_OK
     sources: [core/jarvis_core/ws/handlers/voice.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: VOICE_FAILED
     sources: [core/jarvis_core/ws/handlers/voice.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: VOICE_SUCCESS
     sources: [core/jarvis_core/ws/handlers/voice.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: agent_reach_status
     sources: [core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: false
@@ -63,6 +63,9 @@ evenements_emis:
     sources: [core/jarvis_core/ws/handlers/auth.py]
     ecoute_par_le_hud: true
   - type: auth_revoke_result
+    sources: [core/jarvis_core/ws/handlers/auth.py]
+    ecoute_par_le_hud: true
+  - type: auth_sequence_result
     sources: [core/jarvis_core/ws/handlers/auth.py]
     ecoute_par_le_hud: true
   - type: auth_sequence_start
@@ -116,6 +119,9 @@ evenements_emis:
   - type: face_reset_user_result
     sources: [core/jarvis_core/ws/handlers/holomat.py]
     ecoute_par_le_hud: false
+  - type: hermes_result
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
   - type: holomat_calibrate_result
     sources: [core/jarvis_core/ws/handlers/holomat.py]
     ecoute_par_le_hud: true
@@ -149,6 +155,9 @@ evenements_emis:
   - type: preferences_result
     sources: [core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: true
+  - type: providers_result
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
   - type: raspberry_pi
     sources: [core/jarvis_core/devices.py]
     ecoute_par_le_hud: false
@@ -164,6 +173,12 @@ evenements_emis:
   - type: surface_result
     sources: [core/jarvis_core/intents/executors_routing.py, core/jarvis_core/ws/handlers/surface.py]
     ecoute_par_le_hud: true
+  - type: terminal_pending
+    sources: [core/jarvis_core/ws/handlers/terminal.py]
+    ecoute_par_le_hud: false
+  - type: terminal_result
+    sources: [core/jarvis_core/ws/handlers/terminal.py]
+    ecoute_par_le_hud: false
   - type: tool_event
     sources: [core/jarvis_core/tool_events.py]
     ecoute_par_le_hud: false
@@ -206,6 +221,9 @@ evenements_emis:
   - type: voice_transcript
     sources: [core/jarvis_core/ws/handlers/voice.py]
     ecoute_par_le_hud: true
+  - type: voicebox_result
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
 commandes_emises:
   - command: boot
     sources: [core/jarvis_core/__init__.py]
@@ -245,6 +263,8 @@ hud_envoie:
   - type: peripheral
     route_core_existe: true
   - type: ping
+    route_core_existe: true
+  - type: preferences
     route_core_existe: true
   - type: save_gesture_profile
     route_core_existe: true

@@ -19,7 +19,8 @@ import {
   type MediaDevicesState,
 } from '../bridge/mediaDevices';
 
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
+import { ACCENT, monoFont } from './hudTheme';
+import { tokens } from '../../ui/tokens';
 
 function statusColor(s: MediaDevicesState['mic']): string {
   if (s === 'granted') return '#22c55e';
@@ -120,16 +121,17 @@ export function TtsTestButton() {
           className="rounded-xl p-3 flex flex-col gap-2 overflow-y-auto overscroll-contain"
           style={{
             maxHeight: 'min(24rem, 50vh)',
-            background: 'rgba(0,12,28,0.95)',
-            border: '1px solid rgba(0,245,255,0.35)',
-            boxShadow: '0 0 20px rgba(0,0,0,0.5)',
+            background: tokens.color.surfaceRaised,
+            border: `1px solid ${tokens.color.borderActive}`,
+            backdropFilter: tokens.glass,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
           }}
         >
-          <p style={{ ...mono, color: 'rgba(0,245,255,0.7)', fontSize: 8, letterSpacing: '0.14em' }}>
-            VOIX WINDOWS FR — clique pour choisir
+          <p style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 8, letterSpacing: '0.02em' }}>
+            Voix Windows FR — clique pour choisir
           </p>
           {voices.length === 0 && (
-            <p style={{ ...mono, color: '#f59e0b', fontSize: 9 }}>
+            <p style={{ ...monoFont, color: '#f59e0b', fontSize: 9 }}>
               Aucune voix FR. Paramètres Windows → Heure et langue → Parole.
             </p>
           )}
@@ -145,14 +147,14 @@ export function TtsTestButton() {
                 onClick={() => void pick(v.name)}
                 className="text-left px-2 py-1.5 rounded-lg cursor-pointer"
                 style={{
-                  background: active ? 'rgba(0,245,255,0.15)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${active ? 'rgba(0,245,255,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                  background: active ? tokens.color.accentSoft : tokens.color.surface,
+                  border: `1px solid ${active ? tokens.color.borderActive : tokens.color.border}`,
                 }}
               >
-                <span style={{ ...mono, color: active ? '#00f5ff' : 'rgba(255,255,255,0.75)', fontSize: 9 }}>
+                <span style={{ ...monoFont, color: active ? ACCENT : tokens.color.text, fontSize: 9 }}>
                   {v.name}
                 </span>
-                <span style={{ ...mono, color: 'rgba(255,255,255,0.35)', fontSize: 8, marginLeft: 6 }}>
+                <span style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 8, marginLeft: 6 }}>
                   {v.lang}
                 </span>
               </button>
@@ -168,15 +170,16 @@ export function TtsTestButton() {
           disabled={busy}
           className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl cursor-pointer"
           style={{
-            background: 'rgba(0,20,40,0.92)',
-            border: '1px solid rgba(0,245,255,0.35)',
+            background: tokens.color.surfaceRaised,
+            border: `1px solid ${tokens.color.borderActive}`,
+            backdropFilter: tokens.glass,
           }}
           title="Activer caméra + micro Windows"
         >
           <Camera className="w-3.5 h-3.5" style={{ color: statusColor(media.camera) }} />
           <Mic className="w-3.5 h-3.5" style={{ color: statusColor(media.mic) }} />
-          <span style={{ ...mono, color: '#00f5ff', fontSize: 9, letterSpacing: '0.08em' }}>
-            CAM / MIC
+          <span style={{ ...monoFont, color: ACCENT, fontSize: 9, letterSpacing: '0.02em' }}>
+            Cam / Mic
           </span>
         </button>
 
@@ -186,14 +189,14 @@ export function TtsTestButton() {
           disabled={busy}
           className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer"
           style={{
-            background: 'rgba(0,20,40,0.92)',
-            border: '1px solid rgba(0,245,255,0.45)',
-            boxShadow: '0 0 16px rgba(0,245,255,0.2)',
+            background: tokens.color.surfaceRaised,
+            border: `1px solid ${tokens.color.borderActive}`,
+            backdropFilter: tokens.glass,
           }}
         >
-          <Volume2 className="w-4 h-4" style={{ color: '#00f5ff' }} />
-          <span style={{ ...mono, color: '#00f5ff', fontSize: 10, letterSpacing: '0.1em' }}>
-            {busy ? '…' : 'VOIX'}
+          <Volume2 className="w-4 h-4" style={{ color: ACCENT }} />
+          <span style={{ ...monoFont, color: ACCENT, fontSize: 10, letterSpacing: '0.02em' }}>
+            {busy ? '…' : 'Voix'}
           </span>
           <span
             className="w-2 h-2 rounded-full"
@@ -205,15 +208,15 @@ export function TtsTestButton() {
           type="button"
           onClick={() => setOpen(o => !o)}
           className="p-2 rounded-xl cursor-pointer"
-          style={{ background: 'rgba(0,20,40,0.9)', border: '1px solid rgba(0,245,255,0.3)' }}
+          style={{ background: tokens.color.surfaceRaised, border: `1px solid ${tokens.color.border}`, backdropFilter: tokens.glass }}
         >
           {open
-            ? <ChevronDown className="w-4 h-4" style={{ color: '#00f5ff' }} />
-            : <ChevronUp className="w-4 h-4" style={{ color: '#00f5ff' }} />}
+            ? <ChevronDown className="w-4 h-4" style={{ color: ACCENT }} />
+            : <ChevronUp className="w-4 h-4" style={{ color: ACCENT }} />}
         </button>
       </div>
       {msg && (
-        <p style={{ ...mono, color: 'rgba(255,255,255,0.5)', fontSize: 8 }}>{msg}</p>
+        <p style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 8 }}>{msg}</p>
       )}
     </div>
   );

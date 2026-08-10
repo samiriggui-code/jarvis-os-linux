@@ -1,10 +1,11 @@
 ---
 name: jarvis-os
+version: "1.0"
 description: >-
-  Loi produit JARVIS OS pour Hermes : protocole vocal, Policy, rôles foyer,
-  Dashboard admin-only, cycle micro veille. Charger dès qu’une demande touche
-  la maison, la voix, Holomat, le Dashboard, l’auth, ou l’architecture OS.
-  CE N’EST PAS UN MOCK — règles opérationnelles réelles.
+  TRIGGER — loi produit JARVIS : maison / HA, voix (préfixe Jarvis, veille),
+  Holomat/gestes, Dashboard admin, auth/lock, rôles foyer, architecture OS.
+  Policy non négociable. CE N’EST PAS UN MOCK. Ne PAS charger pour une simple
+  recherche web (→ agent-reach / deep-research) ni pour locale seule (→ user-locale).
 ---
 
 # Skill — JARVIS OS (loi produit)
@@ -63,6 +64,13 @@ Skill **hud-apps** : chaque tuile a un `intent` + `risk`, résolu en toolset par
 (`capabilities.py`). Terminal/Docker/Code/Stockage = **VPS limité** (allowlist +
 confirmation ADMIN). Outils nouveaux via `outils`.
 Dashboard (`hub`) = ADMIN seul.
+
+## Recherche web multi-angles
+
+Si la demande exige une info à jour, une comparaison, un « c’est quoi / explique /
+recherche », ou précède une génération de contenu factuel : charger **deep-research**
+(méthodo) puis **agent-reach** (fetch). Une seule recherche superficielle ne suffit pas.
+Skills méthodo ≠ Capabilities Core.
 
 ## Ce que tu ne inventes pas
 

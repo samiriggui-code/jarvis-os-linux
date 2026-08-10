@@ -152,6 +152,29 @@ Règles :
 - **HostCapability** ≠ Tool de traitement : `camera.capture` (device) vs `vision.detect_face` (processor).
 - `Owner.DEVICE` reste le crochet Intent pour le jour où une intention est purement « appareil ».
 
+## Trust-gate + audit trail (pattern — idée awesome-llm-apps)
+
+Chaque action agent **sensible** doit être :
+
+1. **Trust-gated** — Policy / approval avant exécution (déjà la chaîne produit).
+2. **Auditable** — corrélation `run_id` + `tool_call_id` + `device_id` dans le journal ToolEvent (pas les logs texte Hermes comme vérité).
+3. **Vérifiable** — « terminé » = preuve Core (smoke, health, fichier, état HA), pas le CR agent.
+
+Cible Mission : hash/chain optionnel plus tard ; **aujourd’hui** = SSE → `AgentToolEvent` → journal.  
+**Ne pas** importer leur stack « Trust-Gated Multi-Agent Research Team ».
+
+## Contrats structurés (idée CrewAI `output_pydantic` — déjà couvert)
+
+Les sorties agent/outil doivent rester **typées** côté Core / WS :
+
+| Surface | Forme |
+|---------|--------|
+| Tool bus | `ToolEvent` / `AgentToolEvent` (champs figés ci-dessus) |
+| Policy / approval | décisions explicites, pas prose libre |
+| Missions (cible) | CR avec `expected_output` + `evidence` (vision fan-out) |
+
+Pas d’adopter le runtime CrewAI pour « avoir du Pydantic » — on l’a déjà.
+
 ## Prochaine implémentation (après validation)
 
 1. Étendre `HermesBridge` : path `/v1/runs` **ou** `stream:true` + forward ToolEvent sur le bus WS Core.  

@@ -61,6 +61,8 @@ def register_capabilities(orch: Any) -> None:
         "core.missions": orch._execute_missions,
         "vps.code": orch._execute_vps_code,
         "system.network": orch._execute_network,
+        "vps.terminal": orch._execute_vps_terminal,
+        "pi.terminal": orch._execute_pi_terminal,
     }
 
     for cap in CAPABILITIES.values():
@@ -91,7 +93,16 @@ def register_capabilities(orch: Any) -> None:
             continue
 
         async def _hermes_handler(payload: dict[str, Any], _cap=cap) -> dict[str, Any]:
-            decision = orch.policy.evaluate(action=_cap.intent, risk=_cap.risk)
+            # `text` doit voyager jusqu'ici : sans lui, l'allowlist VPS de
+            # `PolicyEngine.evaluate()` ne filtre jamais rien (elle ne
+            # s'applique que si `text` est non vide) — c'était le bug trouvé
+            # lors du chantier Terminal admin (2026-08-09). `.get`, jamais
+            # `.pop` : `HermesIntentDelegate.execute()` doit encore pouvoir
+            # consommer `_pending_prompts` juste après.
+            text = str(payload.get("prompt") or "").strip()
+            if not text and (approval_id := payload.get("approval_id")):
+                text = orch._pending_prompts.get(str(approval_id), "")
+            decision = orch.policy.evaluate(action=_cap.intent, text=text, risk=_cap.risk)
             return await hermes.execute(_cap, payload, decision=decision)
 
         orch.intents.register(cap.intent, _hermes_handler)

@@ -2,7 +2,7 @@
  * Trois modes produit du HUD — source de vérité UX, pas « ma maison ».
  *
  * INSTALL    → 0 utilisateur  → bienvenue + assistant premier profil
- * IDENTIFY   → ≥1 utilisateur → face / lock / choix profil
+ * IDENTIFY   → ≥1 utilisateur → voice auth / lock / choix profil
  * JARVIS     → session OK     → interface complète (HudAuthGate = null)
  *
  * Ajout d’un membre foyer ≠ INSTALL : c’est une action depuis JARVIS (admin).

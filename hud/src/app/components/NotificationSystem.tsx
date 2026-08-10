@@ -2,15 +2,14 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { useApp, type Notification } from '../context/AppContext';
-
-const mono = { fontFamily: 'Share Tech Mono, monospace' };
-const raj = { fontFamily: 'Rajdhani, sans-serif' };
+import { GlassPanel } from '../../components/glass';
+import { ACCENT, DANGER, MUTED, SUCCESS, WARNING, bodyFont } from './hudTheme';
 
 const typeConfig = {
-  info: { icon: Info, color: '#00f5ff', bg: 'rgba(0,245,255,0.06)', border: 'rgba(0,245,255,0.25)' },
-  success: { icon: CheckCircle, color: '#22c55e', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.25)' },
-  warning: { icon: AlertTriangle, color: '#f59e0b', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.25)' },
-  error: { icon: XCircle, color: '#ef4444', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.25)' },
+  info: { icon: Info, color: ACCENT, tone: 'regular' as const },
+  success: { icon: CheckCircle, color: SUCCESS, tone: 'subtle' as const },
+  warning: { icon: AlertTriangle, color: WARNING, tone: 'regular' as const },
+  error: { icon: XCircle, color: DANGER, tone: 'strong' as const },
 };
 
 function NotifCard({ notif }: { notif: Notification }) {
@@ -21,56 +20,46 @@ function NotifCard({ notif }: { notif: Notification }) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 60, scale: 0.95 }}
+      initial={{ opacity: 0, x: 40, scale: 0.96 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 60, scale: 0.9 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="rounded-xl overflow-hidden"
-      style={{
-        background: cfg.bg,
-        backdropFilter: 'blur(20px)',
-        border: `1px solid ${cfg.border}`,
-        boxShadow: `0 0 20px ${cfg.color}10`,
-        width: 300,
-      }}
+      exit={{ opacity: 0, x: 40, scale: 0.94 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      style={{ width: 220 }}
     >
-      {/* Accent line */}
-      <div className="h-0.5" style={{ background: `linear-gradient(90deg, ${cfg.color}, transparent)` }} />
-
-      <div className="p-3 flex items-start gap-3">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: `${cfg.color}12`, border: `1px solid ${cfg.color}20` }}
-        >
-          <Icon className="w-4 h-4" style={{ color: cfg.color }} />
+      <GlassPanel level={cfg.tone} radius="md" padding="xs" style={{ overflow: 'hidden' }}>
+        <div className="flex items-start gap-2">
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+            style={{ background: `${cfg.color}14`, border: `1px solid ${cfg.color}28` }}
+          >
+            <Icon className="w-3 h-3" style={{ color: cfg.color }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p style={{ ...bodyFont, color: cfg.color, fontSize: 11, fontWeight: 600, margin: 0, lineHeight: 1.25 }}>
+              {notif.title}
+            </p>
+            <p style={{ ...bodyFont, color: MUTED, fontSize: 10, marginTop: 2, lineHeight: 1.35 }}>
+              {notif.message}
+            </p>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => removeNotification(notif.id)}
+            className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <X className="w-2.5 h-2.5" style={{ color: MUTED }} />
+          </motion.button>
         </div>
-
-        <div className="flex-1 min-w-0">
-          <p style={{ ...mono, color: cfg.color, fontSize: '10px', letterSpacing: '0.05em' }}>{notif.title}</p>
-          <p style={{ ...raj, color: 'rgba(255,255,255,0.65)', fontSize: '12px', marginTop: 2, lineHeight: 1.4 }}>
-            {notif.message}
-          </p>
-        </div>
-
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => removeNotification(notif.id)}
-          className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 cursor-pointer"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-        >
-          <X className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.35)' }} />
-        </motion.button>
-      </div>
-
-      {/* Auto-dismiss progress */}
-      <motion.div
-        initial={{ width: '100%' }}
-        animate={{ width: '0%' }}
-        transition={{ duration: 6, ease: 'linear' }}
-        className="h-0.5"
-        style={{ background: `${cfg.color}40` }}
-      />
+        <motion.div
+          initial={{ width: '100%' }}
+          animate={{ width: '0%' }}
+          transition={{ duration: 5, ease: 'linear' }}
+          className="h-px mt-1.5"
+          style={{ background: `${cfg.color}50` }}
+        />
+      </GlassPanel>
     </motion.div>
   );
 }
@@ -80,11 +69,11 @@ export function NotificationSystem() {
 
   return (
     <div
-      className="fixed flex flex-col gap-2 pointer-events-none"
-      style={{ top: 72, right: 20, zIndex: 300 }}
+      className="fixed flex flex-col gap-1.5 pointer-events-none"
+      style={{ top: 64, right: 12, zIndex: 300, maxWidth: 228 }}
     >
       <AnimatePresence mode="popLayout">
-        {notifications.map(n => (
+        {notifications.slice(0, 3).map((n) => (
           <div key={n.id} className="pointer-events-auto">
             <NotifCard notif={n} />
           </div>

@@ -27,13 +27,13 @@ export interface HermesNode {
 
 export const HERMES_NODES: Record<NodeId, HermesNode> = {
   hermes: {
-    id: 'hermes', name: 'Hermes Core', icon: BrainCircuit, color: '#00f5ff',
+    id: 'hermes', name: 'Hermes Core', icon: BrainCircuit, color: '#0A84FF',
     role: 'Orchestrateur central — sait ce qui existe, où, comment communiquer, quelles permissions sont nécessaires.',
     ref: '§2 / §13.1', status: 'actif', consumption: 0, progression: 0, metric: '11 nœuds connectés',
     connections: ['cerveau', 'tokens', 'objectifs', 'skills', 'connexions', 'reseau', 'security-center', 'crons', 'ia', 'outils'],
   },
   cerveau: {
-    id: 'cerveau', name: 'Cerveau', icon: BrainCog, color: '#a855f7',
+    id: 'cerveau', name: 'Cerveau', icon: BrainCog, color: '#0A84FF',
     role: 'Routage LLM, moteur d\'intention, contexte de conversation.',
     ref: '§13.1 brain/', status: 'actif', consumption: 42, progression: 0, metric: 'llm_router actif',
     connections: ['tokens', 'ia', 'objectifs'],

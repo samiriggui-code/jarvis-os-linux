@@ -61,9 +61,9 @@ export interface HudApp {
 }
 
 const C = {
-  cyan: '#00f5ff',
+  cyan: '#0A84FF',
   blue: '#0ea5e9',
-  violet: '#a855f7',
+  violet: '#0A84FF',
   green: '#22c55e',
   amber: '#f59e0b',
   rose: '#f43f5e',
@@ -359,7 +359,7 @@ export const HUD_APPS: HudApp[] = [
       'home', 'ouvre home', 'affiche home', 'affiche-moi home',
       'mission control home', 'mission contrôle home', 'mission controle home',
       'ouvre la maison', 'affiche la maison',
-      'allume', 'allume le salon', 'eteint', 'éteint', 'éteint le salon',
+      'allume', 'éteint', 'eteint', 'allume le salon', 'éteint le salon',
     ],
     intent: 'home.control',
   },
@@ -374,7 +374,7 @@ export const HUD_APPS: HudApp[] = [
     id: 'video', name: 'Vidéo', icon: Video, color: C.amber, cat: 'Médias',
     status: 'surface', risk: 'media', owner: 'core',
     blurb: 'Plex — sans LLM',
-    voice: ['vidéo', 'video', 'film', 'plex', 'série', 'serie', 'épisode', 'episode', 'regarde', 'lance', 'mets'],
+    voice: ['vidéo', 'video', 'film', 'plex', 'série', 'serie', 'épisode', 'episode', 'regarde', 'mets', 'lance'],
     intent: 'media.video',
   },
 

@@ -149,6 +149,8 @@ class AuthService:
         voice: bool = False,
         gesture: bool = False,
         role: str | None = None,
+        title: str | None = None,
+        birth_date: str | None = None,
     ) -> dict[str, Any]:
         r: Role | None = None
         if role:
@@ -158,6 +160,8 @@ class AuthService:
             display_name=display_name,
             role=r,
             pin=pin,
+            title=title,
+            birth_date=birth_date,
             face_enrolled=face,
             voice_enrolled=voice,
             gesture_enrolled=gesture,
@@ -171,6 +175,8 @@ class AuthService:
         display_name: str | None = None,
         pin: str | None = None,
         role: str | None = None,
+        title: str | None = None,
+        birth_date: str | None = None,
     ) -> dict[str, Any]:
         """Compte foyer pour enrôlement face — sans ordre imposé.
 
@@ -201,6 +207,8 @@ class AuthService:
             display_name=display_name,
             role=enroll_role,
             pin=pin,
+            title=title,
+            birth_date=birth_date,
         )
         return {
             "ok": True,

@@ -1,44 +1,62 @@
 /**
  * Aperçu caméra + barre de progression (auth / lock).
  * Holomat tourne ailleurs (faceAuthLive) — ici affichage seul.
+ * `fill` = remplit le parent (colonne auth équilibrée) ; sinon carré legacy.
  */
 import React from 'react';
 import { CameraPreview } from '../CameraPreview';
+import { tokens } from '../../../ui/tokens';
 
 export function FaceCamView({
   progress = 0,
-  label = 'HOLOMAT',
+  label = 'Holomat',
   active = true,
-  height,
+  size,
+  fill = false,
 }: {
   progress?: number;
   label?: string;
   active?: boolean;
-  /** Hauteur CSS (ex. clamp) — défaut 280 desktop. */
-  height?: string | number;
+  /** Côté du carré CSS — défaut clamp(260px, 52vmin, 420px). Ignoré si fill. */
+  size?: string | number;
+  /** Remplit le conteneur parent (même largeur que la carte statut). */
+  fill?: boolean;
 }) {
   const p = Math.max(0, Math.min(100, progress));
-  const h = height ?? 'clamp(140px, 32dvh, 280px)';
+  const side = size ?? 'clamp(260px, 52vmin, 420px)';
   return (
     <div
-      className="relative overflow-hidden rounded-xl select-none w-full max-w-[420px]"
-      style={{
-        width: 'min(92vw, 420px)',
-        height: h,
-        maxHeight: '40dvh',
-        background: '#000',
-        border: '1px solid rgba(0,229,255,0.35)',
-      }}
+      className={`relative overflow-hidden rounded-2xl select-none ${fill ? 'w-full h-full' : 'shrink-0'}`}
+      style={
+        fill
+          ? {
+              width: '100%',
+              height: '100%',
+              background: tokens.color.void,
+              border: `1px solid ${tokens.color.border}`,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), 0 16px 40px -18px rgba(0,0,0,0.45)',
+            }
+          : {
+              width: side,
+              height: side,
+              aspectRatio: '1 / 1',
+              background: tokens.color.void,
+              border: `1px solid ${tokens.color.border}`,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), 0 16px 40px -18px rgba(0,0,0,0.45)',
+            }
+      }
     >
       <CameraPreview active={active} className="absolute inset-0" opacity={1} mirrored />
       <div
         className="absolute top-2 left-2 px-1.5 py-0.5 rounded pointer-events-none"
         style={{
-          fontFamily: 'Share Tech Mono, monospace',
-          fontSize: 7,
-          letterSpacing: '0.14em',
-          color: '#00e5ff',
-          background: 'rgba(0,0,0,0.55)',
+          fontFamily: tokens.font.body,
+          fontSize: 10,
+          fontWeight: 500,
+          letterSpacing: '0.02em',
+          color: tokens.color.accent,
+          background: tokens.color.surfaceRaised,
+          backdropFilter: tokens.glass,
         }}
       >
         {label}
@@ -46,19 +64,19 @@ export function FaceCamView({
       <div className="absolute left-2 right-2 bottom-2 pointer-events-none">
         <div
           style={{
-            fontFamily: 'Share Tech Mono, monospace',
-            fontSize: 8,
-            color: 'rgba(0,229,255,0.7)',
+            fontFamily: tokens.font.mono,
+            fontSize: 10,
+            color: tokens.color.textMuted,
             marginBottom: 4,
-            letterSpacing: '0.1em',
+            letterSpacing: '0.01em',
           }}
         >
           {Math.round(p)}%
         </div>
-        <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: 'rgba(0,229,255,0.12)' }}>
+        <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: tokens.color.accentSoft }}>
           <div
             className="h-full rounded-full"
-            style={{ width: `${p}%`, background: '#00e5ff', transition: 'width 0.15s linear' }}
+            style={{ width: `${p}%`, background: tokens.color.accent, transition: 'width 0.15s linear' }}
           />
         </div>
       </div>

@@ -12,8 +12,14 @@ import { LockScene } from './LockScene';
 import { AuthScene } from './AuthScene';
 import { InstallWelcome } from './InstallWelcome';
 import { getCoreClient } from '../../bridge/coreClient';
+import { authStatus } from '../../bridge/authClient';
 import { DEV_BUILD } from '../../bridge/devAuthBypass';
 import { resolveProductMode, type InstallRoute, type IdentifyRoute } from '../../auth/productMode';
+import { GlassCard, GlassButton } from '../../../components/glass';
+import { tokens } from '../../../ui/tokens';
+import { Background } from '../Background';
+import { ThemeModeToggle } from '../ThemeModeToggle';
+import { visionCaption, visionTitle, visionBody } from '../visionChrome';
 
 type GateRoute =
   | 'waiting'
@@ -90,7 +96,7 @@ export function HudAuthGate() {
     });
 
     if (product === 'install') {
-      go({ mode: 'install', step: 'welcome' });
+      go({ mode: 'install', step: 'wizard' });
       return;
     }
 
@@ -110,54 +116,61 @@ export function HudAuthGate() {
 
   if (route === 'waiting') {
     return (
-      <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black gap-3">
-        <p style={{ fontFamily: 'Orbitron, sans-serif', color: '#00f5ff', fontSize: 14, letterSpacing: '0.2em' }}>
-          LIEN CORE
-        </p>
-        <p style={{ fontFamily: 'Share Tech Mono, monospace', color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>
-          Attente auth_status… {Math.round(waitMs / 1000)}s
-        </p>
+      <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-3">
+        <Background />
+        <div className="absolute top-3 right-3 z-20">
+          <ThemeModeToggle compact />
+        </div>
+        <GlassCard level="subtle" radius="lg" padding="lg" style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+          <p style={{ ...visionTitle, color: tokens.color.accent, fontSize: 15, margin: 0 }}>
+            Connexion au Core
+          </p>
+          <p style={{ ...visionBody, fontSize: 11, margin: '10px 0 0' }}>
+            Attente auth_status… {Math.round(waitMs / 1000)}s
+          </p>
+        </GlassCard>
       </div>
     );
   }
 
   if (route === 'offline') {
     return (
-      <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black gap-4 px-6 text-center">
-        <p style={{ fontFamily: 'Orbitron, sans-serif', color: '#f59e0b', fontSize: 14, letterSpacing: '0.16em' }}>
-          CORE HORS LIGNE
-        </p>
-        <p style={{ fontFamily: 'Share Tech Mono, monospace', color: 'rgba(255,255,255,0.55)', fontSize: 11, maxWidth: 420 }}>
-          Sans Core, pas d’utilisateurs ni d’enrôlement. Vérifiez que jarvis-core tourne sur la station.
-        </p>
-        <button
-          type="button"
-          className="px-4 py-2 rounded-lg cursor-pointer"
-          style={{
-            fontFamily: 'Share Tech Mono, monospace',
-            fontSize: 10,
-            color: '#00f5ff',
-            border: '1px solid rgba(0,245,255,0.4)',
-            background: 'rgba(0,20,40,0.9)',
-          }}
-          onClick={() => {
-            go('waiting');
-            setWaitMs(0);
-            getCoreClient().connect();
-            getCoreClient().sendAuth('status');
-            addNotification({ type: 'info', title: 'Core', message: 'Nouvelle tentative…' });
-          }}
-        >
-          RÉESSAYER
-        </button>
-        {DEV_BUILD && (
-          <a
-            href="?skipAuth=1"
-            style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.35)' }}
-          >
-            Dev only — ?skipAuth=1
-          </a>
-        )}
+      <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <Background />
+        <div className="absolute top-3 right-3 z-20">
+          <ThemeModeToggle compact />
+        </div>
+        <GlassCard level="strong" radius="lg" padding="lg" style={{ maxWidth: 460, position: 'relative', zIndex: 1 }}>
+          <p style={{ ...visionTitle, color: tokens.color.warning, fontSize: 15, margin: 0 }}>
+            Core hors ligne
+          </p>
+          <p style={{ ...visionBody, fontSize: 12, margin: '14px 0 0', lineHeight: 1.6, color: tokens.color.text }}>
+            Sans Core, pas d’utilisateurs ni d’enrôlement. Vérifiez que jarvis-core tourne sur la station.
+          </p>
+          <div style={{ marginTop: 18, display: 'flex', justifyContent: 'center' }}>
+            <GlassButton
+              tone="accent"
+              active
+              onClick={() => {
+                go('waiting');
+                setWaitMs(0);
+                getCoreClient().connect();
+                getCoreClient().sendAuth('status');
+                addNotification({ type: 'info', title: 'Core', message: 'Nouvelle tentative…' });
+              }}
+            >
+              Réessayer
+            </GlassButton>
+          </div>
+          {DEV_BUILD && (
+            <a
+              href="?skipAuth=1"
+              style={{ fontFamily: tokens.font.mono, fontSize: 9, color: tokens.color.textMuted, display: 'block', marginTop: 14 }}
+            >
+              Dev only — ?skipAuth=1
+            </a>
+          )}
+        </GlassCard>
       </div>
     );
   }
@@ -170,7 +183,12 @@ export function HudAuthGate() {
       <FirstSetupScene
         mode="first_run"
         onComplete={() => {
-          setCoreAuth({ firstRun: false, userCount: Math.max(coreAuth.userCount, 1) });
+          void authStatus().then((st) => {
+            setCoreAuth({
+              firstRun: st.first_run,
+              userCount: st.user_count,
+            });
+          });
           go({ mode: 'identify', step: 'auth' });
         }}
       />
@@ -195,7 +213,10 @@ export function HudAuthGate() {
   }
   return (
     <AuthScene
-      onRequestEnroll={() => go({ mode: 'identify', step: 'enroll_member' })}
+      onRequestEnroll={() => {
+        console.info('[AUTH] HudAuthGate → enroll_member');
+        go({ mode: 'identify', step: 'enroll_member' });
+      }}
     />
   );
 }
