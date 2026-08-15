@@ -3,17 +3,23 @@ import { useApp } from '../context/AppContext';
 import { bootCoreBridge, getCoreClient } from '../bridge/coreClient';
 import { startPeripheralWatch } from '../bridge/peripheralWatch';
 import { bindHudCommands } from '../bridge/hudCommands';
+import { bootToolTimelineStore, requestToolTimelineSnapshot } from '../bridge/toolTimelineStore';
+import { bootVerificationStore } from '../bridge/verificationStore';
+import { bootVisionSceneStore } from '../bridge/visionSceneStore';
 import { getAppById } from '../apps/catalog';
 import type { AuthUser } from '../bridge/authClient';
 
 export function CoreBridge() {
   const {
     addNotification, setAiState, addMessage, setCoreAuth, sessionUnlocked,
-    lockSession, closeApp, openApps, activeAppId, launchApp,
+    lockSession, closeApp, openApps, activeAppId, launchApp, requestDashboard,
   } = useApp();
 
   useEffect(() => {
     const client = bootCoreBridge();
+    bootVerificationStore();
+    bootToolTimelineStore();
+    bootVisionSceneStore();
 
     client.setHandlers({
       onConnected: (ok) => {
@@ -26,6 +32,9 @@ export function CoreBridge() {
             client.send({ type: 'voice', action: 'cancel' });
             client.sendAuth('status');
           } catch { /* */ }
+        }
+        if (ok) {
+          try { requestToolTimelineSnapshot(); } catch { /* */ }
         }
         addNotification({
           type: ok ? 'success' : 'warning',
@@ -116,6 +125,10 @@ export function CoreBridge() {
         openApps.forEach(a => closeApp(a.id));
       },
       openSpace: (appId: string) => {
+        if (appId === 'hub') {
+          requestDashboard();
+          return;
+        }
         const app = getAppById(appId);
         if (!app) return;
         launchApp({ id: app.id, name: app.name, color: app.color, icon: app.icon });
@@ -128,7 +141,7 @@ export function CoreBridge() {
         } catch { /* */ }
       },
     });
-  }, [lockSession, closeApp, openApps, activeAppId, launchApp]);
+  }, [lockSession, closeApp, openApps, activeAppId, launchApp, requestDashboard]);
 
   return null;
 }

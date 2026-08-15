@@ -7,13 +7,14 @@
  * ouverte ailleurs. `client` (singleton `DashboardCoreClient`) doit donc
  * être la SEULE connexion WS admin du Dashboard.
  */
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getDashboardCoreClient, type DashboardCoreClient } from '../lib/coreClient'
 
 export type AdminSession = {
   userId: string
   username?: string
   displayName?: string
+  role?: string
 }
 
 type CoreSessionValue = {
@@ -28,6 +29,10 @@ const CoreSessionContext = createContext<CoreSessionValue | null>(null)
 export function CoreSessionProvider({ children }: { children: ReactNode }) {
   const client = useMemo(() => getDashboardCoreClient(), [])
   const [session, setSession] = useState<AdminSession | null>(null)
+
+  useEffect(() => {
+    client.connect()
+  }, [client])
 
   const logout = useCallback(() => {
     try { client.send({ type: 'auth', action: 'logout' }) } catch { /* */ }

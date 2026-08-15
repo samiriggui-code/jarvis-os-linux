@@ -1,6 +1,7 @@
 """Orchestrateur Core — composition des mixins Phase 1."""
 from __future__ import annotations
 
+from .executors.architecture import ArchitectureExecutorsMixin
 from .intents.executors import IntentExecutorsMixin
 from .intents.executors_hud import HudIntentExecutorsMixin
 from .intents.executors_routing import IntentRoutingMixin
@@ -11,6 +12,7 @@ from .orchestrator_speech import OrchestratorSpeechMixin
 from .ws.handlers.auth import AuthHandlerMixin
 from .ws.handlers.chat import ChatHandlerMixin
 from .ws.handlers.holomat import HolomatHandlerMixin
+from .ws.handlers.perception import PerceptionHandlerMixin
 from .ws.handlers.surface import SurfaceHandlerMixin
 from .ws.handlers.system import SystemHandlerMixin
 from .ws.handlers.terminal import TerminalHandlerMixin
@@ -28,9 +30,11 @@ class Orchestrator(
     AuthHandlerMixin,
     ChatHandlerMixin,
     HolomatHandlerMixin,
+    PerceptionHandlerMixin,
     SurfaceHandlerMixin,
     SystemHandlerMixin,
     TerminalHandlerMixin,
     VoiceHandlerMixin,
+    ArchitectureExecutorsMixin,
 ):
     """Cerveau : reçoit les events HUD, applique la policy, répond via WS."""

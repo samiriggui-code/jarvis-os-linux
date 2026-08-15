@@ -1,0 +1,6 @@
+# JARVIS Vision Worker — local dev only (pas de deploy NUC dans cette phase)
+
+websockets>=12.0
+# Optionnel pour --mode yolo :
+# ultralytics
+# opencv-python-headless

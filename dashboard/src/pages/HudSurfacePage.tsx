@@ -19,7 +19,7 @@ export default function HudSurfacePage() {
         radius="lg"
         eyebrow="Front produit"
         title="Interface HUD"
-        subtitle="Orbe, voix, authentification faciale et lanceur d'applications"
+        subtitle="Orbe, voix, authentification phrase, lanceur d'applications"
         style={{ maxWidth: 520 }}
       >
         <p style={{ fontFamily: tokens.font.mono, fontSize: 11, color: tokens.color.textMuted, lineHeight: 1.55, margin: '0 0 20px' }}>

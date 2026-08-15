@@ -4,7 +4,7 @@
  */
 import type { LucideIcon } from 'lucide-react'
 import {
-  Terminal, Settings, Cpu, Shield, Wifi, Brain, Boxes, Camera,
+  Terminal, Settings, Cpu, Shield, Wifi, Brain, Camera,
   BarChart3, Code, HardDrive, Globe, Music, Video, Home, Mail,
   FolderOpen, Box, Calendar, Sparkles, Radar, Link2,
   BrainCog, Coins, Target, Network, Timer, Wrench, LayoutGrid, Monitor,
@@ -183,8 +183,8 @@ export const DASH_APPS: DashApp[] = [
   },
   {
     id: 'mission-control-dev', name: 'Mission Control DEV', icon: Radar, color: C.danger, cat: 'Agent',
-    status: 'live', owner: 'core', intent: 'core.mission_dev', page: 'command',
-    blurb: 'Orchestration dev',
+    status: 'live', owner: 'core', intent: 'core.mission_dev', page: 'mission-board',
+    blurb: 'Kanban dev + agents',
   },
   {
     id: 'crons', name: 'Crons', icon: Timer, color: C.muted, cat: 'Agent',

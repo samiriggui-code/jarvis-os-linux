@@ -1,22 +1,15 @@
 /**
- * Supervision — statut réel via Core WS type=supervisor (composants) et
- * SYSTEM_METRICS (poussé en continu par le bus, pas en requête/réponse —
- * la connexion reste donc ouverte ici, contrairement aux autres pages qui
- * ferment après une réponse).
- *
- * Connu et volontairement absent : aucune sonde Home Assistant / PostgreSQL /
- * Ollama côté superviseur aujourd'hui (cf. docs/COMPOSANTS.md) — ces lignes
- * ne s'affichent pas plutôt que d'inventer un statut.
+ * Supervision — supervisor + SYSTEM_METRICS sur la connexion admin partagée.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
+import { useCoreSession } from '../context/CoreSessionContext'
 
 type Component = {
   name: string
   state: 'unknown' | 'loading' | 'ready' | 'degraded' | string
   error?: string | null
   critical?: boolean
-  age_s?: number | null
 }
 
 type SupervisorStatus = {
@@ -34,9 +27,6 @@ type SystemMetrics = {
   threat_level?: string
 }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 const STATE_COLOR: Record<string, string> = {
   ready: '#34C759',
   loading: '#0A84FF',
@@ -45,29 +35,22 @@ const STATE_COLOR: Record<string, string> = {
 }
 
 export default function SystemMonitoring() {
+  const { client } = useCoreSession()
   const [sup, setSup] = useState<SupervisorStatus | null>(null)
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null)
-  const [connected, setConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null)
+  const [connected, setConnected] = useState(client.connected)
 
   useEffect(() => {
-    const ws = new WebSocket(CORE_WS)
-    wsRef.current = ws
-    ws.onopen = () => {
-      setConnected(true)
-      ws.send(JSON.stringify({ type: 'supervisor', action: 'status' }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'supervisor_status') setSup(data as SupervisorStatus)
-        if (data.type === 'SYSTEM_METRICS') setMetrics(data as SystemMetrics)
-      } catch { /* */ }
-    }
-    ws.onclose = () => setConnected(false)
-    ws.onerror = () => setConnected(false)
-    return () => { try { ws.close() } catch { /* */ } }
-  }, [])
+    client.connect()
+    setConnected(client.connected)
+    const unsubConn = client.subscribeConnection(setConnected)
+    client.send({ type: 'supervisor', action: 'status' })
+    const unsub = client.subscribe((data) => {
+      if (data.type === 'supervisor_status') setSup(data as SupervisorStatus)
+      if (data.type === 'SYSTEM_METRICS') setMetrics(data as SystemMetrics)
+    })
+    return () => { unsub(); unsubConn() }
+  }, [client])
 
   const components = sup?.components || []
 
@@ -99,9 +82,6 @@ export default function SystemMonitoring() {
           <Row name="Home Assistant" meta="aucune sonde côté Core" status="INCONNU" statusColor="rgba(17,17,20,0.35)" />
           <Row name="PostgreSQL" meta="aucune sonde côté Core" status="INCONNU" statusColor="rgba(17,17,20,0.35)" />
           <Row name="Ollama" meta="statut lu à la demande (page AI Providers), pas supervisé en continu" status="PARTIEL" statusColor="#FFC857" />
-          <div style={{ marginTop: 12, fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(17,17,20,0.4)' }}>
-            Écart documenté (docs/COMPOSANTS.md) — pas une case à cocher rapide, un vrai chantier côté Core.
-          </div>
         </Card>
       </div>
     </PageShell>

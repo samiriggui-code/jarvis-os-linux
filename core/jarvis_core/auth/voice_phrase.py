@@ -161,7 +161,7 @@ def phrases_match(expected: str, heard: str) -> bool:
 
 
 def sounds_like_auth_challenge(heard: str) -> bool:
-    """STT Whisper/voicebox — tolère « j arvise », « vis actif toi », etc."""
+    """STT Whisper/voicebox — tolère « j arvise », « jarlis », « vis actif toi », etc."""
     h = normalize_phrase(heard)
     if not h or len(h) < 4:
         return False
@@ -170,12 +170,12 @@ def sounds_like_auth_challenge(heard: str) -> bool:
 
     # Nom « jarvis » déformé par STT FR
     has_jarvis = bool(
-        re.search(r"j\s*ar?vise|j\s*arvis|jarvis|charvis|jarvi[s]?\b", h)
+        re.search(r"j\s*ar?vise|j\s*arvis|jarvis|jarlis|charvis|jarvi[sz]?\b", h)
     )
     if not has_jarvis:
         has_jarvis = any(
             x in collapsed
-            for x in ("jarvis", "arvise", "jarvi", "charvis", "jarvise", "jarvis")
+            for x in ("jarvis", "arvise", "jarvi", "jarlis", "charvis", "jarvise")
         )
     # « j'ai un vis actif toi » / « j arvise active toi »
     if not has_jarvis and "vis" in h:
@@ -187,10 +187,17 @@ def sounds_like_auth_challenge(heard: str) -> bool:
     if has_jarvis and (has_active or has_toi):
         return True
 
-    if "hey" in h.split() and ("jarvis" in collapsed or "arvis" in collapsed):
+    if "hey" in h.split() and ("jarvis" in collapsed or "arvis" in collapsed or "jarlis" in collapsed):
         return True
 
     return False
+
+
+def samples_pass_quality(samples: list[str], *, min_ok: int = 2) -> tuple[bool, list[str]]:
+    """Refuse d'enregistrer des prises STT hors-phrase (TTS capté, bruit, etc.)."""
+    kept = [normalize_phrase(s) for s in samples if normalize_phrase(s)]
+    good = [s for s in kept if sounds_like_auth_challenge(s) or phrases_match(DEFAULT_CHALLENGE, s)]
+    return len(good) >= min_ok, good
 
 
 def pick_canonical_phrase(samples: list[str]) -> str:

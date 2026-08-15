@@ -1,4 +1,4 @@
-# Installe l'agent JARVIS Windows (zero-config) — copie locale ou téléchargement NUC.
+﻿# Installe l'agent JARVIS Windows (zero-config) — copie locale ou téléchargement NUC.
 # Usage :
 #   .\install-agent.ps1
 #   .\install-agent.ps1 -FromNuc
@@ -28,10 +28,70 @@ function Find-Python {
 
 function Remove-AgentTask {
     $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    if ($existing) {
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    if (-not $existing) { return }
+    try {
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop
         Write-Step "Tâche planifiée supprimée"
+    } catch {
+        Write-Warning "Unregister refusé ($($_.Exception.Message)) — tentative Set-ScheduledTask / disable"
     }
+}
+
+function Register-AgentTaskSilent {
+    param([string]$EnsureVbs)
+    $action = New-ScheduledTaskAction -Execute "wscript.exe" `
+        -Argument "//B //Nologo `"$EnsureVbs`""
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+    $settings.Hidden = $true
+    $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($existing) {
+        try {
+            Set-ScheduledTask -TaskName $TaskName -Action $action -Settings $settings -ErrorAction Stop | Out-Null
+            Enable-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
+            Write-Step "Tâche planifiée mise à jour (wscript silencieux)"
+            return
+        } catch {
+            Write-Warning "Set-ScheduledTask refusé — désactivation de l'ancienne tâche (évite flash logon)"
+            Disable-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
+            return
+        }
+    }
+    try {
+        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
+            -Settings $settings -Description "Agent machine JARVIS (silencieux — orbe tray)" -ErrorAction Stop | Out-Null
+        Write-Step "Tâche planifiée créée (wscript silencieux)"
+    } catch {
+        Write-Warning "Register-ScheduledTask échoué: $($_.Exception.Message)"
+    }
+}
+
+function Test-IsAdmin {
+    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $p = New-Object Security.Principal.WindowsPrincipal($id)
+    return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Stop-AgentProcesses {
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -match '^pythonw?\.exe$' -and $_.CommandLine -and ($_.CommandLine -like '*windows_agent.py*')
+    } | ForEach-Object {
+        Write-Step "Arrêt agent pid $($_.ProcessId)"
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 2
+}
+
+if (-not $Uninstall -and -not (Test-IsAdmin)) {
+    Write-Step "Élévation admin requise — ProgramData\JARVIS\agent est en lecture seule pour l'utilisateur standard"
+    $elevArgs = @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $MyInvocation.MyCommand.Path
+    )
+    if ($FromNuc) { $elevArgs += '-FromNuc' }
+    if ($NoTask) { $elevArgs += '-NoTask' }
+    Start-Process powershell.exe -Verb RunAs -ArgumentList $elevArgs -Wait
+    exit $LASTEXITCODE
 }
 
 if ($Uninstall) {
@@ -46,22 +106,32 @@ if ($Uninstall) {
 }
 
 Write-Step "Installation agent JARVIS → $InstallDir"
+Stop-AgentProcesses
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
 # ── 1. Copie ou téléchargement ───────────────────────────────────────────────
 $copied = $false
 if (-not $FromNuc) {
     foreach ($name in @(
-        "windows_agent.py", "agent_lib.py", "inventory.py", "apps.py",
-        "discover.py", "config.py", "status.py", "runtime.py", "tray_app.py",
+        "windows_agent.py", "agent_lib.py", "single_instance.py", "inventory.py", "apps.py", "metrics.py",
+        "discover.py", "config.py", "status.py", "runtime.py", "tray_app.py", "icons.py",
         "panel_server.py", "panel.html", "requirements.txt",
-        "start-agent.ps1", "ensure-agent.ps1", "open-panel.ps1", "bootstrap.json"
+        "agent_restart.py", "dev_agent_cli.py", "workspace_local.py", "dev_agent_fake.py", "fake_agent.py",
+        "start-agent.ps1", "ensure-agent.ps1", "ensure-agent.vbs", "open-panel.ps1", "bootstrap.json", "CHANGELOG.md"
     )) {
         $src = Join-Path $Root $name
         if (Test-Path $src) {
             Copy-Item -Force $src (Join-Path $InstallDir $name)
             $copied = $true
         }
+    }
+    # Orbe HUD (tray vivant + panel)
+    $assetsSrc = Join-Path $Root "assets"
+    if (Test-Path $assetsSrc) {
+        $assetsDst = Join-Path $InstallDir "assets"
+        New-Item -ItemType Directory -Force -Path $assetsDst | Out-Null
+        Copy-Item -Force (Join-Path $assetsSrc "*") $assetsDst
+        $copied = $true
     }
 }
 
@@ -77,7 +147,7 @@ if (-not $copied -or $FromNuc) {
         $disc = $discoverJson | ConvertFrom-Json
         $base = ($disc.hud_url).TrimEnd("/") + "/v1/agent/"
         foreach ($name in @(
-            "windows_agent.py", "agent_lib.py", "inventory.py", "apps.py",
+            "windows_agent.py", "agent_lib.py", "single_instance.py", "inventory.py", "apps.py", "metrics.py",
             "discover.py", "config.py", "status.py", "runtime.py", "tray_app.py",
             "panel_server.py", "panel.html", "requirements.txt", "bootstrap.json"
         )) {
@@ -90,6 +160,7 @@ if (-not $copied -or $FromNuc) {
             }
         }
         Copy-Item -Force (Join-Path $Root "ensure-agent.ps1") (Join-Path $InstallDir "ensure-agent.ps1") -ErrorAction SilentlyContinue
+        Copy-Item -Force (Join-Path $Root "ensure-agent.vbs") (Join-Path $InstallDir "ensure-agent.vbs") -ErrorAction SilentlyContinue
         Copy-Item -Force (Join-Path $Root "start-agent.ps1") (Join-Path $InstallDir "start-agent.ps1") -ErrorAction SilentlyContinue
     } finally {
         Pop-Location
@@ -128,25 +199,22 @@ try {
         Write-Warning "Core non joignable — config par défaut LAN"
         @"
 JARVIS_WS_URL=ws://192.168.1.37:8080/ws
-JARVIS_HUD_URL=http://192.168.1.37:8080
+JARVIS_HUD_URL=https://jarvis.global-it-ss.com
 "@ | Set-Content -Encoding UTF8 (Join-Path $ConfigRoot "agent.env")
     }
 } finally {
     Pop-Location
 }
 
-# ── 4. Tâche planifiée (session utilisateur = lancement .exe OK) ───────────────
+# ── 4. Tâche planifiée (VBS Style 0 = zéro flash console au logon) ─────────────
 if (-not $NoTask) {
-    Write-Step "Tâche planifiée au logon"
+    Write-Step "Tâche planifiée au logon (silencieuse)"
     Remove-AgentTask
-    $ensure = Join-Path $InstallDir "ensure-agent.ps1"
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-        -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ensure`""
-    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-        -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
-        -Settings $settings -Description "Agent machine JARVIS — inventaire + app.launch" | Out-Null
+    $ensureVbs = Join-Path $InstallDir "ensure-agent.vbs"
+    if (-not (Test-Path $ensureVbs)) {
+        Copy-Item -Force (Join-Path $Root "ensure-agent.vbs") $ensureVbs
+    }
+    Register-AgentTaskSilent -EnsureVbs $ensureVbs
 }
 
 # ── 5. Démarrage immédiat ────────────────────────────────────────────────────

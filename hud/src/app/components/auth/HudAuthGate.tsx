@@ -17,7 +17,7 @@ import { DEV_BUILD } from '../../bridge/devAuthBypass';
 import { resolveProductMode, type InstallRoute, type IdentifyRoute } from '../../auth/productMode';
 import { GlassCard, GlassButton } from '../../../components/glass';
 import { tokens } from '../../../ui/tokens';
-import { Background } from '../Background';
+import { AuthCinematicBackdrop } from './AuthCinematicBackdrop';
 import { ThemeModeToggle } from '../ThemeModeToggle';
 import { visionCaption, visionTitle, visionBody } from '../visionChrome';
 
@@ -117,11 +117,11 @@ export function HudAuthGate() {
   if (route === 'waiting') {
     return (
       <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-3">
-        <Background />
+        <AuthCinematicBackdrop />
         <div className="absolute top-3 right-3 z-20">
           <ThemeModeToggle compact />
         </div>
-        <GlassCard level="subtle" radius="lg" padding="lg" style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <GlassCard level="subtle" radius="lg" padding="lg" style={{ textAlign: 'center', position: 'relative', zIndex: 1, borderRadius: 28 }}>
           <p style={{ ...visionTitle, color: tokens.color.accent, fontSize: 15, margin: 0 }}>
             Connexion au Core
           </p>
@@ -136,11 +136,11 @@ export function HudAuthGate() {
   if (route === 'offline') {
     return (
       <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <Background />
+        <AuthCinematicBackdrop />
         <div className="absolute top-3 right-3 z-20">
           <ThemeModeToggle compact />
         </div>
-        <GlassCard level="strong" radius="lg" padding="lg" style={{ maxWidth: 460, position: 'relative', zIndex: 1 }}>
+        <GlassCard level="strong" radius="lg" padding="lg" style={{ maxWidth: 460, position: 'relative', zIndex: 1, borderRadius: 28 }}>
           <p style={{ ...visionTitle, color: tokens.color.warning, fontSize: 15, margin: 0 }}>
             Core hors ligne
           </p>

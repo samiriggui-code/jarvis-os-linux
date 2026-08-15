@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Page } from '../types'
 import { HOST } from '../types'
 import { tokens } from '../ui/tokens'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
+import { AdminUserMenu } from './AdminUserMenu'
 
-const ACCENT = tokens.color.accent
 const BORDER = tokens.color.border
 const TEXT = tokens.color.text
 const MUTED = tokens.color.textMuted
@@ -29,6 +31,7 @@ const sections: NavSection[] = [
     label: 'Cockpit',
     items: [
       { icon: '⬡', label: 'Command Center', id: 'command' },
+      { icon: '▦', label: 'Mission DEV Board', id: 'mission-board' },
       { icon: '◎', label: 'Hermes Core', id: 'hermes' },
     ],
   },
@@ -41,7 +44,7 @@ const sections: NavSection[] = [
       { icon: '⊗', label: 'Agents', id: 'agents' },
       { icon: '⟨⟩', label: 'Tools', id: 'tools' },
       { icon: '👁', label: 'Agent-Reach', id: 'reach' },
-      { icon: '◫', label: 'Applications', id: 'apps' },
+      { icon: '◫', label: 'Apps hôtes', id: 'apps' },
     ],
   },
   {
@@ -72,10 +75,18 @@ interface Props {
 }
 
 export default function Sidebar({ active, onNavigate, open = false, onClose }: Props) {
+  const { client } = useCoreSession()
+  const [hermesOnline, setHermesOnline] = useState<boolean | null>(null)
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(LS_COLLAPSED) === '1'
   })
+
+  useEffect(() => {
+    void dashRequest(client, { type: 'hermes_status', action: 'status' }, 'hermes_result', 8000)
+      .then((d) => setHermesOnline(d.healthy === true))
+      .catch(() => setHermesOnline(false))
+  }, [client])
 
   const toggleCollapsed = () => {
     setCollapsed(c => {
@@ -162,9 +173,11 @@ export default function Sidebar({ active, onNavigate, open = false, onClose }: P
 
       {!collapsed && (
         <div style={{ padding: '8px 16px', borderBottom: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', background: 'rgba(52, 199, 89, 0.08)', borderRadius: 8, border: '1px solid rgba(52, 199, 89, 0.2)' }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: tokens.color.success }} />
-            <span style={{ fontFamily: 'Inter', fontSize: 10, color: tokens.color.success, letterSpacing: '0.02em' }}>Hermes en ligne</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', background: hermesOnline ? 'rgba(52, 199, 89, 0.08)' : 'rgba(255, 59, 48, 0.08)', borderRadius: 8, border: hermesOnline ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(255, 59, 48, 0.2)' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: hermesOnline ? tokens.color.success : tokens.color.danger }} />
+            <span style={{ fontFamily: 'Inter', fontSize: 10, color: hermesOnline ? tokens.color.success : tokens.color.danger, letterSpacing: '0.02em' }}>
+              {hermesOnline == null ? 'Hermes …' : hermesOnline ? 'Hermes en ligne' : 'Hermes hors ligne'}
+            </span>
           </div>
           <div style={{ fontFamily: 'Inter', fontSize: 10, color: MUTED, paddingLeft: 4 }}>
             {HOST.label} · {HOST.path}
@@ -196,15 +209,7 @@ export default function Sidebar({ active, onNavigate, open = false, onClose }: P
       </nav>
 
       <div style={{ padding: collapsed ? '10px 12px' : '10px 16px', borderTop: `1px solid ${BORDER}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: collapsed ? 'center' : 'flex-start' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>A</div>
-          {!collapsed && (
-            <div>
-              <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: TEXT }}>Admin</div>
-              <div style={{ fontFamily: 'Inter', fontSize: 10, color: MUTED }}>dashboard_access · VPS</div>
-            </div>
-          )}
-        </div>
+        <AdminUserMenu collapsed={collapsed} onNavigate={onNavigate} />
       </div>
     </aside>
   )

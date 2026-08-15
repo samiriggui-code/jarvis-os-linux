@@ -7,48 +7,33 @@ import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, Row, StatPill } from '../components/ui'
 import type { Page } from '../types'
 import { HOST } from '../types'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 type DeviceInfo = { device_id?: string; type?: string; online?: boolean; metadata?: { label?: string } }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 export default function CommandCenter({ onNavigate }: { onNavigate: (p: Page) => void }) {
+  const { client } = useCoreSession()
   const [devices, setDevices] = useState<DeviceInfo[] | null>(null)
   const [hermesHealthy, setHermesHealthy] = useState<boolean | null>(null)
 
   const refresh = useCallback(() => {
-    let settled = false
-    let devDone = false
-    let hermesDone = false
-    const ws = new WebSocket(CORE_WS)
-    const finish = () => { if (!settled) { settled = true; try { ws.close() } catch { /* */ } } }
-    const timer = window.setTimeout(finish, 10000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'device', action: 'list' }))
-      ws.send(JSON.stringify({ type: 'hermes_status', action: 'status' }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'device_list') {
-          setDevices(Array.isArray(data.devices) ? data.devices : [])
-          devDone = true
-        }
-        if (data.type === 'hermes_result') {
-          setHermesHealthy(data.healthy === true)
-          hermesDone = true
-        }
-        if (devDone && hermesDone) { window.clearTimeout(timer); finish() }
-      } catch { /* */ }
-    }
-    ws.onerror = () => { window.clearTimeout(timer); finish() }
-  }, [])
+    void Promise.all([
+      dashRequest(client, { type: 'device', action: 'list' }, 'device_list'),
+      dashRequest(client, { type: 'hermes_status', action: 'status' }, 'hermes_result'),
+    ]).then(([dev, hermes]) => {
+      setDevices(Array.isArray(dev.devices) ? (dev.devices as DeviceInfo[]) : [])
+      setHermesHealthy(hermes.healthy === true)
+    }).catch(() => {
+      setDevices([])
+      setHermesHealthy(false)
+    })
+  }, [client])
 
   useEffect(() => { refresh() }, [refresh])
 
   const jump: [Page, string][] = [
+    ['mission-board', 'Mission DEV Board'],
     ['recovery', 'Recovery'],
     ['holomat', 'Holomat'],
     ['docker', 'Docker'],
@@ -93,7 +78,7 @@ export default function CommandCenter({ onNavigate }: { onNavigate: (p: Page) =>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
-        <StatPill label="HOST" value="VPS" />
+        <StatPill label="HOST" value={HOST.role} />
         <StatPill label="HERMES" value={hermesHealthy == null ? '…' : hermesHealthy ? 'EN LIGNE' : 'HORS LIGNE'} color={hermesHealthy ? '#34C759' : '#FF3B30'} />
         <StatPill label="DEVICES EN LIGNE" value={devices == null ? '…' : String(onlineDevices.length)} color="#0A84FF" />
         <StatPill label="DOCKER" value="—" color="rgba(17,17,20,0.35)" />
@@ -112,7 +97,7 @@ export default function CommandCenter({ onNavigate }: { onNavigate: (p: Page) =>
 
         <Card>
           <CardTitle>Accès host</CardTitle>
-          <Row name="Terminal" meta="exécution non câblée depuis le Dashboard" status="À CÂBLER" statusColor="#FFC857" />
+          <Row name="Terminal" meta="page Terminal · WS type=terminal (session admin)" status="CÂBLÉ" statusColor="#34C759" />
           <Row name="Docker UI" meta="Portainer" status="LIEN" statusColor="rgba(17,17,20,0.5)" />
           <Row name="Déploiements" meta="/opt/apps" status="À CÂBLER" statusColor="#FFC857" />
         </Card>

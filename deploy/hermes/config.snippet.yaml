@@ -39,6 +39,9 @@ skills:
 # Liste EXPLICITE = plafond. Sans `web`, le Core refuse la délégation et
 # OpenRouter feignait « Je procède… » sans surface (bug 2026-08-06).
 # La grille de rôle reste côté Core (`ROLE_TOOLSETS`).
+# `memory` (outil Hermes autonome) = transitoire M4 : les faits foyer passent
+# par Core POST /v1/memory/* (skill jarvis-memory). Ne pas retirer tant que
+# la voie Core n'est pas prouvée en live NUC.
 platform_toolsets:
   api_server:
     - web
@@ -54,3 +57,4 @@ platform_toolsets:
     - delegation
     - homeassistant
     - spotify
+    - vision

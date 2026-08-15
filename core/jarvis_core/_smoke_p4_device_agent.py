@@ -154,7 +154,7 @@ async def _run_e2e() -> None:
 
     stop.set()
     agent_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
+    with contextlib.suppress(asyncio.CancelledError, ConnectionError):
         await agent_task
 
 

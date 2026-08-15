@@ -47,8 +47,17 @@ INTENT_SURFACE_APP: dict[str, str] = {
     "data.analyze": "analyze",
     "agent.skills": "skills",
     "home.control": "home",
+    # home.camera_view / home.camera_snapshot : PAS ici, volontairement.
+    # Ces deux exécuteurs publient déjà leur propre surface "salon-camera"
+    # (ImageViewer) directement. Les enregistrer ici réactive le mécanisme
+    # générique `_maybe_publish_surface_decision` (executors_routing.py) qui
+    # écrase la surface caméra avec un ResultPanel "résultat Hermes" vide —
+    # bug constaté en test réel, cf. handoff caméra. Ne pas les réajouter
+    # sans revoir ce mécanisme générique en même temps.
     "media.video": "video",
     "core.holomat": "vision",
+    "vision.analyze": "vision",
+    "vision.scene": "vision",
     "core.mission_dev": "mission-control-dev",
     "agent.tools": "outils",
     "agent.cron": "crons",
@@ -136,6 +145,13 @@ def decide_document(
         return surface_id, monitor_document()
 
     tool_name = str(tool or "").strip()
+
+    # Board Mission DEV — document live publié par l'exécutant (pas ResultPanel).
+    if intent == "core.mission_dev" and surface_id == "mission-control-dev":
+        return None
+    if tool_name.startswith("kanban_") and surface_id == "mission-control-dev":
+        return None
+
     title = tool_name.replace("_", " ").title() if tool_name else (intent or "Résultat")
     body = (summary or "").strip() or f"Outil {tool_name or intent} — résultat Hermes."
     source = intent or tool_name or "hermes.tool"

@@ -1,17 +1,17 @@
 /**
- * Chrome Vision partagé pour panneaux produit HUD.
- * Remplace les plaques rgba(0,8,20) + titres cyan glow.
+ * VisionChrome — panneau produit. Contient son contenu (objet spatial),
+ * pas un scroll du parent qui fait déborder le Glass.
  */
 import type { CSSProperties, ReactNode } from 'react';
 import { GlassPanel } from '../../components/glass/GlassPanel';
-import { tokens } from '../../ui/tokens';
+import { tokens, vibrancy } from '../../ui/tokens';
 
 export const visionTitle: CSSProperties = {
   fontFamily: tokens.font.display,
   fontSize: 15,
   fontWeight: 600,
   letterSpacing: '-0.02em',
-  color: tokens.color.text,
+  color: vibrancy.primary,
   margin: 0,
 };
 
@@ -20,7 +20,7 @@ export const visionCaption: CSSProperties = {
   fontSize: 11,
   fontWeight: 500,
   letterSpacing: '0.02em',
-  color: tokens.color.textMuted,
+  color: vibrancy.secondary,
   margin: 0,
 };
 
@@ -28,14 +28,14 @@ export const visionBody: CSSProperties = {
   fontFamily: tokens.font.body,
   fontSize: 13,
   lineHeight: 1.45,
-  color: tokens.color.textMuted,
+  color: vibrancy.secondary,
   margin: 0,
 };
 
 export const visionMono: CSSProperties = {
   fontFamily: tokens.font.mono,
   fontSize: 12,
-  color: tokens.color.text,
+  color: vibrancy.primary,
 };
 
 export function VisionChrome({
@@ -43,7 +43,7 @@ export function VisionChrome({
   eyebrow,
   trailing,
   children,
-  level = 'regular',
+  level = 'subtle',
   fill,
 }: {
   title?: ReactNode;
@@ -54,7 +54,19 @@ export function VisionChrome({
   fill?: boolean;
 }) {
   return (
-    <GlassPanel level={level} radius="lg" padding="md" fill={fill} style={{ height: fill ? '100%' : undefined }}>
+    <GlassPanel
+      level={level}
+      radius="lg"
+      padding="md"
+      fill={fill}
+      style={{
+        borderRadius: 26,
+        height: fill ? '100%' : undefined,
+        minHeight: fill ? 0 : undefined,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {(title || eyebrow || trailing) && (
         <div
           style={{
@@ -63,6 +75,7 @@ export function VisionChrome({
             justifyContent: 'space-between',
             gap: 12,
             marginBottom: 12,
+            flexShrink: 0,
           }}
         >
           <div>
@@ -72,7 +85,17 @@ export function VisionChrome({
           {trailing}
         </div>
       )}
-      {children}
+      <div
+        style={{
+          flex: fill ? 1 : undefined,
+          minHeight: fill ? 0 : undefined,
+          overflow: fill ? 'hidden' : undefined,
+          display: fill ? 'flex' : undefined,
+          flexDirection: fill ? 'column' : undefined,
+        }}
+      >
+        {children}
+      </div>
     </GlassPanel>
   );
 }

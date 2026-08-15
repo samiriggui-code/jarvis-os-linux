@@ -34,6 +34,10 @@ APPS: dict[str, dict[str, str]] = {
         "package": "com.disney.disneyplus",
         "search": "https://www.disneyplus.com/search?q={q}",
     },
+    "prime": {
+        "package": "com.amazon.amazonvideo.livingroom",
+        "search": "https://www.primevideo.com/search/ref=atv_sr_sug?ie=UTF8&phrase={q}",
+    },
     "plex": {
         "package": "com.plexapp.android",
         "search": "",

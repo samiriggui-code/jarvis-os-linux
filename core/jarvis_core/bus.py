@@ -98,6 +98,8 @@ DEFAULT_POLICIES: dict[str, RatePolicy] = {
     "HAND_PINCH": RatePolicy(mode=Mode.EDGE, key_field="hand"),
     "HAND_FIST": RatePolicy(mode=Mode.EDGE, key_field="hand"),
     "HAND_OPEN": RatePolicy(mode=Mode.EDGE, key_field="hand"),
+    "HAND_PEACE": RatePolicy(mode=Mode.EDGE, key_field="hand"),
+    "HAND_POSE_POINT": RatePolicy(mode=Mode.EDGE, key_field="hand"),
     # Résolu par `gestures.py` À PARTIR d'un HAND_* déjà discrétisé : refaire
     # un front ici l'émettrait une seule fois, puis plus jamais. `_allow` lit
     # `confidence` avec 1.0 par défaut, et le réarmement exige `value <= exit`
@@ -121,6 +123,35 @@ DEFAULT_POLICIES: dict[str, RatePolicy] = {
     # Frames visage : le HUD limite déjà à ~5 fps, mais on ne fait pas
     # confiance au client — un producteur natif n'aura pas ce throttle.
     "FACE_FRAME": RatePolicy(mode=Mode.THROTTLE, window_ms=150.0),
+    # Vision objets (Worker isolé, ≠ holomat/face) — discrétisés par SceneStore.
+    # DETECTED/LOST = fronts déjà calculés → PASS. UPDATED = bbox qui bouge
+    # souvent → THROTTLE. SCENE = dernière vue complète pour le HUD overlay.
+    "VISION_OBJECT_DETECTED": RatePolicy(mode=Mode.PASS, key_field="object_id"),
+    "VISION_OBJECT_LOST": RatePolicy(mode=Mode.PASS, key_field="object_id"),
+    "VISION_OBJECT_UPDATED": RatePolicy(
+        mode=Mode.THROTTLE, window_ms=200.0, key_field="object_id"
+    ),
+    "VISION_SCENE": RatePolicy(mode=Mode.COALESCE, key_field="source"),
+    # Alertes ops (V1 réactif) — fronts déjà discrétisés par ThresholdEngine /
+    # DevicePresenceWatcher. PASS + clé pour ne pas coalescer deux alertes.
+    "ALERT_RAISED": RatePolicy(mode=Mode.PASS, key_field="alert_id"),
+    "ALERT_CLEARED": RatePolicy(mode=Mode.PASS, key_field="alert_id"),
+    "DEVICE_OFFLINE": RatePolicy(mode=Mode.PASS, key_field="device_id"),
+    "DEVICE_ONLINE": RatePolicy(mode=Mode.PASS, key_field="device_id"),
+    # Memory V2 — fronts déjà filtrés par MemoryPolicy / MemoryAPI.
+    "MEMORY_STORED": RatePolicy(mode=Mode.PASS, key_field="id"),
+    "MEMORY_FORGOTTEN": RatePolicy(mode=Mode.PASS, key_field="id"),
+    "MEMORY_RECALLED": RatePolicy(mode=Mode.THROTTLE, window_ms=500.0, key_field="user_id"),
+    "MEMORY_REJECTED": RatePolicy(mode=Mode.THROTTLE, window_ms=500.0, key_field="code"),
+    "MEMORY_STORE_REJECTED": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
+    # Verification §7 / Memory V2 M2 — stages déjà discrétisés par VerificationPipeline.
+    "PROPOSITION": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
+    "ACTION_DEMANDED": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
+    "ACTION_EXECUTED": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
+    "RESULT_OBSERVED": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
+    "RESULT_VALIDATED": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
+    "RESULT_DISPUTED": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
+    "RESULT_FAILED": RatePolicy(mode=Mode.PASS, key_field="mission_id"),
 }
 
 

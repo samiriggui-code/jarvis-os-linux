@@ -10,9 +10,15 @@ ENV_KEYS = (
     "JARVIS_WS_URL_FORCE",
     "JARVIS_AGENT_LABEL",
     "JARVIS_INVENTORY_POLL_S",
+    "JARVIS_HEARTBEAT_S",
+    "JARVIS_HEARTBEAT_METRICS",
     "JARVIS_AGENT_BOUND_USER_ID",
     "JARVIS_HUD_URL",
     "JARVIS_NUC_HOST",
+    "JARVIS_INVENTORY_APPX",
+    "JARVIS_WORKSPACE_ROOT",
+    "JARVIS_MAIN_LOCAL_PATH",
+    "JARVIS_AGENT_DEV_AGENT",
 )
 
 
@@ -71,9 +77,47 @@ def save_env_file(values: dict[str, str]) -> Path:
     return path
 
 
+def _windows_user_env(name: str) -> str:
+    """Variables User Windows — visibles après redémarrage des apps, pas du process courant."""
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment") as key:
+            val, _ = winreg.QueryValueEx(key, name)
+            return str(val or "").strip()
+    except OSError:
+        return ""
+
+
+def _prepend_path(*dirs: Path) -> None:
+    existing = os.environ.get("PATH", "")
+    parts: list[str] = []
+    for d in dirs:
+        text = str(d)
+        if d.is_dir() and text not in existing.split(os.pathsep):
+            parts.append(text)
+    if parts:
+        os.environ["PATH"] = os.pathsep.join(parts) + os.pathsep + existing
+
+
 def apply_env_file() -> dict[str, str]:
     loaded = load_env_file()
     for key, value in loaded.items():
         if value and not os.environ.get(key):
             os.environ[key] = value
+    if os.name == "nt":
+        for key in ("ANTHROPIC_API_KEY", "CURSOR_API_KEY"):
+            if not os.environ.get(key, "").strip():
+                val = _windows_user_env(key)
+                if val:
+                    os.environ[key] = val
+        local = os.environ.get("LOCALAPPDATA", "").strip()
+        appdata = os.environ.get("APPDATA", "").strip()
+        _prepend_path(
+            Path(local) / "cursor-agent" if local else Path("."),
+            Path.home() / ".local" / "bin",
+            Path(appdata) / "npm" if appdata else Path("."),
+        )
     return loaded

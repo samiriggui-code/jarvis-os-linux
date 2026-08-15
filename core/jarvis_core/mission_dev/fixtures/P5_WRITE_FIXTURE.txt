@@ -1,0 +1,2 @@
+# Fixture Mission DEV WRITE — ne pas utiliser en prod.
+# Marqueur initial : P5_WRITE_BASELINE

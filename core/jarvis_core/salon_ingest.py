@@ -88,6 +88,41 @@ class _Handler(BaseHTTPRequestHandler):
             code = 200 if result.get("ok", True) else (404 if result.get("error") == "not found" else 400)
             self._json(code, result)
             return
+        if path.startswith("/v1/memory"):
+            self._json(405, {"ok": False, "error": "POST requis"})
+            return
+        if path == "/v1/salon/camera/verify":
+            from jarvis_core.camera_access import verify_camera_token
+
+            qs = self.path.split("?", 1)[1] if "?" in self.path else ""
+            params = {
+                k: v
+                for k, v in (p.split("=", 1) for p in qs.split("&") if "=" in p)
+            }
+            # nginx auth_request : la sous-requête interne n'a pas les query
+            # args du client (`$arg_*` y est vide — sous-requête vers une URI
+            # sans query string). $request_uri, lui, reflète toujours la
+            # requête originale complète — nginx le forwarde en header.
+            original_uri = self.headers.get("X-Original-Uri") or ""
+            device_id = params.get("device_id", "")
+            token = params.get("t", "")
+            if original_uri and "?" in original_uri:
+                oqs = original_uri.split("?", 1)[1]
+                oparams = {
+                    k: v
+                    for k, v in (p.split("=", 1) for p in oqs.split("&") if "=" in p)
+                }
+                device_id = device_id or oparams.get("device_id", "")
+                token = token or oparams.get("t", "")
+            if device_id and verify_camera_token(device_id, token):
+                self.send_response(200)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            else:
+                self.send_response(401)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            return
         if path.rstrip("/") in ("/v1/tool-events", "/v1/tool-events.json"):
             from jarvis_core.tool_events import fetch_recent_timeline
 
@@ -120,6 +155,18 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             result = self.devices.handle_http("POST", path, data)
             code = 200 if result.get("ok") else 400
+            self._json(code, result)
+            return
+
+        if path.startswith("/v1/memory"):
+            data = self._read_json_body()
+            if data is None:
+                self._json(400, {"ok": False, "error": "json invalide"})
+                return
+            from jarvis_core.memory.http import handle_http
+
+            result = handle_http("POST", path, data)
+            code = 200 if result.get("ok") else (404 if result.get("error") == "not found" else 400)
             self._json(code, result)
             return
 

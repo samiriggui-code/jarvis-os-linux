@@ -1,13 +1,28 @@
 # TODO — JARVIS OS
 
-> Priorités courantes. État détaillé → [`claude/JARVIS_SESSION_STATE.md`](claude/JARVIS_SESSION_STATE.md).
+> Priorités courantes. État détaillé → [`claude/JARVIS_SESSION_STATE.md`](claude/JARVIS_SESSION_STATE.md) § **HANDOFF 2026-08-11**.
 
-**Focus session (2026-08-08)** : **Core uniquement** — pas de HUD / AuthScene produit tant que la couche Core n’est pas figée. Tests manuels via `core/tools/` (`face_vault.html`, `ws_cli.py`).
+**Focus reprise maison (2026-08-11 soir)** : valider **veille HUD** + voix **jarvis3/hologramme** en local — **pas** de sync NUC sans go.
 
 ---
 
-## Priorité immédiate (Core)
+## Priorité immédiate (HUD / voix — local)
 
+- [ ] **Valider veille** — `cd hud && npm run dev` : orbe + TopBar réel + ChatPeek + Ctrl+Shift A/S/G/D
+- [ ] **Valider voix** — lab `jarvis3` + filtre hologramme ; auth/enrôlement à l’oreille
+- [ ] Sync NUC fronts + cache `jarvis3` — **sur demande Samir seulement**
+- [ ] Phase 2 : Dashboard pages → surfaces agentic (`SURFACE_*`) — pas bloquant veille
+- [ ] Layout Engine V1 dans `AgenticDemoStage` (snapshots) — après validation veille
+
+## Priorité Core / ops (inchangé)
+
+- [x] **Architecture Awareness D1** — `architecture.snapshot()` + `_smoke_architecture_snapshot` (2026-08-13)
+- [x] **Architecture Awareness D3** — `architecture.audit()` + `_smoke_architecture_audit` (2026-08-13)
+- [x] **Architecture Awareness D2.0** — `architecture.explain()` déterministe + `_smoke_architecture_explain` (2026-08-13)
+- [x] **Architecture Awareness D2.1** — `build_llm_bound_payload(snapshot, audit)` + `_smoke_architecture_llm_payload` (2026-08-13)
+- [x] **Architecture Awareness D2.2** — `explain_live()` via Provider Manager + `_smoke_architecture_llm_live` (2026-08-13)
+- [x] **Architecture Awareness intent Core** — `architecture.explain` via chat (`match_intent` + `chat_reply`, pas TTS/HUD) (2026-08-13)
+- [ ] **Architecture Awareness** propose / HUD / D3.1 ON_DEMAND / vocal TTS (après feu vert séparé)
 - [x] **Phase 0 Core** — `_smoke_phase0` + `tools/ws_cli.py` + `_smoke_auth_multi` (2026-08-08)
 - [x] **Phase 2 Core** — gate `_smoke_phase2`, multi-profil offline, `enroll_member`, mixins nettoyés (2026-08-08)
 - [x] **Phase 3 Core** — sessions WS par `connection_id`, `device_mode`, `executors_hud.py`, gate `_smoke_phase3` (2026-08-08)
@@ -21,7 +36,7 @@
 - [x] **Core P1 intégrations** — kanban mission dev, chat Hermes option, surface_decision ; `_smoke_p1` (2026-08-08)
 - [x] **Core P2a — prod UX (Core local)** — timeout Hermes 120 s, fallback vocal, script voicebox ; gate `_smoke_p2a` (2026-08-08)
 - [ ] **Core P2 — prod / UX (ops NUC)**
-  - [ ] Profil voicebox `jarvis-fr` sur NUC — `deploy/scripts/setup-voicebox-profiles.sh`
+  - [ ] Profil voicebox `jarvis-fr` sur NUC — `deploy/scripts/setup-voicebox-profiles.sh` (puis aligner jarvis3 si clone)
   - [ ] Sync NUC : P0+P1+P2a → `/opt/jarvis/core` (quand Samir valide)
 - [x] **Core P2b — contrat HUD (Core local)** — admission split, `hermes/events.py`, surface_decision ; gates `_smoke_p2b` (2026-08-08)
 - [x] **Core P3 — tuiles restantes (Core local)** — missions, vps.code, gate Spotify, smoke HA ; `_smoke_p3_tiles` (2026-08-08)
@@ -45,13 +60,16 @@
 - [ ] Lire [`architecture/JARVIS-Satellites.md`](architecture/JARVIS-Satellites.md)
 - [ ] Inventaire HA au-delà des ping LAN
 
-### Session 3 — HUD / Agentic UI *(repoussé — focus Core)*
+### Session 3 — HUD / Agentic UI
 - [x] Preuve Surface Decision : `monitor` → SystemMonitor (Core)
+- [x] Veille présence (brief composition) — local 2026-08-11
 - [ ] Étendre règles Surface Decision (autres app_id)
 - [ ] Câbler exécuteurs SOON (docker/storage/devices/missions/network)
 - [ ] Câbler `hud/src/agentic/composer.ts` → WS `surface/compose`
 - [ ] Valider `ApprovalCard` + exécution bout en bout
 - [ ] Timeline HUD consommant `tool_event` (Phase 3 UI)
+- [ ] Layout Engine V1 (sim → snapshots)
+- [ ] Dashboard pages → surfaces agentic
 
 ### Session 4 — Code ciblé
 - [ ] Appel vocal → Hermes (après P3 HUD)

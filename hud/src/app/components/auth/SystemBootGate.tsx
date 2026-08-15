@@ -202,7 +202,7 @@ export function SystemBootOverlay({
           className="flex items-center justify-center"
           style={{ width: 104, height: 104, overflow: 'visible', flexShrink: 0 }}
         >
-          <OrbSpatial size={80} veille={!blocked} state={blocked ? 'idle' : 'listening'} />
+          <OrbSpatial size={80} state={blocked ? 'idle' : 'idle'} />
         </div>
         <div className="text-center">
           <p

@@ -26,6 +26,7 @@ DEFAULT_CANDIDATES: list[tuple[str, str, str]] = [
 AGENT_FILES = (
     "windows_agent.py",
     "agent_lib.py",
+    "single_instance.py",
     "inventory.py",
     "apps.py",
     "discover.py",
@@ -40,6 +41,7 @@ AGENT_FILES = (
     "ensure-agent.ps1",
     "open-panel.ps1",
     "bootstrap.json",
+    "CHANGELOG.md",
 )
 
 

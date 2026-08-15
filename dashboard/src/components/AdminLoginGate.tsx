@@ -9,6 +9,7 @@ import { GlassPanel, GlassButton } from './glass'
 import { tokens } from '../ui/tokens'
 import { useCoreSession } from '../context/CoreSessionContext'
 import { runDashboardFaceLogin } from '../lib/faceLogin'
+import { isAuthBypassEnabled, isRecoveryRoute } from '../lib/devAuthBypass'
 
 type Phase = 'idle' | 'connecting' | 'scanning' | 'error'
 
@@ -19,10 +20,17 @@ export function AdminLoginGate({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [hint, setHint] = useState('')
   const [error, setError] = useState('')
+  const [recovery, setRecovery] = useState(isRecoveryRoute)
 
   useEffect(() => {
     aliveRef.current = true
     return () => { aliveRef.current = false }
+  }, [])
+
+  useEffect(() => {
+    const onHash = () => setRecovery(isRecoveryRoute())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   const startScan = useCallback(async () => {
@@ -119,10 +127,13 @@ export function AdminLoginGate({ children }: { children: React.ReactNode }) {
       userId: String(event?.user?.id ?? result.user_id),
       username: event?.user?.username,
       displayName: event?.user?.display_name,
+      role: role || 'ADMIN',
     })
   }, [client, setSession])
 
-  if (session) return <>{children}</>
+  // Recovery = JARVIS BASE (cahier) : accessible sans visage.
+  // skipAuth = DEV only, élidé au build prod — ne fabrique pas de session admin.
+  if (session || isAuthBypassEnabled() || recovery) return <>{children}</>
 
   return (
     <div

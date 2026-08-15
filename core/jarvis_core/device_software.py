@@ -22,13 +22,18 @@ def list_software_caps(device: Device | None) -> list[dict[str, Any]]:
             continue
         app_id = cap.capability_id[len("app.software.") :]
         meta = cap.metadata if isinstance(cap.metadata, dict) else {}
+        launchable = meta.get("launchable")
+        if launchable is None:
+            launchable = cap.value is not False
         out.append(
             {
                 "app_id": app_id,
                 "capability_id": cap.capability_id,
-                "launchable": cap.value is not False,
+                "launchable": bool(launchable),
                 "display_name": str(meta.get("display_name") or app_id),
                 "publisher": str(meta.get("publisher") or ""),
+                "version": str(meta.get("version") or ""),
+                "source": str(meta.get("source") or ""),
                 "exe": str(meta.get("exe") or ""),
             }
         )

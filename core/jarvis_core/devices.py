@@ -399,6 +399,8 @@ class DeviceRegistry:
             return self._msg_heartbeat(data)
         if action in ("list", "devices", ""):
             return {"ok": True, "type": "device_list", "devices": self.list_devices()}
+        if action in ("software", "device.software"):
+            return self._msg_software(data)
         return {"ok": False, "type": "device_error", "error": f"action inconnue : {action}"}
 
     def handle_http(self, method: str, path: str, body: dict[str, Any] | None) -> dict[str, Any]:
@@ -409,6 +411,9 @@ class DeviceRegistry:
 
         if method == "GET" and path in ("/v1/devices", "/v1/devices/list"):
             return {"ok": True, "devices": self.list_devices()}
+
+        if method == "GET" and path in ("/v1/devices/software", "/v1/devices/software.json"):
+            return self._msg_software({})
 
         if method == "GET" and path.startswith("/v1/devices/"):
             rest = path[len("/v1/devices/") :]
@@ -498,7 +503,43 @@ class DeviceRegistry:
             dev = self.update_capabilities(device_id, caps)
         except ValueError as exc:
             return {"ok": False, "type": "device_error", "error": str(exc)}
-        return {"ok": True, "type": "device_capabilities_ack", "device": dev.to_dict()}
+        # ACK léger — ne pas renvoyer les 200+ app.software.* (casse nginx/WS).
+        return {
+            "ok": True,
+            "type": "device_capabilities_ack",
+            "device_id": device_id,
+            "count": len(dev.capabilities),
+            "online": dev.online,
+        }
+
+    def _msg_software(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Inventaire logiciel des agents hôtes — lecture seule (P4)."""
+        from .device_software import inventory_stats, list_software_caps
+
+        self._refresh_online()
+        wanted = str(data.get("device_id") or "").strip()
+        if wanted:
+            src = [self._devices[wanted]] if wanted in self._devices else []
+        else:
+            src = list(self._devices.values())
+
+        hosts: list[dict[str, Any]] = []
+        for dev in src:
+            apps = list_software_caps(dev)
+            if not apps and not wanted:
+                continue
+            hosts.append(
+                {
+                    "device_id": dev.device_id,
+                    "label": str(dev.metadata.get("label") or ""),
+                    "type": dev.type,
+                    "runtime_kind": dev.runtime_kind,
+                    "online": dev.online,
+                    "stats": inventory_stats(dev),
+                    "apps": apps,
+                }
+            )
+        return {"ok": True, "type": "device_software", "devices": hosts}
 
     def _msg_heartbeat(self, data: dict[str, Any]) -> dict[str, Any]:
         try:

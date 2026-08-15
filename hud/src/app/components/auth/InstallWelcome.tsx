@@ -7,28 +7,20 @@ import { motion } from 'motion/react';
 import { UserPlus } from 'lucide-react';
 import { GlassCard, GlassButton } from '../../../components/glass';
 import { tokens } from '../../../ui/tokens';
+import { AuthCinematicBackdrop } from './AuthCinematicBackdrop';
 import { visionCaption, visionTitle, visionBody } from '../visionChrome';
 
 export function InstallWelcome({ onStart }: { onStart: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-[200] flex flex-col items-center justify-center px-6"
-      style={{ background: tokens.color.void }}
-    >
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse 70% 50% at 50% 40%, rgba(10,132,255,0.22), transparent 70%)',
-        }}
-      />
+    <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center px-6">
+      <AuthCinematicBackdrop />
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="relative z-10"
       >
-        <GlassCard level="strong" radius="lg" padding="xl" style={{ maxWidth: 520, textAlign: 'center' }}>
+        <GlassCard level="strong" radius="lg" padding="xl" style={{ maxWidth: 520, textAlign: 'center', borderRadius: 32 }}>
           <p style={{ ...visionCaption, color: tokens.color.accent, fontSize: 12, fontWeight: 560 }}>
             Bienvenue dans Jarvis
           </p>

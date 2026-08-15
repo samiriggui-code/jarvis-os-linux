@@ -236,18 +236,21 @@ async function sendVerifyAudio(
       }
       if (data.type === 'VOICE_FAILED') {
         const reason = String(data.reason || 'failed');
+        const heard = data.text ? String(data.text) : undefined;
         finish({
           ok: false,
           reason,
+          text: heard,
           hudSubtext:
             reason === 'no_speech'
               ? 'Je n’ai rien entendu — réessayez'
-              : reason === 'no_match'
-                ? data.text
-                  ? `Entendu « ${String(data.text)} » — dites « ${challenge} »`
-                  : `Incorrect — dites « ${challenge} »`
-                : `Dites : « ${challenge} »`,
-          text: data.text ? String(data.text) : undefined,
+              : reason === 'no_profiles'
+                ? 'Aucun profil vocal enregistré — enrôlez votre phrase'
+                : reason === 'no_match'
+                  ? heard
+                    ? `Entendu « ${heard} » — dites « ${challenge} »`
+                    : `Incorrect — dites « ${challenge} »`
+                  : `Dites : « ${challenge} »`,
         });
       }
     });
@@ -274,6 +277,7 @@ async function sendVerifyAudio(
 export async function runVoiceVerifyLive(opts: {
   isAlive: () => boolean;
   patchHud?: (hudText: string, hudSubtext: string) => void;
+  onHeard?: (text: string) => void;
   attempts?: number;
   durationMs?: number;
   usernameHint?: string;
@@ -306,9 +310,20 @@ export async function runVoiceVerifyLive(opts: {
       usernameHint: opts.usernameHint,
       roleFilter: opts.roleFilter,
     });
+    if (result.text) opts.onHeard?.(result.text);
     if (result.ok) return result;
+    if (result.reason === 'no_profiles') {
+      return {
+        ...result,
+        hudSubtext:
+          'Aucun profil vocal en base — enrôlez la phrase (3 prises) ou réessayez après seed',
+      };
+    }
     if (result.reason === 'no_match' || result.reason === 'no_speech' || result.reason === 'timeout') {
-      opts.patchHud?.('VOICE AUTH', result.hudSubtext || 'Réessayez');
+      opts.patchHud?.(
+        'VOICE AUTH',
+        result.hudSubtext || (result.text ? `Entendu « ${result.text} »` : 'Réessayez'),
+      );
       continue;
     }
     return result;

@@ -97,9 +97,24 @@ class OrchestratorSessionMixin:
         self._tts_output_device_id = None
 
     async def broadcast(self, payload: dict[str, Any]) -> None:
+        """Diffuse aux clients HUD uniquement — pas aux agents machine.
+
+        Les agents Windows/Pi reçoivent uniquement des messages ciblés
+        (``device.execute``, ack register). Les floods chat/surface/TTS
+        satureraient sinon leur compteur + la bande passante.
+        """
         text = json.dumps(payload)
         dead: list[Any] = []
+        skip: set[Any] = set()
+        conns = getattr(self, "connections", None)
+        if conns is not None and hasattr(conns, "device_sockets"):
+            try:
+                skip = conns.device_sockets()
+            except Exception:
+                skip = set()
         for ws in self.clients:
+            if ws in skip:
+                continue
             try:
                 await ws.send(text)
             except Exception:

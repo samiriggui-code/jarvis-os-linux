@@ -67,7 +67,7 @@ evenements_emis:
     ecoute_par_le_hud: true
   - type: auth_sequence_result
     sources: [core/jarvis_core/ws/handlers/auth.py]
-    ecoute_par_le_hud: true
+    ecoute_par_le_hud: false
   - type: auth_sequence_start
     sources: [core/jarvis_core/ws/handlers/auth.py]
     ecoute_par_le_hud: false
@@ -90,7 +90,10 @@ evenements_emis:
     sources: [core/jarvis_core/ws/handlers/surface.py, core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: false
   - type: device.execute
-    sources: [core/jarvis_core/device_dispatch.py]
+    sources: [core/jarvis_core/dev_agent/dispatch.py, core/jarvis_core/device_dispatch.py]
+    ecoute_par_le_hud: false
+  - type: device.run.cancel
+    sources: [core/jarvis_core/dev_agent/dispatch.py]
     ecoute_par_le_hud: false
   - type: device_capabilities_ack
     sources: [core/jarvis_core/devices.py]
@@ -108,6 +111,24 @@ evenements_emis:
     sources: [core/jarvis_core/devices.py]
     ecoute_par_le_hud: false
   - type: device_registered
+    sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
+  - type: device_run_cancel_result_ack
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
+  - type: device_run_completed_ack
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
+  - type: device_run_failed_ack
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
+  - type: device_run_progress_ack
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
+  - type: device_run_status_result_ack
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
+  - type: device_software
     sources: [core/jarvis_core/devices.py]
     ecoute_par_le_hud: false
   - type: face_enroll_commit_result
@@ -132,7 +153,7 @@ evenements_emis:
     sources: [core/jarvis_core/ws/handlers/holomat.py]
     ecoute_par_le_hud: true
   - type: hud_command
-    sources: [core/jarvis_core/executors/home.py, core/jarvis_core/executors/media.py, core/jarvis_core/executors/surfaces.py, core/jarvis_core/executors/system.py, core/jarvis_core/intents/executors_hud.py, core/jarvis_core/intents/executors_routing.py, core/jarvis_core/surfaces/publisher.py]
+    sources: [core/jarvis_core/executors/camera.py, core/jarvis_core/executors/home.py, core/jarvis_core/executors/media.py, core/jarvis_core/executors/mission_board.py, core/jarvis_core/executors/surfaces.py, core/jarvis_core/executors/system.py, core/jarvis_core/intents/executors_hud.py, core/jarvis_core/intents/executors_routing.py, core/jarvis_core/perception_dispatch.py, core/jarvis_core/surfaces/publisher.py]
     ecoute_par_le_hud: false
   - type: locale_resolved
     sources: [core/jarvis_core/ws/handlers/chat.py]
@@ -140,6 +161,9 @@ evenements_emis:
   - type: memory_result
     sources: [core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: true
+  - type: mission_board_result
+    sources: [core/jarvis_core/ws/handlers/system.py]
+    ecoute_par_le_hud: false
   - type: mission_dev_error
     sources: [core/jarvis_core/executors/surfaces.py, core/jarvis_core/mission_dev/__init__.py, core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: true
@@ -152,6 +176,12 @@ evenements_emis:
   - type: mission_dev_started
     sources: [core/jarvis_core/mission_dev/__init__.py]
     ecoute_par_le_hud: true
+  - type: perception_ack
+    sources: [core/jarvis_core/ws/handlers/perception.py]
+    ecoute_par_le_hud: false
+  - type: perception_error
+    sources: [core/jarvis_core/ws/handlers/perception.py]
+    ecoute_par_le_hud: false
   - type: preferences_result
     sources: [core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: true
@@ -160,6 +190,9 @@ evenements_emis:
     ecoute_par_le_hud: false
   - type: raspberry_pi
     sources: [core/jarvis_core/devices.py]
+    ecoute_par_le_hud: false
+  - type: speaker_handoff
+    sources: [core/jarvis_core/orchestrator_speech.py]
     ecoute_par_le_hud: false
   - type: supervisor_status
     sources: [core/jarvis_core/__init__.py, core/jarvis_core/ws/handlers/system.py]
@@ -173,6 +206,9 @@ evenements_emis:
   - type: surface_result
     sources: [core/jarvis_core/intents/executors_routing.py, core/jarvis_core/ws/handlers/surface.py]
     ecoute_par_le_hud: true
+  - type: system
+    sources: [core/jarvis_core/memory/adapters/local_json.py]
+    ecoute_par_le_hud: false
   - type: terminal_pending
     sources: [core/jarvis_core/ws/handlers/terminal.py]
     ecoute_par_le_hud: false
@@ -181,13 +217,13 @@ evenements_emis:
     ecoute_par_le_hud: false
   - type: tool_event
     sources: [core/jarvis_core/tool_events.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: tool_timeline
     sources: [core/jarvis_core/ws/handlers/system.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: tool_timeline_snapshot
     sources: [core/jarvis_core/tool_events.py]
-    ecoute_par_le_hud: false
+    ecoute_par_le_hud: true
   - type: tts_audio
     sources: [core/jarvis_core/orchestrator_speech.py, core/jarvis_core/voice/cache.py, core/jarvis_core/voice/manager.py]
     ecoute_par_le_hud: true
@@ -198,7 +234,7 @@ evenements_emis:
     sources: [core/jarvis_core/orchestrator_speech.py, core/jarvis_core/voice/manager.py]
     ecoute_par_le_hud: true
   - type: tts_skipped
-    sources: [core/jarvis_core/voice/manager.py]
+    sources: [core/jarvis_core/orchestrator_speech.py, core/jarvis_core/voice/manager.py]
     ecoute_par_le_hud: true
   - type: usage_result
     sources: [core/jarvis_core/ws/handlers/system.py]
@@ -229,7 +265,7 @@ commandes_emises:
     sources: [core/jarvis_core/__init__.py]
     ecoute_par_le_hud: false
   - command: display_notification
-    sources: [core/jarvis_core/__init__.py, core/jarvis_core/intents/executors_hud.py, core/jarvis_core/ws/handlers/chat.py, core/jarvis_core/ws/handlers/system.py]
+    sources: [core/jarvis_core/__init__.py, core/jarvis_core/intents/executors_hud.py, core/jarvis_core/orchestrator_lifecycle.py, core/jarvis_core/ws/handlers/chat.py, core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: true
   - command: set_orb_state
     sources: [core/jarvis_core/executors/surfaces.py, core/jarvis_core/intents/executors_routing.py, core/jarvis_core/ws/handlers/chat.py, core/jarvis_core/ws/handlers/system.py, core/jarvis_core/ws/handlers/voice.py]
@@ -239,6 +275,8 @@ signaux_bus:
     sources: [core/jarvis_core/gestures.py]
   - signal: SYSTEM_METRICS
     sources: [core/jarvis_core/metrics.py]
+  - signal: VISION_SCENE
+    sources: [core/jarvis_core/vision_objects.py]
   - signal: completed
     sources: [core/jarvis_core/intents/executors_routing.py]
   - signal: component_state
@@ -260,6 +298,8 @@ hud_envoie:
     route_core_existe: true
   - type: mission_dev
     route_core_existe: true
+  - type: perception
+    route_core_existe: true
   - type: peripheral
     route_core_existe: true
   - type: ping
@@ -273,6 +313,8 @@ hud_envoie:
   - type: stop_run
     route_core_existe: true
   - type: surface
+    route_core_existe: true
+  - type: tool_timeline
     route_core_existe: true
   - type: user_event
     route_core_existe: true

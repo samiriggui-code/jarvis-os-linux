@@ -241,9 +241,19 @@ def extraire_hud() -> dict[str, list[str]]:
         # message. Trois fausses alertes en sortaient. On lit donc d'abord les
         # alias RÉELLEMENT liés à `data.type` **dans ce fichier**, et on ne
         # reconnaît qu'eux — l'information est extraite, jamais recopiée.
-        alias = {"type"} | set(
+        #
+        # `type` nu n'est ajouté que si le fichier accède vraiment à un champ
+        # `.type` quelque part (`data.type`, `msg.type`…) — sinon un simple
+        # prop de composant nommé `type` (ex. `ChartCard({ type: 'donut' })`,
+        # aucun rapport avec un message WebSocket) le faisait passer pour un
+        # événement écouté. Trois faux « area »/« bar »/« donut » observés le
+        # 2026-08-15 avant ce garde — même famille que le cas `kind` déjà
+        # traité juste au-dessus.
+        alias = set(
             re.findall(r"\b(?:const|let)\s+(\w+)\s*=\s*(?:String\()?\s*\w+\.type\b", texte)
         )
+        if re.search(r"\.type\b", texte):
+            alias.add("type")
         for nom_alias in alias:
             ecoute |= set(re.findall(rf"\b{re.escape(nom_alias)} === '([A-Za-z_]+)'", texte))
         ecoute_cmd |= set(re.findall(r"\bcmd === '([a-z_]+)'", texte))

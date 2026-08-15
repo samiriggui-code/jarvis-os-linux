@@ -56,3 +56,10 @@ class ConnectionRegistry:
         if not did:
             return None
         return self._ws_by_device.get(did)
+
+    def is_device_socket(self, ws: Any) -> bool:
+        """True si ce WS est un agent machine (pas un HUD)."""
+        return self.device_for(ws) is not None
+
+    def device_sockets(self) -> set[Any]:
+        return set(self._ws_by_device.values())

@@ -186,7 +186,23 @@ class TerminalHandlerMixin:
             }))
             return
 
+        # M2.1 — terminal contourne _execute_intent : Verification ici.
+        # RemoteResult (vps/pi) = observation ; system.shell Hermes ≠ preuve.
+        verification_meta = None
+        verify = getattr(self, "_verify_after_execution", None)
+        if callable(verify):
+            verification_meta = await verify(
+                intent=intent,
+                result=result,
+                payload=payload,
+                user_id=self._session_user_id(ws) or "local",
+                host=host,
+                proposition=f"Terminal {host}: {command[:120]}",
+            )
+
         base = {"type": "terminal_result", "host": host}
+        if verification_meta is not None:
+            base["verification"] = verification_meta
         if isinstance(result, dict):
             keep = {k: v for k, v in result.items() if k in ("ok", "output", "error", "returncode", "text")}
             await ws.send(json.dumps({**base, "ok": bool(keep.get("ok")), **keep}))

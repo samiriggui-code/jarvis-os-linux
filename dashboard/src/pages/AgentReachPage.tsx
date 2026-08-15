@@ -5,6 +5,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
 import { HOST } from '../types'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 type ReachStatus = {
   ok?: boolean
@@ -20,10 +22,8 @@ type ReachStatus = {
   error?: string
 }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 export default function AgentReachPage() {
+  const { client } = useCoreSession()
   const [st, setSt] = useState<ReachStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
@@ -31,41 +31,16 @@ export default function AgentReachPage() {
   const refresh = useCallback(() => {
     setLoading(true)
     setErr('')
-    let settled = false
-    const ws = new WebSocket(CORE_WS)
-    const timer = window.setTimeout(() => {
-      if (!settled) {
-        settled = true
-        setErr('Timeout Core — relance jarvis_core.')
+    void dashRequest(client, { type: 'agent_reach', action: 'doctor' }, 'agent_reach_status')
+      .then((data) => {
+        setSt(data as ReachStatus)
         setLoading(false)
-        try { ws.close() } catch { /* */ }
-      }
-    }, 12000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'agent_reach', action: 'doctor' }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'agent_reach_status') {
-          settled = true
-          window.clearTimeout(timer)
-          setSt(data as ReachStatus)
-          setLoading(false)
-          ws.close()
-        }
-      } catch { /* */ }
-    }
-    ws.onerror = () => {
-      if (!settled) {
-        settled = true
-        window.clearTimeout(timer)
+      })
+      .catch(() => {
         setErr('Core WS injoignable (8765).')
         setLoading(false)
-      }
-    }
-  }, [])
+      })
+  }, [client])
 
   useEffect(() => { refresh() }, [refresh])
 

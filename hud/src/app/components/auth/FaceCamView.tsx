@@ -17,13 +17,13 @@ export function FaceCamView({
   progress?: number;
   label?: string;
   active?: boolean;
-  /** Côté du carré CSS — défaut clamp(260px, 52vmin, 420px). Ignoré si fill. */
+  /** Côté du carré CSS — défaut clamp(220px, min(42vw, 44dvh), 320px). Ignoré si fill. */
   size?: string | number;
-  /** Remplit le conteneur parent (même largeur que la carte statut). */
+  /** Remplit le conteneur parent (évité pour auth — préfère le carré explicite). */
   fill?: boolean;
 }) {
   const p = Math.max(0, Math.min(100, progress));
-  const side = size ?? 'clamp(260px, 52vmin, 420px)';
+  const side = size ?? 'clamp(220px, min(42vw, 44dvh), 320px)';
   return (
     <div
       className={`relative overflow-hidden rounded-2xl select-none ${fill ? 'w-full h-full' : 'shrink-0'}`}

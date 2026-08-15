@@ -1,0 +1,258 @@
+{
+  "_regenerate": "cd hud && npm run graph3d:code-map",
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-08-14T10:44:02.665566+00:00",
+  "processes": {
+    "core": [
+      {
+        "id": "repo:core/jarvis_core/architecture",
+        "name": "architecture",
+        "path": "core/jarvis_core/architecture",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/auth",
+        "name": "auth",
+        "path": "core/jarvis_core/auth",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/db",
+        "name": "db",
+        "path": "core/jarvis_core/db",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/executors",
+        "name": "executors",
+        "path": "core/jarvis_core/executors",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/intents",
+        "name": "intents",
+        "path": "core/jarvis_core/intents",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/mission_dev",
+        "name": "mission_dev",
+        "path": "core/jarvis_core/mission_dev",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/missions",
+        "name": "missions",
+        "path": "core/jarvis_core/missions",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/routing",
+        "name": "routing",
+        "path": "core/jarvis_core/routing",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/surfaces",
+        "name": "surfaces",
+        "path": "core/jarvis_core/surfaces",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/ws",
+        "name": "ws",
+        "path": "core/jarvis_core/ws",
+        "depth": 1
+      },
+      {
+        "id": "repo:deploy/manifests",
+        "name": "manifests",
+        "path": "deploy/manifests",
+        "depth": 1
+      },
+      {
+        "id": "repo:deploy/scripts",
+        "name": "scripts",
+        "path": "deploy/scripts",
+        "depth": 1
+      },
+      {
+        "id": "repo:deploy/traefik",
+        "name": "traefik",
+        "path": "deploy/traefik",
+        "depth": 1
+      },
+      {
+        "id": "repo:deploy/twingate",
+        "name": "twingate",
+        "path": "deploy/twingate",
+        "depth": 1
+      }
+    ],
+    "hermes": [
+      {
+        "id": "repo:core/jarvis_core/hermes",
+        "name": "hermes",
+        "path": "core/jarvis_core/hermes",
+        "depth": 1
+      }
+    ],
+    "memory": [
+      {
+        "id": "repo:core/jarvis_core/memory",
+        "name": "memory",
+        "path": "core/jarvis_core/memory",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/memory/adapters",
+        "name": "adapters",
+        "path": "core/jarvis_core/memory/adapters",
+        "depth": 2
+      }
+    ],
+    "policy": [],
+    "hud": [
+      {
+        "id": "repo:dashboard/src/apps",
+        "name": "apps",
+        "path": "dashboard/src/apps",
+        "depth": 2
+      },
+      {
+        "id": "repo:dashboard/src/components",
+        "name": "components",
+        "path": "dashboard/src/components",
+        "depth": 2
+      },
+      {
+        "id": "repo:dashboard/src/context",
+        "name": "context",
+        "path": "dashboard/src/context",
+        "depth": 2
+      },
+      {
+        "id": "repo:dashboard/src/lib",
+        "name": "lib",
+        "path": "dashboard/src/lib",
+        "depth": 2
+      },
+      {
+        "id": "repo:dashboard/src/pages",
+        "name": "pages",
+        "path": "dashboard/src/pages",
+        "depth": 2
+      },
+      {
+        "id": "repo:dashboard/src/ui",
+        "name": "ui",
+        "path": "dashboard/src/ui",
+        "depth": 2
+      },
+      {
+        "id": "repo:hud/src/agentic",
+        "name": "agentic",
+        "path": "hud/src/agentic",
+        "depth": 2
+      },
+      {
+        "id": "repo:hud/src/app",
+        "name": "app",
+        "path": "hud/src/app",
+        "depth": 2
+      },
+      {
+        "id": "repo:hud/src/components",
+        "name": "components",
+        "path": "hud/src/components",
+        "depth": 2
+      },
+      {
+        "id": "repo:hud/src/spatial",
+        "name": "spatial",
+        "path": "hud/src/spatial",
+        "depth": 2
+      },
+      {
+        "id": "repo:hud/src/styles",
+        "name": "styles",
+        "path": "hud/src/styles",
+        "depth": 2
+      },
+      {
+        "id": "repo:hud/src/ui",
+        "name": "ui",
+        "path": "hud/src/ui",
+        "depth": 2
+      },
+      {
+        "id": "repo:hud/src/visual",
+        "name": "visual",
+        "path": "hud/src/visual",
+        "depth": 2
+      }
+    ],
+    "devices": [
+      {
+        "id": "repo:deploy/pi-salon",
+        "name": "pi-salon",
+        "path": "deploy/pi-salon",
+        "depth": 1
+      },
+      {
+        "id": "repo:deploy/windows-agent",
+        "name": "windows-agent",
+        "path": "deploy/windows-agent",
+        "depth": 1
+      }
+    ],
+    "home": [
+      {
+        "id": "repo:deploy/homeassistant",
+        "name": "homeassistant",
+        "path": "deploy/homeassistant",
+        "depth": 1
+      },
+      {
+        "id": "repo:deploy/homeassistant/dashboards",
+        "name": "dashboards",
+        "path": "deploy/homeassistant/dashboards",
+        "depth": 2
+      },
+      {
+        "id": "repo:deploy/homeassistant/packages",
+        "name": "packages",
+        "path": "deploy/homeassistant/packages",
+        "depth": 2
+      }
+    ],
+    "voice": [
+      {
+        "id": "repo:core/jarvis_core/voice",
+        "name": "voice",
+        "path": "core/jarvis_core/voice",
+        "depth": 1
+      }
+    ],
+    "vision": [
+      {
+        "id": "repo:core/jarvis_core/holomat",
+        "name": "holomat",
+        "path": "core/jarvis_core/holomat",
+        "depth": 1
+      },
+      {
+        "id": "repo:core/jarvis_core/vision",
+        "name": "vision",
+        "path": "core/jarvis_core/vision",
+        "depth": 1
+      },
+      {
+        "id": "repo:deploy/vision-worker",
+        "name": "vision-worker",
+        "path": "deploy/vision-worker",
+        "depth": 1
+      }
+    ]
+  }
+}

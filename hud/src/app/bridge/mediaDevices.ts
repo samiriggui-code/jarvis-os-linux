@@ -299,6 +299,7 @@ export type CameraReason =
   | 'unlock'        // déverrouillage de session
   | 'enrollment'    // création d'un profil
   | 'holomat'       // analyse d'un objet, à la demande
+  | 'perception'    // snapshot objet → Core (type:perception, ≠ face)
   | 'gesture'       // calibrage / pilotage gestuel
   | 'preview'       // aperçu dans les réglages
   | 'boot_probe'    // sonde boot Holomat (ne doit pas bloquer l’auth)

@@ -11,9 +11,15 @@ import { useApp } from '../../context/AppContext';
 import { FaceCamView } from './FaceCamView';
 import { AuthVoiceWave } from './AuthVoiceWave';
 import { OrbSpatial } from './OrbSpatial';
+import { useMicOrbAnalyser } from './useMicOrbAnalyser';
 import { speakDev, initTtsDev, stopDev } from '../../bridge/ttsDev';
 import { runFaceAuthFlow } from '../../engine/faceAuthSimulator';
 import { runFaceVerifyLive } from '../../bridge/faceAuthLive';
+import {
+  formatVoiceChallenge,
+  runVoiceVerifyLive,
+} from '../../bridge/voiceAuthLive';
+import { subscribeTtsSpeaking } from '../../bridge/ttsCore';
 import type { FaceHologramState } from '../../engine/faceHologramTypes';
 import {
   ExperienceOrchestrator,
@@ -33,7 +39,7 @@ import {
 import { isCoreOnline } from '../CoreBridge';
 import { DEV_BUILD, isAuthBypassEnabled } from '../../bridge/devAuthBypass';
 import { isBootAlreadyOk, markBootOk } from './SystemBootGate';
-import { Background } from '../Background';
+import { AuthCinematicBackdrop } from './AuthCinematicBackdrop';
 import { ThemeModeToggle } from '../ThemeModeToggle';
 import { GlassButton, GlassCard, GlassPanel } from '../../../components/glass';
 import { tokens } from '../../../ui/tokens';
@@ -254,45 +260,90 @@ export function AuthScene({ onRequestEnroll }: Props) {
     }
   }, []);
 
+  /** Orbe = bouche : pulse pendant TTS Core, idle sinon. */
+  const [ttsSpeaking, setTtsSpeaking] = useState(false);
+  const [speakPulse, setSpeakPulse] = useState(0);
+  const [voiceHeard, setVoiceHeard] = useState('');
+  const [voiceListening, setVoiceListening] = useState(false);
+  const { micLevel } = useMicOrbAnalyser(cameraGranted || mediaArmed);
+  useEffect(() => subscribeTtsSpeaking(setTtsSpeaking), []);
+  useEffect(() => {
+    if (!ttsSpeaking) {
+      setSpeakPulse(0);
+      return;
+    }
+    const id = window.setInterval(() => {
+      const t = Date.now() / 1000;
+      setSpeakPulse(0.35 + Math.abs(Math.sin(t * 9)) * 0.5);
+    }, 50);
+    return () => window.clearInterval(id);
+  }, [ttsSpeaking]);
+
   /**
-   * Deuxième facteur — phrase d'accès vocale, APRÈS un visage reconnu.
-   *
-   * Avant : la séquence Core « auth » démarrait dès l'entrée sur cet écran,
-   * en parallèle du scan facial, sans que rien côté HUD n'attende son issue
-   * — un facteur purement décoratif. Ici on ne la lance qu'une fois le
-   * visage confirmé, et on attend vraiment le résultat avant de déverrouiller
-   * (2026-08-10, retour utilisateur : « deux facteurs, visage puis voix »).
+   * 2ᵉ facteur : capture micro → Core `verify_phrase` (comme LockScene).
+   * `sequence_start` seul attend `voice.matched` sans audio HUD → timeout.
    */
-  const confirmVoicePassphrase = useCallback((): Promise<boolean> => {
-    return new Promise<boolean>((resolve) => {
-      const client = getCoreClient();
-      let settled = false;
-      const finish = (ok: boolean) => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timer);
-        unsubscribe();
-        resolve(ok);
-      };
-      const unsubscribe = client.subscribe((data) => {
-        if (data.type === 'auth_sequence_result' && data.sequence === 'auth') {
-          finish(Boolean(data.ok));
-        }
-      });
-      // Générosité volontaire : la séquence Core relance deux fois avant de
-      // se taire (`WAIT_RELANCES_S`), et l'audio de narration prend du temps
-      // avant même d'atteindre l'attente réelle. Passé ce délai on abandonne
-      // et on coupe proprement la séquence côté Core (`sequence_stop`).
-      const timer = window.setTimeout(() => {
-        try { client.send({ type: 'auth', action: 'sequence_stop' }); } catch { /* */ }
-        finish(false);
-      }, 40_000);
-      try {
-        client.send({ type: 'auth', action: 'sequence_start', sequence: 'auth' });
-      } catch {
-        finish(false);
-      }
+  const confirmVoicePassphrase = useCallback(async (): Promise<boolean> => {
+    const challenge = formatVoiceChallenge();
+    setVoiceListening(true);
+    setVoiceHeard('');
+    orchRef.current?.patchHud({
+      hudText: "PHRASE D'ACCÈS",
+      hudSubtext: `Dites : « ${challenge} »`,
+      orbState: 'listening',
+      avatarMode: 'listening',
+      isSpeaking: false,
     });
+    const stream = (await tryPrimeMic()) || (await ensureMic());
+    if (!stream || getMediaState().mic !== 'granted') {
+      setVoiceListening(false);
+      orchRef.current?.patchHud({
+        hudText: 'MICRO REQUIS',
+        hudSubtext: 'Autorisez le microphone pour confirmer',
+        orbState: 'listening',
+      });
+      setMediaHint('Autorisez le micro, puis réessayez');
+      return false;
+    }
+    const hint = faceUserRef.current?.username || getLastUsername() || undefined;
+    const result = await runVoiceVerifyLive({
+      isAlive: () => aliveRef.current,
+      usernameHint: hint || undefined,
+      attempts: 4,
+      durationMs: 5_500,
+      patchHud: (hudText, hudSubtext) => {
+        orchRef.current?.patchHud({
+          hudText,
+          hudSubtext,
+          orbState: 'listening',
+          avatarMode: 'listening',
+        });
+      },
+      onHeard: (text) => {
+        const t = text.replace(/[«»"']/g, '').trim();
+        if (!t || /^[.\s…·•\-–—]+$/.test(t) || /^\.{1,6}$/.test(t) || t.length < 2) {
+          setVoiceHeard('');
+          return;
+        }
+        setVoiceHeard(t);
+      },
+    });
+    setVoiceListening(false);
+    if (result.text) setVoiceHeard(result.text);
+    if (result.ok) {
+      factorsRef.current = { ...factorsRef.current, voice: true };
+      setFactors({ ...factorsRef.current });
+      return true;
+    }
+    if (result.reason === 'no_profiles') {
+      setOfferEnroll(true);
+      setEnrollHint('Aucun profil vocal — enrôlez la phrase d’accès (3 prises)');
+      orchRef.current?.patchHud({
+        hudText: 'PROFIL VOCAL ABSENT',
+        hudSubtext: result.hudSubtext || 'Enrôlez votre voix, puis réessayez',
+      });
+    }
+    return false;
   }, []);
 
   /**
@@ -845,7 +896,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Background />
+      <AuthCinematicBackdrop />
       <div className="absolute top-3 right-3 z-20">
         <ThemeModeToggle compact />
       </div>
@@ -884,9 +935,9 @@ export function AuthScene({ onRequestEnroll }: Props) {
             }}
           >
             <div
-              className="flex flex-col w-full h-full min-h-0 mx-auto"
+              className="flex flex-col w-full h-full min-h-0 mx-auto items-center"
               style={{
-                maxWidth: 'min(720px, 100%)',
+                maxWidth: 'min(420px, 100%)',
                 justifyContent: 'center',
                 gap: 'clamp(10px, 1.8vh, 16px)',
               }}
@@ -922,160 +973,132 @@ export function AuthScene({ onRequestEnroll }: Props) {
                 </p>
               </header>
 
-              {/* Caméra | panneau — côte à côte */}
-              <div
-                className="w-full min-h-0"
+              {/* Une seule section centrale — card ronde Vision Pro */}
+              <GlassPanel
+                level="regular"
+                radius="lg"
+                padding="md"
+                className="w-full shrink-0"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 1fr)',
-                  gap: 'clamp(10px, 1.5vw, 16px)',
-                  alignItems: 'stretch',
+                  pointerEvents: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 'clamp(10px, 1.4vh, 14px)',
+                  borderRadius: 32,
+                  maxWidth: 360,
+                  padding: '18px 16px 16px',
                 }}
               >
-                {/* Colonne caméra — dimensions conservées */}
-                <div
-                  className="flex flex-col items-center min-h-0"
-                  style={{ gap: 'clamp(6px, 1vh, 10px)' }}
-                >
-                  <div className="flex justify-center shrink-0">
-                    <FactorChip label="Visage" ok={factors.face} />
-                  </div>
+                <FactorChip label="Visage" ok={factors.face} />
 
-                  <div
-                    className="relative w-full min-h-0 overflow-hidden"
-                    style={{
-                      height: 'clamp(140px, 28dvh, 260px)',
-                      maxHeight: 'clamp(140px, 28dvh, 260px)',
-                      borderRadius: tokens.radius.md,
-                    }}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`${orchState.hudText}|${orchState.hudSubtext}`}
+                    className="text-center w-full"
+                    initial={{ opacity: 0, y: 3 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    <FaceCamView
-                      key={`face-cam-${camEpoch}`}
-                      progress={scanProgress}
-                      fill
-                      active={cameraGranted}
-                      label={factors.face ? 'Holomat · prêt' : inFaceFlow ? 'Analyse…' : 'Holomat · caméra'}
+                    <p style={{ ...visionTitle, fontSize: 14, color: TEXT, margin: 0 }}>
+                      {displayStatus(orchState.hudText || 'Authentification faciale')}
+                    </p>
+                    {orchState.hudSubtext ? (
+                      <p style={{ ...visionBody, fontSize: 11, color: ACCENT, marginTop: 4, opacity: 0.9 }}>
+                        {displayStatus(orchState.hudSubtext)}
+                      </p>
+                    ) : null}
+                  </motion.div>
+                </AnimatePresence>
+
+                <FaceCamView
+                  key={`face-cam-${camEpoch}`}
+                  progress={scanProgress}
+                  size="clamp(220px, min(56vw, 42dvh), 300px)"
+                  active={cameraGranted}
+                  label={factors.face ? 'Holomat · prêt' : inFaceFlow ? 'Analyse…' : 'Holomat · caméra'}
+                />
+
+                {(inFaceFlow || mediaArmed || cameraGranted || voiceListening) && (
+                  <div className="w-full shrink-0 flex justify-center">
+                    <AuthVoiceWave
+                      mode={
+                        denied
+                          ? 'denied'
+                          : factors.voice
+                            ? 'ok'
+                            : orchState.isSpeaking || ttsSpeaking
+                              ? 'speaking'
+                              : voiceListening
+                                ? 'listening'
+                                : factors.face
+                                  ? 'listening'
+                                  : scanProgress > 5
+                                    ? 'processing'
+                                    : 'idle'
+                      }
+                      level={micLevel}
+                      speakLevel={ttsSpeaking ? Math.max(0.35, speakPulse) : 0.45}
+                      heard={voiceHeard}
+                      phase={faceHologram?.phase}
                     />
                   </div>
+                )}
 
-                  {(inFaceFlow || mediaArmed || cameraGranted) && (
-                    <div className="w-full shrink-0" style={{ maxHeight: 22 }}>
-                      <AuthVoiceWave
-                        mode={
-                          denied
-                            ? 'denied'
-                            : factors.face
-                              ? 'ok'
-                              : orchState.isSpeaking
-                                ? 'speaking'
-                                : scanProgress > 5
-                                  ? 'processing'
-                                  : 'listening'
-                        }
-                        level={Math.min(1, Math.max(0.08, scanProgress / 100))}
-                        speakLevel={0.45}
-                      />
-                    </div>
-                  )}
-                </div>
+                {!cameraGranted && (
+                  <GlassButton tone="accent" active onClick={() => void armMedia()} style={{ ...orbF, fontSize: 12, padding: '6px 12px' }}>
+                    Autoriser la caméra
+                  </GlassButton>
+                )}
+                {mediaHint && (
+                  <p style={{ ...visionCaption, color: WARNING, fontSize: 9, margin: 0, textAlign: 'center' }}>
+                    {mediaHint}
+                  </p>
+                )}
 
-                {/* Colonne statut / enrôlement */}
-                <GlassPanel
-                  level="regular"
-                  radius="md"
-                  padding="sm"
-                  className="w-full min-h-0"
-                  style={{
-                    pointerEvents: 'auto',
-                    display: 'flex',
-                    alignItems: 'center',
-                    height: '100%',
-                  }}
-                >
-                  <div className="flex flex-col items-center justify-center gap-2 text-center w-full">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={`${orchState.hudText}|${orchState.hudSubtext}`}
-                        initial={{ opacity: 0, y: 3 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <p style={{ ...visionTitle, fontSize: 14, color: TEXT, margin: 0 }}>
-                          {displayStatus(orchState.hudText || 'Authentification faciale')}
-                        </p>
-                        {orchState.hudSubtext ? (
-                          <p style={{ ...visionBody, fontSize: 11, color: ACCENT, marginTop: 4, opacity: 0.9 }}>
-                            {displayStatus(orchState.hudSubtext)}
-                          </p>
-                        ) : null}
-                      </motion.div>
-                    </AnimatePresence>
-
-                    {inFaceFlow && (
-                      <div className="w-full max-w-[12rem] h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(10,132,255,0.15)' }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${scanProgress}%`, background: accentColor, transition: 'width 0.15s linear' }}
-                        />
-                      </div>
-                    )}
-
-                    {!cameraGranted && (
-                      <GlassButton tone="accent" active onClick={() => void armMedia()} style={{ ...orbF, fontSize: 12, padding: '6px 12px' }}>
-                        Autoriser la caméra
-                      </GlassButton>
-                    )}
-                    {mediaHint && (
-                      <p style={{ ...visionCaption, color: WARNING, fontSize: 9, margin: 0 }}>
-                        {mediaHint}
-                      </p>
-                    )}
-
-                    {offerEnroll && (
-                      <GlassCard
-                        level="subtle"
-                        radius="md"
-                        padding="xs"
-                        eyebrow="Enrôlement"
-                        title="Créer le profil admin"
-                        subtitle={enrollHint}
-                        className="w-full"
-                      >
-                        <div className="flex flex-col items-center gap-1.5">
-                          <GlassButton
-                            tone="accent"
-                            active
-                            disabled={enrollGateBusy}
-                            icon={<UserPlus className="w-3.5 h-3.5" />}
-                            onClick={() => void requestEnroll()}
-                            style={{ fontSize: 12, padding: '6px 12px' }}
-                          >
-                            {enrollGateBusy ? 'Ouverture…' : 'Commencer l’enrôlement'}
-                          </GlassButton>
-                          {enrollGateError && (
-                            <p style={{ ...visionCaption, color: DANGER, fontSize: 9, textAlign: 'center', margin: 0 }}>
-                              {enrollGateError}
-                            </p>
-                          )}
-                        </div>
-                      </GlassCard>
-                    )}
-
-                    {DEV_BUILD && orchState.isRunning && orchState.hudText !== 'SYSTÈME PRÊT' && (
+                {offerEnroll && (
+                  <GlassCard
+                    level="subtle"
+                    radius="md"
+                    padding="xs"
+                    eyebrow="Enrôlement"
+                    title="Créer le profil admin"
+                    subtitle={enrollHint}
+                    className="w-full"
+                  >
+                    <div className="flex flex-col items-center gap-1.5">
                       <GlassButton
-                        tone="warning"
+                        tone="accent"
                         active
-                        icon={<SkipForward className="w-3 h-3" />}
-                        onClick={() => unlockSession({ method: 'dev_skip' })}
-                        style={{ fontSize: 11, padding: '5px 10px' }}
+                        disabled={enrollGateBusy}
+                        icon={<UserPlus className="w-3.5 h-3.5" />}
+                        onClick={() => void requestEnroll()}
+                        style={{ fontSize: 12, padding: '6px 12px' }}
                       >
-                        Mode démo — passer
+                        {enrollGateBusy ? 'Ouverture…' : 'Commencer l’enrôlement'}
                       </GlassButton>
-                    )}
-                  </div>
-                </GlassPanel>
-              </div>
+                      {enrollGateError && (
+                        <p style={{ ...visionCaption, color: DANGER, fontSize: 9, textAlign: 'center', margin: 0 }}>
+                          {enrollGateError}
+                        </p>
+                      )}
+                    </div>
+                  </GlassCard>
+                )}
+
+                {DEV_BUILD && orchState.isRunning && orchState.hudText !== 'SYSTÈME PRÊT' && (
+                  <GlassButton
+                    tone="warning"
+                    active
+                    icon={<SkipForward className="w-3 h-3" />}
+                    onClick={() => unlockSession({ method: 'dev_skip' })}
+                    style={{ fontSize: 11, padding: '5px 10px' }}
+                  >
+                    Mode démo — passer
+                  </GlassButton>
+                )}
+              </GlassPanel>
             </div>
           </motion.div>
         )}
@@ -1102,16 +1125,21 @@ export function AuthScene({ onRequestEnroll }: Props) {
           >
             <OrbSpatial
               size={72}
-              veille
               state={
-                orchState.isSpeaking
+                ttsSpeaking || orchState.isSpeaking
                   ? 'speaking'
-                  : orchState.orbState === 'listening' || isVoiceScan
-                    ? 'listening'
+                  : orchState.orbState === 'thinking' || orchState.orbState === 'processing'
+                    ? 'thinking'
                     : 'idle'
               }
-              volume={orchState.isSpeaking ? 0.45 : 0.12}
-              playbackVolume={0}
+              volume={
+                ttsSpeaking || orchState.isSpeaking
+                  ? Math.max(0.4, speakPulse)
+                  : 0.1
+              }
+              playbackVolume={
+                ttsSpeaking || orchState.isSpeaking ? Math.max(0.4, speakPulse) : 0
+              }
             />
           </div>,
           document.body,

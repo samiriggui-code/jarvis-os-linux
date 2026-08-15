@@ -1,4 +1,4 @@
-# Lance l'agent JARVIS (session courante ou install ProgramData).
+﻿# Lance l'agent JARVIS (session courante ou install ProgramData).
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -16,14 +16,28 @@ if (-not (Test-Path $Agent)) {
     exit 1
 }
 
+# Prévention : ne pas spawn une 2e instance (le mutex Python reste la garantie).
+$already = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -match '^pythonw?\.exe$' -and
+    $_.CommandLine -and
+    ($_.CommandLine -like '*windows_agent.py*')
+}
+if ($already) {
+    Write-Host "Agent already running — rien à lancer." -ForegroundColor Yellow
+    exit 0
+}
+
+# Préférer pythonw (pas de console). --foreground force python visible.
+$PyW = Join-Path $Root ".venv\Scripts\pythonw.exe"
 $Py = Join-Path $Root ".venv\Scripts\python.exe"
-if (-not (Test-Path $Py)) {
+if (-not (Test-Path $PyW) -and -not (Test-Path $Py)) {
+    $CoreVenvW = Join-Path $Root "..\..\core\.venv\Scripts\pythonw.exe"
     $CoreVenv = Join-Path $Root "..\..\core\.venv\Scripts\python.exe"
-    if (Test-Path $CoreVenv) {
-        $Py = $CoreVenv
-    } else {
-        $Py = "python"
-    }
+    if (Test-Path $CoreVenvW) { $PyW = $CoreVenvW; $Py = $CoreVenv }
+    elseif (Test-Path $CoreVenv) { $Py = $CoreVenv; $PyW = $CoreVenv -replace 'python\.exe$','pythonw.exe' }
+    else { $Py = "python"; $PyW = "pythonw" }
+} elseif (Test-Path $PyW) {
+    if (-not (Test-Path $Py)) { $Py = $PyW -replace 'pythonw\.exe$','python.exe' }
 }
 
 if (Test-Path $EnvFile) {
@@ -54,4 +68,13 @@ if (-not $env:JARVIS_WS_URL) {
 }
 
 Write-Host "JARVIS agent → $($env:JARVIS_WS_URL)"
+
+# Mode interactif (dev) : python visible. Arrière-plan : utiliser ensure-agent.ps1 / pythonw.
+$PyW = $Py -replace 'python\.exe$','pythonw.exe'
+if ((Test-Path $PyW) -and $args -notcontains '--foreground') {
+    Start-Process -FilePath $PyW -ArgumentList (@($Agent) + $args) -WorkingDirectory $Root -WindowStyle Hidden
+    Write-Host "Démarré en arrière-plan (pythonw) — orbe dans la barre des tâches."
+    exit 0
+}
+
 & $Py $Agent @args

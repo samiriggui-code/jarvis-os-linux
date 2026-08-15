@@ -28,6 +28,6 @@ export const bodyFont = {
 export const AI_STATE_COLOR = {
   idle: ACCENT,
   listening: SUCCESS,
-  processing: WARNING,
+  processing: DANGER,
   responding: ACCENT,
 } as const;

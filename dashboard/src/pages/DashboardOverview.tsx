@@ -16,6 +16,8 @@ import {
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
 import { GlassButton } from '../components/glass'
 import { tokens } from '../ui/tokens'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 type Granularity = 'hour' | 'day' | 'week' | 'month'
 
@@ -70,9 +72,6 @@ type UsagePayload = {
   generated_at?: string
 }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 const GRANS: { id: Granularity; label: string }[] = [
   { id: 'hour', label: '24 h' },
   { id: 'day', label: '14 j' },
@@ -102,6 +101,7 @@ function shortBucket(b: string, g: Granularity) {
 }
 
 export default function DashboardOverview() {
+  const { client } = useCoreSession()
   const [gran, setGran] = useState<Granularity>('day')
   const [data, setData] = useState<UsagePayload | null>(null)
   const [err, setErr] = useState('')
@@ -110,48 +110,17 @@ export default function DashboardOverview() {
   const refresh = useCallback((g: Granularity) => {
     setLoading(true)
     setErr('')
-    let settled = false
-    const ws = new WebSocket(CORE_WS)
-    const timer = window.setTimeout(() => {
-      if (!settled) {
-        settled = true
-        setErr('Timeout Core — relance `python -m jarvis_core`.')
+    void dashRequest(client, { type: 'usage', action: 'summary', granularity: g }, 'usage_result', 15000)
+      .then((msg) => {
+        setData(msg as UsagePayload)
+        if (msg.ok === false) setErr(String(msg.error || 'usage error'))
         setLoading(false)
-        try {
-          ws.close()
-        } catch {
-          /* */
-        }
-      }
-    }, 15000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'usage', action: 'summary', granularity: g }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(String(ev.data)) as UsagePayload & { type?: string }
-        if (msg.type === 'usage_result') {
-          settled = true
-          window.clearTimeout(timer)
-          setData(msg)
-          if (msg.ok === false) setErr(String(msg.error || 'usage error'))
-          setLoading(false)
-          ws.close()
-        }
-      } catch {
-        /* */
-      }
-    }
-    ws.onerror = () => {
-      if (!settled) {
-        settled = true
-        window.clearTimeout(timer)
+      })
+      .catch(() => {
         setErr('Core WS injoignable (8765).')
         setLoading(false)
-      }
-    }
-  }, [])
+      })
+  }, [client])
 
   useEffect(() => {
     refresh(gran)

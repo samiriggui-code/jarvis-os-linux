@@ -67,6 +67,12 @@ def _fold(text: str) -> str:
     return "".join(c for c in normalized if unicodedata.category(c) != "Mn")
 
 
+def _normalize_for_match(text: str) -> str:
+    """Phrase entourée d'espaces, ponctuation/tirets → espaces (entrée + triggers)."""
+    lowered = " " + " ".join(_fold(text).replace("'", " ").split()) + " "
+    return "".join(c if c.isalnum() or c == " " else " " for c in lowered)
+
+
 class Owner(str, Enum):
     """Qui réalise l'intention. L'utilisateur ne voit jamais cette valeur."""
 
@@ -211,7 +217,10 @@ CAPABILITIES: dict[str, Capability] = {
     "jarvis": Capability(
         app_id="jarvis", intent="core.neural_map", owner=Owner.CORE,
         risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
-        note="NeuralMap — vue HUD locale.",
+        note=(
+            "NeuralMap — carte visuelle 3D du système, ouverte en surface HUD. "
+            "Demande de MONTRER/AFFICHER/VISUALISER, pas une explication en texte."
+        ),
         triggers=("noyau", "carte hermes", "neural"),
     ),
     "hub": Capability(
@@ -264,6 +273,31 @@ CAPABILITIES: dict[str, Capability] = {
         # Plus de « mission control » nu : ça volait Mission Control Home.
         triggers=("mission control dev", "mission-control-dev", "mission ctrl dev"),
     ),
+    "dev-board-create": Capability(
+        app_id="mission-control-dev", intent="dev.board.create", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        note="Crée un ticket kanban Mission DEV (voix).",
+        triggers=(
+            "nouveau ticket", "nouvelle ticket", "crée un ticket", "cree un ticket",
+            "créer un ticket", "create ticket", "nouvelle tache", "nouvelle tâche",
+        ),
+    ),
+    "dev-board-assign": Capability(
+        app_id="mission-control-dev", intent="dev.board.assign", owner=Owner.CORE,
+        risk=RiskLevel.MEDIA, permission="system.read", display=Display.NATIVE,
+        note="Assigne un ticket à cursor/claude.",
+        triggers=(
+            "assigne à cursor", "assigne a cursor", "assigne à claude", "assigne a claude",
+            "assign to cursor", "assign to claude",
+        ),
+    ),
+    "dev-board-start-run": Capability(
+        app_id="mission-control-dev", intent="dev.board.start_run", owner=Owner.CORE,
+        risk=RiskLevel.HOME, permission="system.read", display=Display.NATIVE,
+        operation=Operation.EXECUTE,
+        note="Lance dev.agent.run sur le ticket en cours (Policy + P5).",
+        triggers=("lance le run", "lance run", "démarre le run", "demarre le run", "start run"),
+    ),
     "cursor": Capability(
         app_id="cursor", intent="core.cursor", owner=Owner.DEVICE,
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.NATIVE,
@@ -288,9 +322,61 @@ CAPABILITIES: dict[str, Capability] = {
         note="Parcourt compétences Hermes, catalogue UI, intentions Core.",
         triggers=(
             "tes compétences", "tes skills", "ton code", "parcours ton code",
-            "ce que tu peux faire", "introspection", "catalogue ui",
+            "ce que tu peux faire", "ce que tu sais faire", "introspection", "catalogue ui",
             "tes skills hermes", "lis tes skills",
         ),
+    ),
+    # Architecture Awareness — joignable depuis le chat (triggers).
+    # Pas de tuile HUD, pas de TTS : chat_reply uniquement.
+    "architecture-explain": Capability(
+        app_id="architecture-explain",
+        intent="architecture.explain",
+        owner=Owner.CORE,
+        risk=RiskLevel.INFO,
+        permission="system.read",
+        display=Display.NATIVE,
+        operation=Operation.READ,
+        note="Architecture Awareness — snapshot + explain_live. Chat only, pas de HUD / TTS.",
+        triggers=(
+            "comment tu fonctionnes",
+            "comment fonctionnes tu",
+            "how do you work",
+            "architecture générale",
+            "où tourne hermes",
+            "où est hermes",
+            "where does hermes",
+        ),
+    ),
+    # —— Memory V2 M4 — Hermes → Core MemoryAPI (pas de tuile HUD, pas de voix) —
+    "memory-search": Capability(
+        app_id="memory-search",
+        intent="memory.search",
+        owner=Owner.CORE,
+        risk=RiskLevel.INFO,
+        permission="memory.read",
+        display=Display.NATIVE,
+        operation=Operation.READ,
+        note="M4 — jarvis_memory_search. Lecture MemoryAPI, résultats non exécutoires.",
+    ),
+    "memory-recall": Capability(
+        app_id="memory-recall",
+        intent="memory.recall",
+        owner=Owner.CORE,
+        risk=RiskLevel.INFO,
+        permission="memory.read",
+        display=Display.NATIVE,
+        operation=Operation.READ,
+        note="M4 — jarvis_memory_recall. Lecture MemoryAPI, résultats non exécutoires.",
+    ),
+    "memory-store-note": Capability(
+        app_id="memory-store-note",
+        intent="memory.store_note",
+        owner=Owner.CORE,
+        risk=RiskLevel.INFO,
+        permission="memory.read",
+        display=Display.NATIVE,
+        operation=Operation.WRITE,
+        note="M4 — jarvis_memory_store_note. kind=note, writer=hermes. Pas de mission_result / forget.",
     ),
     # —— HUD / session — actions quotidiennes, SANS Hermes ————————————————
     #
@@ -331,6 +417,40 @@ CAPABILITIES: dict[str, Capability] = {
             "ferme l'espace", "ferme les espaces", "ferme la fenêtre",
             "ferme les fenêtres", "ferme tout", "ferme l espace",
             "close space", "ferme l'application",
+        ),
+    ),
+    "hud-close-app": Capability(
+        app_id="hud-close", intent="hud.close_app", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
+        note="Ferme un espace HUD nommé — distinct de l'ouverture (`core.preferences`, etc.).",
+        triggers=(
+            "ferme les paramètres", "ferme les parametres",
+            "ferme le panneau paramètres", "ferme le panneau parametres",
+            "ferme les réglages", "ferme les reglages",
+            "ferme la maison", "ferme home assistant",
+            "ferme la vision", "ferme holomat", "ferme les gestes",
+            "ferme le moniteur", "ferme la musique",
+            "ferme netflix", "ferme disney", "ferme youtube", "ferme prime",
+        ),
+    ),
+    "hud-toggle-app": Capability(
+        app_id="hud-toggle", intent="hud.toggle_space", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="system.read", display=Display.NATIVE,
+        operation=Operation.WRITE,
+        note=(
+            "Bascule un espace HUD nommé (open↔close) — même cible que "
+            "`hud.close_app`, troisième action du même domaine que "
+            "`core.preferences`/`hud.close_app`, pas une capacité séparée."
+        ),
+        triggers=(
+            "bascule les paramètres", "bascule les parametres",
+            "bascule le panneau paramètres", "bascule le panneau parametres",
+            "toggle les paramètres", "toggle les parametres",
+            "toggle le panneau paramètres", "toggle le panneau parametres",
+            "bascule les réglages", "bascule les reglages",
+            "bascule la maison", "bascule la vision", "bascule holomat",
+            "bascule les gestes", "bascule le moniteur", "bascule la musique",
         ),
     ),
     "hud-mute": Capability(
@@ -429,12 +549,57 @@ CAPABILITIES: dict[str, Capability] = {
         risk=RiskLevel.HOME, permission="home.control", display=Display.GENERATED,
         operation=Operation.WRITE,
         note="Adaptateur Core `homeassistant.py` — déterministe, sans LLM.",
+        # "maison" / "domotique" / "home" nus retirés (2026-08-15, chantier
+        # Orchestration conversationnelle, P.5) : ce sont des mots de SUJET
+        # (ils nomment un domaine), pas des verbes d'action — « regarde si
+        # tout va bien à la maison » matchait `home.control` sur le seul mot
+        # "maison", alors que la phrase ne demande AUCUNE action. Les phrases
+        # composées qui nomment vraiment une action (« ouvre la maison »,
+        # « ouvre home ») restent, inchangées. Les verbes d'action nus
+        # (« allume », « éteint »…) restent aussi : eux portent un ordre sans
+        # ambiguïté. Une phrase d'observation sans verbe d'action tombe
+        # maintenant en routage sémantique (`capability_routing.py`), qui sait
+        # dire « aucune capacité appropriée » plutôt que de deviner une action.
         triggers=(
-            "maison", "domotique", "lumière", "lumières", "lampe", "home assistant",
-            "home", "ouvre home", "affiche home", "affiche-moi home",
+            "lumière", "lumières", "lampe", "home assistant",
+            "ouvre home", "affiche home", "affiche-moi home",
             "mission control home", "mission contrôle home", "mission controle home",
             "ouvre la maison", "affiche la maison",
             "allume", "éteint", "eteint", "allume le salon", "éteint le salon",
+        ),
+    ),
+    # —— Caméra satellite —————————————————————————————————————————————————
+    #
+    # Une seule source dans tout l'écosystème : le flux MJPEG déjà exposé par
+    # `jarvis_cam.py` sur pi-salon (LG AN-VC500). `device_id`/`source` sont
+    # toujours explicites — jamais la webcam locale du HUD (`vision.analyze`
+    # capte ça, c'est un chemin différent, volontairement pas réutilisé ici).
+    "camera_list": Capability(
+        app_id="camera_list", intent="home.camera_list", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="home.camera", display=Display.GENERATED,
+        operation=Operation.READ,
+        note="Liste des caméras connues (DeviceRegistry, capability camera.capture).",
+        triggers=("quelles caméras", "liste des caméras"),
+    ),
+    "camera_view": Capability(
+        app_id="camera_view", intent="home.camera_view", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="home.camera", display=Display.GENERATED,
+        operation=Operation.READ,
+        note="Ouvre le flux LIVE pi-salon côté HUD (jeton signé courte durée).",
+        triggers=(
+            "affiche la caméra", "affiche la caméra du salon", "montre la caméra",
+            "montre-moi le salon", "regarde ce qui se passe au salon",
+            "regarde le salon", "caméra du salon", "caméra salon",
+        ),
+    ),
+    "camera_snapshot": Capability(
+        app_id="camera_snapshot", intent="home.camera_snapshot", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="home.camera", display=Display.GENERATED,
+        operation=Operation.READ,
+        note="Une image pi-salon ; `analyze=true` la passe au pipeline Vision existant.",
+        triggers=(
+            "prends une image", "prends une photo", "photo du salon",
+            "prends une image de la caméra", "snapshot du salon", "snapshot caméra",
         ),
     ),
     # —— Médias ————————————————————————————————————————————————————————————
@@ -457,7 +622,10 @@ CAPABILITIES: dict[str, Capability] = {
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
         operation=Operation.WRITE,
         note="Adaptateur Core `plex.py` — déterministe, sans LLM.",
-        triggers=("vidéo", "video", "film", "plex", "série", "serie", "épisode", "episode", "regarde", "mets", "lance"),
+        triggers=(
+            "vidéo", "video", "film", "plex", "série", "serie", "épisode", "episode",
+            "mets", "lance", "play",
+        ),
     ),
     # —— Hermes ————————————————————————————————————————————————————————————
     "reach": Capability(
@@ -469,7 +637,7 @@ CAPABILITIES: dict[str, Capability] = {
             "cherche", "trouve", "propose", "recherche",
             "nouvelles", "actualité", "actualites", "actualités",
             "cherche sur internet", "cherche sur le web", "cherche sur youtube",
-            "cherche sur github", "github", "youtube", "reddit", "rss", "openclaw",
+            "cherche sur github", "github", "reddit", "rss", "openclaw",
         ),
     ),
     "browser": Capability(
@@ -495,7 +663,12 @@ CAPABILITIES: dict[str, Capability] = {
         app_id="analyze", intent="data.analyze", owner=Owner.HERMES, toolset="code_execution",
         risk=RiskLevel.ADMIN, permission="console.read", display=Display.GENERATED,
         operation=Operation.EXECUTE,
-        triggers=("analyse", "stats", "données"),
+        # "analyse" seul retiré (2026-08-15, chantier Orchestration
+        # conversationnelle) : mot générique qui volait toute phrase contenant
+        # « analyse » à `devices.metrics` (« analyse la santé de mon
+        # portable » finissait ici, jamais sur les métriques PC). "stats" /
+        # "données" restent : sans ambiguïté avec le diagnostic machine.
+        triggers=("stats", "données"),
     ),
     "skills": Capability(
         app_id="skills", intent="agent.skills", owner=Owner.HERMES, toolset="skills",
@@ -564,6 +737,31 @@ CAPABILITIES: dict[str, Capability] = {
             "mes applications",
         ),
     ),
+    "pc-health": Capability(
+        app_id="connexions", intent="devices.metrics", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
+        note="Métriques CPU/RAM/disque des agents Windows (system.metrics).",
+        triggers=(
+            "analyser mon pc",
+            "analyse mon pc",
+            "analyser le pc",
+            "état du pc",
+            "santé du pc",
+            "santé du portable",
+            # Ajouté (2026-08-15) : couvre littéralement « analyse la santé de
+            # mon portable » — plus long que le seul "analyse" retiré de
+            # `data.analyze`, donc gagnant par la règle existante du
+            # déclencheur le plus long, sans nouveau mécanisme.
+            "santé de mon portable",
+            "métriques du pc",
+            "charge du pc",
+            # Ajouté (2026-08-15, finition V1 — stabilisation post-audit) :
+            # « pourquoi mon portable rame » passait par le resolver sémantique
+            # (LLM) faute de trigger déterministe. Composé, pas un mot seul :
+            # "rame" isolé collisionnerait ("il rame vers la rive").
+            "portable rame", "pc rame",
+        ),
+    ),
     "device-launch": Capability(
         app_id="connexions", intent="device.app_launch", owner=Owner.DEVICE,
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.NATIVE,
@@ -603,6 +801,37 @@ CAPABILITIES: dict[str, Capability] = {
         note="Magasin local data/missions.json — ajout / liste / clôture.",
         triggers=("objectifs", "buts", "objectif", "goal", "goals"),
     ),
+    "vision-analyze": Capability(
+        app_id="vision", intent="vision.analyze", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
+        operation=Operation.READ,
+        note=(
+            "Snapshot HUD (type:perception) → délégation Hermes vision_analyze. "
+            "Distinct de holomat/face_frame."
+        ),
+        triggers=(
+            "qu'est-ce que je te montre", "quest ce que je te montre",
+            "qu est ce que je te montre",
+            "décris ce que tu vois", "decris ce que tu vois",
+            "qu'est-ce que c'est", "quest ce que c est",
+            "identifie ce", "reconnais ce", "analyse ce que tu vois",
+        ),
+    ),
+    "vision-scene": Capability(
+        app_id="vision-scene", intent="vision.scene", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
+        operation=Operation.READ,
+        note=(
+            "Contexte SceneStore (Vision Worker → VISION_OBJECT_*). "
+            "Sans snapshot, sans Hermes — lecture seule du suivi temps réel."
+        ),
+        triggers=(
+            "que vois-tu", "que vois tu", "que vois-tu en ce moment",
+            "que vois tu en ce moment", "objets détectés", "objets detectes",
+            "scène courante", "scene courante", "qu'est-ce qu'il y a devant",
+            "quest ce qu il y a devant",
+        ),
+    ),
 }
 
 
@@ -615,7 +844,7 @@ CAPABILITIES: dict[str, Capability] = {
 # `admin` n'est pas listé : il reçoit tout toolset qu'une capacité nomme (calculé),
 # pour qu'ajouter une capacité ne verrouille pas le propriétaire de la machine.
 ROLE_TOOLSETS: dict[str, set[str]] = {
-    "user": {"homeassistant", "spotify", "web", "browser"},
+    "user": {"homeassistant", "spotify", "web", "browser", "vision"},
     "child": {"spotify"},
     "guest": set(),
 }
@@ -667,8 +896,7 @@ def match_intent(text: str) -> Capability | None:
        ponctuation est ramenée à des espaces pour que « allume les lumières. »
        continue de correspondre.
     """
-    lowered = " " + " ".join(_fold(text).replace("'", " ").split()) + " "
-    lowered = "".join(c if c.isalnum() or c == " " else " " for c in lowered)
+    lowered = _normalize_for_match(text)
     if not lowered.strip():
         return None
 
@@ -676,14 +904,54 @@ def match_intent(text: str) -> Capability | None:
     best_len = 0
     for cap in CAPABILITIES.values():
         for trigger in cap.triggers:
-            if f" {_fold(trigger)} " not in lowered:
+            if f" {_normalize_for_match(trigger).strip()} " not in lowered:
                 continue
             if len(trigger) > best_len:
                 best, best_len = [cap], len(trigger)
             elif len(trigger) == best_len and cap not in best:
                 best.append(cap)
 
-    return best[0] if len(best) == 1 else None
+    if len(best) == 1:
+        return best[0]
+    if len(best) > 1:
+        picked = _disambiguate_intent(lowered, best)
+        if picked is not None:
+            return picked
+    return None
+
+
+# Plateformes streaming — si présentes, `media.streaming` l'emporte sur les
+# verbes génériques (`regarde`) ou les recherches web (`youtube` seul).
+_STREAMING_MARKERS: tuple[str, ...] = (
+    "netflix", "disney", "disney plus", "youtube",
+    "prime video", "amazon prime", "prime",
+)
+
+
+def _disambiguate_intent(lowered: str, candidates: list["Capability"]) -> "Capability | None":
+    """Tranche une égalité de longueur — sans deviner au hasard."""
+    if _has_streaming_platform(lowered):
+        streaming = [c for c in candidates if c.intent == "media.streaming"]
+        if streaming:
+            return streaming[0]
+
+    close_app = [c for c in candidates if c.intent == "hud.close_app"]
+    open_prefs = [c for c in candidates if c.intent == "core.preferences"]
+    if close_app and not open_prefs:
+        return close_app[0]
+
+    holomat = [c for c in candidates if c.intent == "core.holomat"]
+    camera = [c for c in candidates if c.intent == "home.camera_view"]
+    if holomat and camera:
+        if " salon " in lowered:
+            return camera[0]
+        return holomat[0]
+
+    return None
+
+
+def _has_streaming_platform(lowered: str) -> bool:
+    return any(f" {_fold(m)} " in lowered for m in _STREAMING_MARKERS)
 
 
 def for_app(app_id: str) -> Capability | None:

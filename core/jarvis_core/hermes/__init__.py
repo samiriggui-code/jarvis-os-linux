@@ -9,6 +9,7 @@ from .bridge import (
     HermesUnavailable,
     UNTRUSTED_PREFIX,
     resolve_hermes_timeout,
+    strip_hermes_display_text,
 )
 from .delegate import HermesIntentDelegate
 from .events import map_hermes_chat_progress, map_hermes_run_event
@@ -26,4 +27,5 @@ __all__ = [
     "HermesUnavailable",
     "UNTRUSTED_PREFIX",
     "resolve_hermes_timeout",
+    "strip_hermes_display_text",
 ]

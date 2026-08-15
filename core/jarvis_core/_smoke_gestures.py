@@ -38,6 +38,8 @@ PROFILE = {
     "bindings": [
         {"id": "pinch", "label": "Pincement", "action": "select_or_close", "enabled": True},
         {"id": "open_hand", "label": "Paume", "action": "open_launcher", "enabled": True},
+        {"id": "fist", "label": "Poing", "action": "mute", "enabled": True},
+        {"id": "peace", "label": "Peace", "action": "ack_done", "enabled": True},
         {"id": "swipe_right", "label": "Droite", "action": "next_panel", "enabled": True},
         {"id": "swipe_left", "label": "Gauche", "action": "prev_panel", "enabled": False},
         {"id": "point", "label": "Index", "action": "activate_voice", "enabled": True},
@@ -127,10 +129,10 @@ def main() -> None:
     assert router.disabled == 1
 
     # 6. Le curseur ne déclenche AUCUN binding — sinon bouger la main
-    #    activerait la voix en boucle (binding `point` du profil par défaut).
+    #    activerait la voix en boucle (binding `point` = pose discret).
     clock, bus, router, watched, actions = rig()
     feed(bus, router, watched, clock, [
-        {"hand": "right", "point": {"x": i / 60, "y": 0.5}} for i in range(60)
+        {"hand": "right", "cursor": {"x": i / 60, "y": 0.5}} for i in range(60)
     ])
     assert drain(actions) == [], "HAND_POINT a résolu un binding"
 
@@ -138,7 +140,7 @@ def main() -> None:
     clock, bus, router, watched, _ = rig()
     cursor = bus.subscribe(["HAND_POINT"], name="curseur")
     feed(bus, router, watched, clock, [
-        {"hand": "right", "point": {"x": i / 60, "y": 0.5}} for i in range(60)
+        {"hand": "right", "cursor": {"x": i / 60, "y": 0.5}} for i in range(60)
     ])
     positions = drain(cursor)
     assert len(positions) == 1, f"60 positions → {len(positions)} en attente, attendu 1"
@@ -176,10 +178,35 @@ def main() -> None:
         "GESTURE_DETECTED réarmé en EDGE : le 2e geste sera avalé"
     assert bus.policies["HAND_PINCH"].mode is Mode.EDGE
 
+    # 12. Poing → binding fist.
+    clock, bus, router, watched, actions = rig()
+    feed(bus, router, watched, clock, [{"hand": "right", "fist": 0.92}] * 20)
+    got = drain(actions)
+    assert len(got) == 1 and got[0].payload["gestureId"] == "fist", got
+    assert got[0].payload["action"] == "mute"
+
+    # 13. Peace → binding peace.
+    clock, bus, router, watched, actions = rig()
+    feed(bus, router, watched, clock, [{"hand": "right", "peace": 0.9}] * 20)
+    got = drain(actions)
+    assert len(got) == 1 and got[0].payload["gestureId"] == "peace", got
+    assert got[0].payload["action"] == "ack_done"
+
+    # 14. Index levé (pose) → activate_voice, distinct du curseur.
+    clock, bus, router, watched, actions = rig()
+    feed(bus, router, watched, clock, [{"hand": "right", "point_pose": 0.88}] * 20)
+    got = drain(actions)
+    assert len(got) == 1 and got[0].payload["gestureId"] == "point", got
+    assert got[0].payload["action"] == "activate_voice"
+
+    # 15. Rétrocompat : `point` {x,y} reste le curseur si `cursor` absent.
+    kinds = [k for k, _ in signals_from_hud({"hand": "right", "point": {"x": 0.5, "y": 0.5}})]
+    assert kinds == ["HAND_POINT"], kinds
+
     print("OK - gestures smoke passed")
     print("  pincement tenu -> 1 action | pincer/relacher/pincer -> 2 | 2 mains -> 2")
     print("  swipe droite -> next_panel | binding off -> rien | curseur -> 0 binding")
-    print("  60 positions -> 1 coalescee | HUD borne [0,1] | profil recharge a chaud")
+    print("  fist/peace/point_pose -> bindings | 60 positions -> 1 coalescee")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,83 @@
 
 ---
 
+## 2026-08-13 — Architecture Awareness intent chat
+
+- Triggers `architecture.explain` → `match_intent` → `chat_reply` (texte, pas TTS, pas HUD)
+- Smoke : `_smoke_architecture_intent`
+- **STOP** : pas TTS · pas HUD view · pas D3.1 · pas propose
+
+## 2026-08-13 — Architecture Awareness intent Core
+
+- Intent `architecture.explain` → `explain_live()` via `intents.execute` (zéro trigger, pas WS/HUD/voix)
+- Smoke : `_smoke_architecture_intent`
+- **STOP** : pas de trigger vocal · pas WS · pas HUD · pas D3.1
+
+## 2026-08-13 — Architecture Awareness D2.2 (LLM live contrôlé)
+
+- `explain_live()` : payload D2.1 → Provider Manager → `validate_llm_explanation` → fallback template
+- Smoke : `_smoke_architecture_llm_live` (provider injecté, pas de réseau)
+- **STOP** : pas Hermes · pas voix · pas HUD · pas WS · pas D3.1 · pas HA
+
+## 2026-08-13 — Handoff Architecture Awareness (arrêt D2.1)
+
+- Handoff complet dans `docs/claude/JARVIS_SESSION_STATE.md` (fichiers, smokes, invariants, non-branché, D2.2 sous feu vert)
+- **STOP** : pas D2.2 auto · pas HA/Salon depuis ce fil
+
+## 2026-08-13 — Architecture Awareness D2.1 (contrat ancre)
+
+- `build_llm_bound_payload(snapshot, audit)` pur · `llm_payload.py` · doc §14.1
+- Smoke : `_smoke_architecture_llm_payload` ALL OK
+- **STOP** : pas OpenRouter · pas Hermes · pas voix · pas HUD · pas probes · pas HA
+
+## 2026-08-13 — Architecture Awareness D2 (LLM-bound)
+
+- Pipeline `snapshot→audit→explain→(llm_formatter borné)` · `validate_llm_explanation` · ignore Hermes history
+- Walkthrough GO · intent `action_outcome` (Architecture ≠ Verification)
+- Smoke : `_smoke_architecture_explain` ALL OK (12+ cas dont mock LLM)
+- **STOP** : pas vocal · pas HUD · pas deploy · pas propose · pas D3.1
+
+## 2026-08-13 — Architecture Awareness D2
+
+- `architecture.explain(snapshot, question)` : ExplainReport déterministe · walkthrough CODE · audit pour diagnostics · `llm_bound_payload` (hook LLM non branché)
+- Gardes anti-hallucination (Ghost, Hermes conflit, no promotion CONFIGURED→AVAILABLE)
+- Smoke : `_smoke_architecture_explain` ALL OK
+- **STOP** : pas vocal · pas HUD · pas deploy · pas propose · pas D3.1
+
+## 2026-08-13 — Architecture Awareness D3
+
+- `architecture.audit(snapshot)` : AuditReport déterministe · chain_walk depends_on · conflicts DOC conservés · certainty FRESH/STALE
+- D3.0 = snapshot-only (pas ON_DEMAND/SSH/LLM)
+- Smoke : `_smoke_architecture_audit` ALL OK (+ D1 smoke vert)
+- **STOP** : pas D2 · pas HUD · pas deploy · pas propose
+
+## 2026-08-13 — Architecture Awareness D1
+
+- `core/jarvis_core/architecture/` : `snapshot()` read-only IN_MEMORY · schema `1.0.0` · invariant AVAILABLE · claims Hermes NUC/VPS · redaction · connections/depends_on DOC
+- Smoke : `_smoke_architecture_snapshot` ALL OK
+- Spec : `docs/architecture/JARVIS-Architecture-Awareness.md` (B′ → D1 ✅)
+- **STOP** : pas D2/D3/F · pas HUD · pas deploy
+
+## 2026-08-11 — Windows Agent `0.5.0-windows`
+
+- Versioning unifié : `windows_agent.py` / `bootstrap.json` / `panel_server` / `CHANGELOG.md` agent
+- Depuis 0.4.2 : mutex 1-instance, inventaire sans cascade PS, tray orbe HUD vivant, HUD FQDN HTTPS, sync efficace (broadcast Core hors agents, caps poll seulement si changed, metrics heartbeat opt-in)
+- Détail : `deploy/windows-agent/CHANGELOG.md`
+
+## 2026-08-11 — Handoff soir (veille HUD + voix jarvis3)
+
+- Veille : TopBar réel (`SYSTEM_METRICS`), fake bandeau out, ChatPeek, accès voix/DEV (Ctrl+Shift A/S/G/D/C/L/U)
+- Démo agentic ne s’auto-lance plus (`?agenticDemo=1` seulement)
+- Cache vocal `jarvis3` (`HhLkLX9WkAwlzDXzuHzd`) + filtre hologramme runtime HUD
+- Control Room → idées only ; vendor folder supprimé
+- Handoff : `docs/claude/JARVIS_SESSION_STATE.md` § HANDOFF 2026-08-11 — **pas de sync NUC**
+
+## 2026-08-11 — Hermes Agent Control Room (idées only)
+
+- Patterns : inventory/runbook/env-map/backup, manuel→automate, checklist sécu, registry, control plane ≠ runtime
+- Doc : `docs/architecture/JARVIS-Agent-Control-Plane.md` + § vision
+- Amont [shannhk/hermes-agent-control-room](https://github.com/shannhk/hermes-agent-control-room) → `vendor/README.md` § Déjà dispatchés — **pas** de runtime multi-Hermes
+
 ## 2026-08-10 — Enrôlement formulaire + profil DB
 
 - Boot : orbe centré, espace net avant **JARVIS** (AuthScene + SystemBootGate)

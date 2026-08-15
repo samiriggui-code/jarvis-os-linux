@@ -4,6 +4,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 type ToolEvent = {
   intent?: string
@@ -19,13 +21,11 @@ type ToolEvent = {
   status?: string
 }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 const RISK_LABEL: Record<number, string> = { 1: 'INFO', 2: 'MEDIA', 3: 'HOME', 4: 'ADMIN', 5: 'VPS' }
 const RISK_COLOR: Record<number, string> = { 1: 'rgba(17,17,20,0.4)', 2: '#0A84FF', 3: '#0A84FF', 4: '#FFC857', 5: '#FF3B30' }
 
 export default function ToolsPage() {
+  const { client } = useCoreSession()
   const [events, setEvents] = useState<ToolEvent[] | null>(null)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,41 +33,17 @@ export default function ToolsPage() {
   const refresh = useCallback(() => {
     setLoading(true)
     setErr('')
-    let settled = false
-    const ws = new WebSocket(CORE_WS)
-    const timer = window.setTimeout(() => {
-      if (!settled) {
-        settled = true
-        setErr('Timeout Core — relance jarvis_core.')
+    void dashRequest(client, { type: 'tool_timeline', action: 'recent', limit: 40 }, 'tool_timeline')
+      .then((data) => {
+        const list = Array.isArray(data.events) ? (data.events as ToolEvent[]) : []
+        setEvents([...list].reverse())
         setLoading(false)
-        try { ws.close() } catch { /* */ }
-      }
-    }, 12000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'tool_timeline', action: 'recent', limit: 40 }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'tool_timeline') {
-          settled = true
-          window.clearTimeout(timer)
-          setEvents(Array.isArray(data.events) ? [...data.events].reverse() : [])
-          setLoading(false)
-          ws.close()
-        }
-      } catch { /* */ }
-    }
-    ws.onerror = () => {
-      if (!settled) {
-        settled = true
-        window.clearTimeout(timer)
-        setErr('Core WS injoignable (8765).')
+      })
+      .catch((e) => {
+        setErr(e instanceof Error ? e.message : 'Core WS injoignable (8765).')
         setLoading(false)
-      }
-    }
-  }, [])
+      })
+  }, [client])
 
   useEffect(() => { refresh() }, [refresh])
 

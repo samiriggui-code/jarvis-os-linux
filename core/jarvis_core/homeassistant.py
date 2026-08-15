@@ -33,7 +33,7 @@ import logging
 import os
 import time
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib import error, parse, request
 
@@ -52,16 +52,43 @@ INVENTORY_TTL_S = 30.0
 # ne sont pas de la domotique mais de l'administration système.
 CONTROLLABLE = {"light", "switch", "fan", "cover", "climate", "media_player", "scene", "script"}
 
-# Ce qu'on sait faire dire à HA, et rien d'autre. Le Core ne relaie pas une chaîne
-# venue de l'extérieur vers l'API de la maison.
-SERVICES = {
-    "on": "turn_on",
-    "off": "turn_off",
-    "toggle": "toggle",
-    "open": "open_cover",
-    "close": "close_cover",
-    "stop": "stop_cover",
+# Doublon observé lors de la sonde réelle du 2026-08-13 : la Freebox Player
+# expose DEUX entités media_player HA pour le même appareil physique —
+# `freebox_player_pop` (intégration `freebox` : ni volume ni select_source) et
+# `freebox_player_pop_2` (intégration `androidtv_remote` : volume mute/step en
+# plus, même primitive ADB que `salon_player.py`). On ignore la première pour
+# ne jamais lever d'ambiguïté sur un appareil unique — décision Core, aucune
+# entité désactivée côté Home Assistant.
+EXCLUDED_ENTITY_IDS: frozenset[str] = frozenset({"media_player.freebox_player_pop"})
+
+# Services universels — présents sur tous les domaines pilotables.
+_SERVICES_COMMON: dict[str, str] = {"on": "turn_on", "off": "turn_off", "toggle": "toggle"}
+
+# Ce qu'on sait faire dire à HA, et rien d'autre. Par domaine : un même mot
+# d'action (« stop ») ne pointe pas le même service selon l'appareil visé
+# (volet vs lecteur média), donc pas de table plate. Chaque service ci-dessous
+# correspond à une capacité réellement déclarée par un appareil de la maison
+# (bitmask `supported_features` vérifié le 2026-08-13) — rien d'inventé.
+SERVICES_BY_DOMAIN: dict[str, dict[str, str]] = {
+    # cover n'a pas de service turn_on/turn_off côté HA — seulement toggle.
+    "cover": {
+        "toggle": "toggle",
+        "open": "open_cover",
+        "close": "close_cover",
+        "stop": "stop_cover",
+    },
+    "media_player": {
+        **_SERVICES_COMMON,
+        "play": "media_play",
+        "pause": "media_pause",
+        "stop": "media_stop",
+        "mute": "volume_mute",
+    },
 }
+
+
+def _services_for_domain(domain: str) -> dict[str, str]:
+    return SERVICES_BY_DOMAIN.get(domain, _SERVICES_COMMON)
 
 
 class HomeAssistantUnavailable(RuntimeError):
@@ -78,6 +105,10 @@ class Entity:
     name: str
     state: str
     area: str | None
+    # Attributs bruts HA (ex. is_volume_muted) — nécessaires à M2.2 pour les
+    # actions qui ne changent pas `state` lui-même (mute). Pas exposé avant
+    # cette dataclass ; ajout additif, aucun consommateur existant ne le lisait.
+    attributes: dict[str, Any] = field(default_factory=dict)
 
     @property
     def domain(self) -> str:
@@ -155,9 +186,12 @@ class HomeAssistantAdapter:
                 name=str((s.get("attributes") or {}).get("friendly_name") or s.get("entity_id") or ""),
                 state=str(s.get("state") or ""),
                 area=(s.get("attributes") or {}).get("area") or None,
+                attributes=dict(s.get("attributes") or {}),
             )
             for s in states
-            if isinstance(s, dict) and s.get("entity_id")
+            if isinstance(s, dict)
+            and s.get("entity_id")
+            and str(s.get("entity_id")) not in EXCLUDED_ENTITY_IDS
         ]
         self._inventory = (now, entities)
         logger.info("inventaire HA · %d entités", len(entities))
@@ -192,8 +226,8 @@ class HomeAssistantAdapter:
     # ── Action ───────────────────────────────────────────────────────────────
 
     async def call(self, entity: Entity, action: str) -> dict[str, Any]:
-        """Appelle un service HA. `action` vient de `SERVICES`, jamais du dehors."""
-        service = SERVICES.get(action)
+        """Appelle un service HA. `action` vient de `SERVICES_BY_DOMAIN`, jamais du dehors."""
+        service = _services_for_domain(entity.domain).get(action)
         if service is None:
             raise HomeAssistantUnavailable(f"action « {action} » inconnue de l'adaptateur")
         if entity.domain not in CONTROLLABLE:
@@ -259,7 +293,15 @@ class HomeAssistantAdapter:
                 + ", ".join(e.name for e in targets[:5])
             )
 
-        return {"ok": True, "action": action, **await self.call(targets[0], action)}
+        # pre_state : nécessaire à M2.2 (re-observation) pour les actions dont
+        # la cible n'est pas déterministe (toggle) — état lu AVANT l'appel,
+        # jamais retouché après.
+        return {
+            "ok": True,
+            "action": action,
+            "pre_state": targets[0].state,
+            **await self.call(targets[0], action),
+        }
 
 
 def _domain_of(folded: str) -> str | None:
@@ -271,6 +313,14 @@ def _domain_of(folded: str) -> str | None:
         (("ventilateur", "ventilation"), "fan"),
         (("prise", "prises", "interrupteur"), "switch"),
         (("scene", "ambiance"), "scene"),
+        (
+            (
+                "tele", "television", "televiseur", "tv",
+                "apple tv", "appletv",
+                "freebox player", "bravia",
+            ),
+            "media_player",
+        ),
     ):
         if any(w in folded for w in words):
             return domain
@@ -281,10 +331,14 @@ def _action_of(folded: str) -> str | None:
     """L'ordre donné, ou `None` si la phrase ne demande rien à changer."""
     for words, action in (
         (("allume", "allumer", "active", "demarre", "ouvre la lumiere"), "on"),
+        # Avant "off" : "coupe le son" ne doit pas retomber sur "coupe" (eteindre).
+        (("coupe le son", "muet", "sourdine"), "mute"),
         (("eteins", "eteindre", "coupe", "arrete", "desactive"), "off"),
         (("bascule", "inverse"), "toggle"),
         (("ouvre", "leve", "monte"), "open"),
         (("ferme", "baisse", "descend"), "close"),
+        (("mets en pause", "mets sur pause", "pause"), "pause"),
+        (("reprends la lecture", "relance la lecture", "lance la lecture"), "play"),
         (("stoppe", "stop"), "stop"),
     ):
         if any(w in folded for w in words):

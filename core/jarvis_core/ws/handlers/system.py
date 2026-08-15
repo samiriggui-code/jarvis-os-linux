@@ -27,15 +27,81 @@ class SystemHandlerMixin:
         await ws.send(json.dumps(result))
 
     async def handle_device_execute_result(self, ws: Any, data: dict[str, Any]) -> None:
-        """Agent → Core : résultat ``device.execute`` (P4)."""
+        """Agent → Core : résultat ``device.execute`` (P4 + P5 accept)."""
+        from ...dev_agent.types import CAPABILITY_DEV_AGENT_RUN
+
         request_id = str(data.get("request_id") or "")
-        accepted = self.device_dispatch.complete(request_id, data)
+        cap_id = str(data.get("capability_id") or "")
+        if cap_id == CAPABILITY_DEV_AGENT_RUN:
+            accepted = self.dev_agent_dispatch.complete_accept(request_id, data)
+        else:
+            accepted = self.device_dispatch.complete(request_id, data)
         await ws.send(
             json.dumps(
                 {
                     "ok": accepted,
                     "type": "device_execute_result_ack",
                     "request_id": request_id,
+                }
+            )
+        )
+
+    async def handle_device_run_progress(self, ws: Any, data: dict[str, Any]) -> None:
+        accepted = self.dev_agent_dispatch.on_progress(data)
+        await ws.send(
+            json.dumps(
+                {
+                    "ok": accepted,
+                    "type": "device_run_progress_ack",
+                    "run_id": data.get("run_id"),
+                }
+            )
+        )
+
+    async def handle_device_run_completed(self, ws: Any, data: dict[str, Any]) -> None:
+        accepted = self.dev_agent_dispatch.on_completed(data)
+        await ws.send(
+            json.dumps(
+                {
+                    "ok": accepted,
+                    "type": "device_run_completed_ack",
+                    "run_id": data.get("run_id"),
+                }
+            )
+        )
+
+    async def handle_device_run_failed(self, ws: Any, data: dict[str, Any]) -> None:
+        accepted = self.dev_agent_dispatch.on_failed(data)
+        await ws.send(
+            json.dumps(
+                {
+                    "ok": accepted,
+                    "type": "device_run_failed_ack",
+                    "run_id": data.get("run_id"),
+                }
+            )
+        )
+
+    async def handle_device_run_cancel_result(self, ws: Any, data: dict[str, Any]) -> None:
+        accepted = self.dev_agent_dispatch.on_cancel_result(data)
+        await ws.send(
+            json.dumps(
+                {
+                    "ok": accepted,
+                    "type": "device_run_cancel_result_ack",
+                    "run_id": data.get("run_id"),
+                }
+            )
+        )
+
+    async def handle_device_run_status_result(self, ws: Any, data: dict[str, Any]) -> None:
+        accepted = self.dev_agent_dispatch.on_status_result(data)
+        await ws.send(
+            json.dumps(
+                {
+                    "ok": accepted,
+                    "type": "device_run_status_result_ack",
+                    "run_id": data.get("run_id"),
                 }
             )
         )
@@ -309,6 +375,45 @@ class SystemHandlerMixin:
             project_name=pname,
             scenario=str(data.get("scenario") or "cursor"),
         )
+
+    async def handle_mission_board(self, ws: Any, data: dict[str, Any]) -> None:
+        """Mission DEV Board — kanban local (list/create/move/assign/comment/inbox)."""
+        from ...mission_dev.board import BoardStoreError
+
+        action = str(data.get("action") or "list")
+
+        async def send(payload: dict[str, Any]) -> None:
+            await ws.send(json.dumps(payload))
+
+        try:
+            result = self.mission_board.handle(
+                action,
+                data if isinstance(data, dict) else {},
+                dev_runs=self.dev_runs,
+            )
+            await send({
+                "type": "mission_board_result",
+                "ok": True,
+                "action": action,
+                **result,
+            })
+        except BoardStoreError as exc:
+            await send({
+                "type": "mission_board_result",
+                "ok": False,
+                "action": action,
+                "error": str(exc),
+                "code": exc.code,
+            })
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("mission_board %s", action)
+            await send({
+                "type": "mission_board_result",
+                "ok": False,
+                "action": action,
+                "error": str(exc),
+            })
+
     async def handle_supervisor(self, ws: Any, data: dict[str, Any]) -> None:
         """État réel de chaque brique — ce que le HUD affiche au boot."""
         action = str(data.get("action", "status"))

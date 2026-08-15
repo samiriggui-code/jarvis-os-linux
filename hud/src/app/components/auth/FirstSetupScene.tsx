@@ -26,9 +26,10 @@ import {
 import { AuthVoiceWave } from './AuthVoiceWave';
 import { useMicOrbAnalyser } from './useMicOrbAnalyser';
 import { OrbSpatial } from './OrbSpatial';
+import { subscribeTtsSpeaking } from '../../bridge/ttsCore';
 import { GlassButton, GlassPanel } from '../../../components/glass';
 import { tokens } from '../../../ui/tokens';
-import { Background } from '../Background';
+import { AuthCinematicBackdrop } from './AuthCinematicBackdrop';
 import { ThemeModeToggle } from '../ThemeModeToggle';
 import { visionTitle, visionCaption, visionBody } from '../visionChrome';
 
@@ -113,9 +114,23 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
   const [voiceTake, setVoiceTake] = useState<{ index: number; total: number } | null>(null);
   const [micOk, setMicOk] = useState(false);
   const [listeningActive, setListeningActive] = useState(false);
+  const [ttsSpeaking, setTtsSpeaking] = useState(false);
+  const [speakPulse, setSpeakPulse] = useState(0);
   const { micAnalyser, micLevel } = useMicOrbAnalyser(
-    micOk && (listeningActive || phase === 'face_enroll' || phase === 'voice_enroll'),
+    micOk && (listeningActive || phase === 'face_enroll' || phase === 'voice_enroll') && !ttsSpeaking,
   );
+  useEffect(() => subscribeTtsSpeaking(setTtsSpeaking), []);
+  useEffect(() => {
+    if (!ttsSpeaking) {
+      setSpeakPulse(0);
+      return;
+    }
+    const id = window.setInterval(() => {
+      const t = Date.now() / 1000;
+      setSpeakPulse(0.35 + Math.abs(Math.sin(t * 9)) * 0.5);
+    }, 50);
+    return () => window.clearInterval(id);
+  }, [ttsSpeaking]);
 
   const aliveRef = useRef(true);
   const nameRef = useRef('');
@@ -251,17 +266,18 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
       return;
     }
 
-    await jarvisSay(`Repetez trois fois : ${VOICE_CHALLENGE}`);
-    const takes = await captureEnrollmentPhrase(3, 5_000, (i, total) => {
+    await jarvisSay(`Répétez trois fois : ${VOICE_CHALLENGE}`);
+    const takes = await captureEnrollmentPhrase(3, 5_500, (i, total) => {
       if (!aliveRef.current) return;
       setVoiceTake({ index: i, total });
+      setHudSub(`Prise ${i}/${total} — « ${VOICE_CHALLENGE} »`);
     });
     if (!aliveRef.current) return;
     setVoiceTake(null);
     const kept = takes.filter((t) => t.ok && t.text.trim());
     if (kept.length < 2) {
       setListeningActive(false);
-      await jarvisSay('Pas assez de prises vocales. Reessayons.');
+      await jarvisSay('Pas assez de prises correctes. Dites clairement : Jarvis, active-toi.');
       return runVoice();
     }
     const ok = await commitVoiceEnroll(user.id, kept.map((t) => t.text));
@@ -425,13 +441,12 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
   return (
     <motion.div
       className="fixed inset-0 z-[300] flex flex-col items-center justify-center overflow-hidden"
-      style={{ background: `radial-gradient(ellipse at 50% 20%, ${tokens.color.accentSoft} 0%, ${tokens.color.void} 62%)` }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Background />
+      <AuthCinematicBackdrop />
       <div className="absolute top-3 right-3 z-20">
         <ThemeModeToggle compact />
       </div>
@@ -458,10 +473,10 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
           >
             <GlassPanel
               level="regular"
-              radius="md"
-              padding="sm"
+              radius="lg"
+              padding="md"
               className="w-full flex flex-col items-center gap-3 overflow-y-auto"
-              style={{ maxHeight: '92dvh' }}
+              style={{ maxHeight: '92dvh', borderRadius: 32, maxWidth: 400, padding: '20px 18px' }}
             >
               <div className="text-center shrink-0">
                 <p style={{ ...visionCaption, color: accentColor, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0 }}>
@@ -640,22 +655,13 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
               {/* ── Face agentic ── */}
               {phase === 'face_enroll' && (
                 <div className="flex flex-col items-center gap-3 w-full">
-                  <div
-                    className="relative w-full overflow-hidden"
-                    style={{
-                      height: 'clamp(160px, 32dvh, 280px)',
-                      maxHeight: 'clamp(160px, 32dvh, 280px)',
-                      borderRadius: tokens.radius.md,
-                    }}
-                  >
-                    <FaceCamView
-                      active
-                      fill
-                      progress={faceProgress}
-                      label={faceReady ? 'Visage · prêt' : 'Visage · capture'}
-                    />
-                  </div>
-                  <div className="w-full" style={{ maxHeight: 28 }}>
+                  <FaceCamView
+                    active
+                    progress={faceProgress}
+                    size="clamp(220px, min(48vw, 46dvh), 340px)"
+                    label={faceReady ? 'Visage · prêt' : 'Visage · capture'}
+                  />
+                  <div className="w-full flex justify-center">
                     <AuthVoiceWave mode={waveMode} level={Math.max(0.08, micLevel)} />
                   </div>
                   {!micOk && (
@@ -669,7 +675,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
               {/* ── Voix ── */}
               {phase === 'voice_enroll' && (
                 <div className="flex flex-col items-center gap-3 w-full">
-                  <div className="w-full" style={{ maxHeight: 28 }}>
+                  <div className="w-full flex justify-center">
                     <AuthVoiceWave mode={waveMode} level={micLevel} />
                   </div>
                   {!micOk && (
@@ -716,15 +722,16 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
             >
               <OrbSpatial
                 size={72}
-                veille={!(phase === 'voice_enroll' || listeningActive || voiceReady)}
-                analyser={phase === 'voice_enroll' || phase === 'face_enroll' ? micAnalyser : null}
                 state={
-                  voiceReady ? 'responding'
-                  : phase === 'voice_enroll' || listeningActive ? 'listening'
+                  ttsSpeaking || voiceReady ? 'speaking'
                   : 'idle'
                 }
-                volume={listeningActive ? Math.max(0.08, Math.min(0.45, micLevel * 0.85 + 0.06)) : 0.08}
-                playbackVolume={0}
+                volume={
+                  ttsSpeaking
+                    ? Math.max(0.4, speakPulse)
+                    : 0.08
+                }
+                playbackVolume={ttsSpeaking ? Math.max(0.4, speakPulse) : 0}
               />
             </div>,
             document.body,

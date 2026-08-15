@@ -168,16 +168,14 @@ lines:
   # « La phrase demandée » — laquelle ? Elle n'était dite nulle part, ni à la
   # voix ni à l'écran. On donne le mot, et on précise qu'il faut le répéter :
   # l'empreinte vocale a besoin de plusieurs passes.
+  # ⚠ ≠ wake hands-free « hey Jarvis ». Auth / enroll = « Jarvis, active-toi ».
   - event: voice_enroll_repeat
     tone: human
     security_level: public
     address: vous
-    # Même mot que le réveil mains libres — « hey Jarvis », cf. `wake.yaml`.
-    # Enrôler sur une formule et détecter sur une autre, c'est se garantir des
-    # échecs incompréhensibles pour l'utilisateur.
     text:
-      - "Veuillez prononcer : hey Jarvis. Puis répétez-le deux fois."
-      - "Prononcez hey Jarvis, distinctement, à trois reprises."
+      - "Veuillez prononcer : Jarvis, active-toi. Puis répétez-le deux fois."
+      - "Prononcez Jarvis, active-toi, distinctement, à trois reprises."
     orb_state: listening
 
   # ── Prises numérotées ──────────────────────────────────────────────────

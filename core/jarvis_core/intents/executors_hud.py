@@ -7,6 +7,29 @@ from typing import Any
 
 logger = logging.getLogger("jarvis.core")
 
+# Mot-clé dans la phrase → app_id HUD (`hud/src/app/apps/catalog.ts`).
+_CLOSE_APP_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("settings", ("parametre", "parametres", "reglage", "reglages", "settings", "preferences")),
+    ("home", ("maison", "home", "domotique")),
+    ("vision", ("vision", "holomat", "gestes", "webcam", "camera")),
+    ("monitor", ("moniteur", "monitor", "cpu", "ressources")),
+    ("music", ("musique", "music", "spotify")),
+    ("video", ("netflix", "disney", "youtube", "prime", "prime video", "amazon")),
+    ("jarvis", ("noyau", "neural", "carte hermes")),
+    ("hub", ("dashboard", "admin", "cockpit")),
+    ("reach", ("internet", "agent reach", "recherche web")),
+)
+
+
+def _resolve_close_app_id(prompt: str) -> str | None:
+    from ..capabilities import _fold
+
+    folded = _fold(prompt)
+    for app_id, keywords in _CLOSE_APP_ALIASES:
+        if any(k in folded for k in keywords):
+            return app_id
+    return None
+
 
 class HudIntentExecutorsMixin:
 
@@ -195,3 +218,56 @@ class HudIntentExecutorsMixin:
                 )
             )
         return {"ok": True, "action": action}
+
+    async def _execute_hud_close_app(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Ferme un espace HUD nommé — Core décide, le navigateur exécute."""
+        prompt = str(payload.get("prompt") or "").strip()
+        app_id = _resolve_close_app_id(prompt)
+        if not app_id:
+            await self.broadcast(
+                await self.speak(
+                    "Je ne reconnais pas l'application à fermer.",
+                    user_id=self._session_user_id() or "local",
+                )
+            )
+            return {"ok": False, "reason": "application non reconnue", "phrase": prompt}
+
+        await self.broadcast({
+            "type": "hud_command",
+            "action": "close_space",
+            "app": app_id,
+            "intent": "hud.close_app",
+        })
+        spoken = "Paramètres fermés." if app_id == "settings" else f"Espace {app_id} fermé."
+        ev = await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(ev)
+        await self.broadcast(self.cmd("display_notification", message=spoken, duration=3.0))
+        return {"ok": True, "action": "close_space", "app": app_id}
+
+    async def _execute_hud_toggle_space(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Bascule un espace HUD nommé — même résolution de cible que la fermeture.
+
+        Le Core ne suit pas l'état ouvert/fermé du HUD (c'est une donnée de vue,
+        locale au client, pas une décision du Core) : `toggle_space` est
+        volontairement délégué au HUD (déjà source de vérité via `openAppIds`
+        dans `hudCommands.ts`), qui choisit lui-même `openSpace`/`closeApp` —
+        aucune duplication d'état côté Core.
+        """
+        prompt = str(payload.get("prompt") or "").strip()
+        app_id = _resolve_close_app_id(prompt)
+        if not app_id:
+            await self.broadcast(
+                await self.speak(
+                    "Je ne reconnais pas l'application à basculer.",
+                    user_id=self._session_user_id() or "local",
+                )
+            )
+            return {"ok": False, "reason": "application non reconnue", "phrase": prompt}
+
+        await self.broadcast({
+            "type": "hud_command",
+            "action": "toggle_space",
+            "app": app_id,
+            "intent": "hud.toggle_space",
+        })
+        return {"ok": True, "action": "toggle_space", "app": app_id}

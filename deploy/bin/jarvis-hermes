@@ -10,7 +10,7 @@ export API_SERVER_HOST="${API_SERVER_HOST:-127.0.0.1}"
 export API_SERVER_PORT="${API_SERVER_PORT:-8642}"
 
 # EnvironmentFile=systemd charge déjà secrets ; rechargement utile hors unit.
-for f in "${JARVIS_CONFIG_DIR}/secrets.env" "${JARVIS_CONFIG_DIR}/hermes.env"; do
+for f in "${JARVIS_CONFIG_DIR}/secrets.env" "${JARVIS_CONFIG_DIR}/hermes.env" "${JARVIS_CONFIG_DIR}/core.env"; do
   if [[ -f "$f" ]]; then
     set -a
     # shellcheck disable=SC1090

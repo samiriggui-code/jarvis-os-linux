@@ -24,6 +24,7 @@ export function ThemeModeToggle({ compact = false }: { compact?: boolean }) {
     <GlassButton
       type="button"
       tone="neutral"
+      data-jarvis-always-interactive
       title={theme.mode === 'night' ? 'Passer en mode clair' : 'Passer en mode nuit'}
       onClick={() => setMode(next)}
       icon={theme.mode === 'night' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}

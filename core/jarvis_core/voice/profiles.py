@@ -122,15 +122,19 @@ def resolve_voice(
     *,
     language: str | None = None,
     preset: str | None = None,
+    speaker_entity: str | None = None,
+    instruct_hint: str | None = None,
+    personality_hint: bool | None = None,
 ) -> VoiceSelection:
     """Croise préférences HUD et override utilisateur → sélection voicebox.
 
-    `language` et `preset` viennent normalement de `locale.resolve_reply_language()`
+    ``language`` et ``preset`` viennent normalement de `locale.resolve_reply_language()`
     pour cet énoncé : le bilinguisme est arbitré là, pas ici. Sans eux on retombe
     sur les préférences enregistrées.
 
-    Ne lève jamais : une préférence corrompue doit dégrader vers le preset FR,
-    pas empêcher JARVIS de parler.
+    ``speaker_entity`` (foundation multi-entity) : si ≠ ``jarvis``, tente le profil
+    voicebox dédié via env ``JARVIS_VOICEBOX_PROFILE_*`` sans écraser le preset
+    enfant (``jarvis_soft``) du listener.
     """
     prefs = load_hud_preferences(user_id) or {}
     locale = prefs.get("locale") if isinstance(prefs.get("locale"), dict) else {}
@@ -162,12 +166,20 @@ def resolve_voice(
     override = load_voice_profile(user_id) or {}
     if override.get("profile"):
         profile = str(override["profile"])
+    else:
+        from ..personality.voice_map import resolve_voicebox_profile
+
+        profile = resolve_voicebox_profile(speaker_entity, preset=preset)
     if override.get("engine") in ENGINES:
         engine = str(override["engine"])
     if override.get("language") in LANGUAGES:
         resolved_language = str(override["language"])
     personality = bool(override.get("personality", False))
     instruct = str(override["instruct"]) if override.get("instruct") else None
+    if personality_hint is not None and "personality" not in override:
+        personality = bool(personality_hint)
+    if instruct_hint and not instruct:
+        instruct = instruct_hint
 
     # Coupure explicite : Settings HUD, puis override utilisateur.
     enabled = bool(voice_prefs.get("ttsEnabled", True)) and bool(

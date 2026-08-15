@@ -2,7 +2,8 @@
 
 > Wiki **Markdown lisible** (idée memU) — pas un 4ᵉ store opaque.  
 > Seed : `deploy/hermes/memories/MEMORY.md` → `HERMES_HOME/memories/`.  
-> Les 3 magasins autorisés : Core `memory.py` · outil Hermes `memory` · **ce fichier**.
+> Les magasins : **Core MemoryAPI** (foyer, autorité) · wiki **ce fichier** (seed conscience).  
+> Outil Hermes `memory` : **transitoire** — ne plus y écrire de faits foyer (M4).
 
 ## Projet
 
@@ -25,9 +26,9 @@
 
 Avant une mission / recherche / multi-étapes, Hermes doit :
 
-1. Lire **ce wiki** + skills `TRIGGER` pertinents (`jarvis-os`, `deep-research`, …).
-2. Consulter l’outil `memory` Hermes si un fait user/session est attendu.
-3. Ne **pas** inventer un store memU / vector cloud.
+1. Lire **ce wiki** + skills `TRIGGER` pertinents (`jarvis-os`, `jarvis-memory`, …).
+2. Appeler Core `POST /v1/memory/search` (skill **jarvis-memory**) si un fait foyer est attendu.
+3. Ne **pas** inventer un store memU / vector cloud. Ne **pas** utiliser l'outil Hermes `memory` pour un fait foyer.
 
 L’agent **décide** quoi retenir ; le store indexe / rappelle — pas un LLM dans le magasin.
 

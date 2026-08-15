@@ -11,12 +11,28 @@ const NON = /\b(non|nan|nega|faux|incorrect|recommence|répète|repete|no)\b/i;
 export async function jarvisSay(text: string): Promise<void> {
   const t = text.trim();
   if (!t) return;
+  const { subscribeTtsSpeaking, isTtsSpeaking } = await import('./ttsCore');
   try {
     getCoreClient().send({ type: 'voice', action: 'speak', text: t });
   } catch { /* */ }
-  // Estimation durée : ~14 char/s FR TTS — le HUD n'a pas toujours playback end.
-  const ms = Math.min(12_000, Math.max(1_200, Math.round((t.length / 14) * 1000) + 400));
-  await new Promise((r) => setTimeout(r, ms));
+  // Attendre la vraie fin TTS si le Core joue un WAV ; sinon estimation.
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(fallback);
+      off();
+      resolve();
+    };
+    let sawStart = isTtsSpeaking();
+    const off = subscribeTtsSpeaking((speaking) => {
+      if (speaking) sawStart = true;
+      else if (sawStart) done();
+    });
+    const ms = Math.min(14_000, Math.max(1_400, Math.round((t.length / 14) * 1000) + 600));
+    const fallback = window.setTimeout(done, ms);
+  });
 }
 
 /** Écoute une phrase courte (nom, réponse). */

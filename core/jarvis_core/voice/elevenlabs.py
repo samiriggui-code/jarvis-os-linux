@@ -8,7 +8,7 @@ Le guide de déploiement prévoit ElevenLabs pour DEUX usages :
 
 Ce module en ajoute un troisième : **le repli quand voicebox est injoignable**.
 En développement sur une machine sans Docker, c'est la seule façon d'avoir UNE
-SEULE VOIX — sinon le cache parle avec `jarvis2` et les réponses libres avec la
+SEULE VOIX — sinon le cache parle avec `jarvis3` et les réponses libres avec la
 voix du navigateur, dans la même conversation.
 
 ═══ POURQUOI IL EST DÉSACTIVÉ PAR DÉFAUT ════════════════════════════════════
@@ -113,7 +113,7 @@ class ElevenLabsLive:
             "error": self.last_error,
         }
 
-    async def synthesize(self, text: str) -> bytes:
+    async def synthesize(self, text: str, *, voice_id: str | None = None) -> bytes:
         """Texte → WAV. Lève `ElevenLabsUnavailable` — jamais silencieux."""
         if not self.enabled:
             raise ElevenLabsUnavailable(
@@ -121,7 +121,8 @@ class ElevenLabsLive:
             )
         if not self._key:
             raise ElevenLabsUnavailable("ELEVENLABS_API_KEY absente")
-        if not self.voice_id:
+        vid = (voice_id or self.voice_id or "").strip()
+        if not vid:
             raise ElevenLabsUnavailable("voice_id absent de cache_config.yaml")
 
         clean = (text or "").strip()
@@ -129,7 +130,7 @@ class ElevenLabsLive:
             raise ElevenLabsUnavailable("texte vide")
 
         try:
-            pcm = await asyncio.to_thread(self._call, clean)
+            pcm = await asyncio.to_thread(self._call, clean, vid)
         except error.HTTPError as exc:
             detail = exc.read()[:200].decode("utf-8", "replace")
             self.last_error = f"HTTP {exc.code} : {detail}"
@@ -147,11 +148,12 @@ class ElevenLabsLive:
         )
         return self._wrap_wav(pcm)
 
-    def _call(self, text: str) -> bytes:
+    def _call(self, text: str, voice_id: str | None = None) -> bytes:
         import json
 
+        vid = (voice_id or self.voice_id or "").strip()
         req = request.Request(
-            f"{API_BASE}/{self.voice_id}?output_format={self.output_format}",
+            f"{API_BASE}/{vid}?output_format={self.output_format}",
             data=json.dumps(
                 {"text": text, "model_id": self.model_id, "voice_settings": self.settings}
             ).encode("utf-8"),

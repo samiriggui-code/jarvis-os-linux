@@ -6,6 +6,7 @@
  */
 
 import { getCoreClient } from './coreClient';
+import { captureAndSendPerception } from './perceptionCapture';
 import { pauseWakeWord, resumeWakeWord, startAudioBus } from './audioBus';
 import { forceReleaseCamera, ensureCamera } from './mediaDevices';
 
@@ -15,7 +16,10 @@ type HudCommandAction =
   | 'lock'
   | 'idle'
   | 'close_spaces'
+  | 'close_space'
   | 'open_space'
+  | 'toggle_space'
+  | 'capture_perception'
   | 'open_external'
   | 'mute'
   | 'unmute'
@@ -76,6 +80,11 @@ export function applyHudCommand(
       if (appId) handlers.openSpace(appId);
       break;
     }
+    case 'capture_perception': {
+      const requestId = String(data.request_id || '').trim();
+      if (requestId) void captureAndSendPerception(requestId);
+      break;
+    }
     case 'open_external': {
       // Netflix / Disney / Google / etc. — onglet du navigateur kiosk / laptop.
       const url = String(data.url || '').trim();
@@ -97,6 +106,24 @@ export function applyHudCommand(
         handlers.closeApp(handlers.openAppIds[0]);
       }
       break;
+    case 'close_space': {
+      const appId = String(data.app || data.app_id || '').trim();
+      if (appId) handlers.closeApp(appId);
+      break;
+    }
+    case 'toggle_space': {
+      // Le HUD est la source de vérité pour l'état ouvert/fermé (`openAppIds`) —
+      // le Core ne le duplique pas, il délègue le choix open/close ici même,
+      // avec les deux primitives déjà existantes (aucun 3e chemin de code).
+      const appId = String(data.app || data.app_id || '').trim();
+      if (!appId) break;
+      if (handlers.openAppIds.includes(appId)) {
+        handlers.closeApp(appId);
+      } else {
+        handlers.openSpace(appId);
+      }
+      break;
+    }
     case 'mute':
       patchKillSwitch({ micMuted: true });
       pauseWakeWord();

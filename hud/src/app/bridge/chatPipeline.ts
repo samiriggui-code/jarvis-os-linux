@@ -119,8 +119,17 @@ export function interpretCommand(
   }
 
   // « mission » nu ne déclenche plus rien : le mot ne dit pas de quel cockpit
-  // il s'agit. Il faut « mission control » (dev) — et le jour où Mission
-  // Control HOME existe, ce motif devra exiger « dev » explicitement.
+  // il s'agit. Il faut « mission control dev » — Core ouvre le board agentique.
+  if (/\bmission\s*control\s*dev\b/.test(plain)) {
+    if (defer) {
+      return bilingual(lang, 'Transmis au Core…', 'Sent to Core…');
+    }
+    const res = openHudApp('mission-control-dev', fx);
+    return res.ok
+      ? bilingual(lang, 'Mission Control DEV — board.', 'Mission Control DEV — board.')
+      : res.message;
+  }
+
   if (/\b(ferme|fermer|close|dismiss)\b/.test(lower) && /\bmission\s*control\b/.test(lower)) {
     fx.closeMissionControlDev?.();
     return bilingual(lang, 'Mission Control DEV fermé.', 'Mission Control DEV closed.');
@@ -142,9 +151,12 @@ export function interpretCommand(
 
   if (
     /\b(mission\s*control)\b/.test(plain)
-    || VERBE_FABRIQUER.test(plain) && CHOSE_FABRICABLE.test(plain)
-    || NOUVEAU_PROJET.test(plain)
-    || /\bcursor\b/.test(plain) && /\b(projet|project|dev)\b/.test(plain)
+    && !/\bmission\s*control\s*dev\b/.test(plain)
+    && (
+      VERBE_FABRIQUER.test(plain) && CHOSE_FABRICABLE.test(plain)
+      || NOUVEAU_PROJET.test(plain)
+      || /\bcursor\b/.test(plain) && /\b(projet|project|dev)\b/.test(plain)
+    )
   ) {
     // Nom sur le texte D'ORIGINE (accents). Plus de défaut « HoloControl ».
     const projectName = extractProjectName(cmd);
@@ -194,6 +206,19 @@ export function interpretCommand(
     return hit
       ? bilingual(lang, `Dashboard → ${hit.page}.`, `Dashboard → ${hit.page}.`)
       : bilingual(lang, 'Ouverture Dashboard.', 'Opening Dashboard.');
+  }
+
+  // Settings / gestes — avant le match apps générique (évite collision « ouvre … »).
+  if (/\b(param[eè]tres|r[eé]glages|settings)\b/.test(lower)
+    && /\b(ouvre|ouvrir|lance|lancer|open|show|affiche)\b/.test(lower)) {
+    fx.setSettingsOpen?.(true);
+    return bilingual(lang, 'Paramètres ouverts.', 'Opening settings.');
+  }
+  if (/\b(gestes?|holomat|calibrage\s+geste)\b/.test(lower)
+    && /\b(ouvre|ouvrir|lance|lancer|open|show|affiche|active)\b/.test(lower)) {
+    fx.setGestureOpen?.(true);
+    fx.openSettings?.('vision');
+    return bilingual(lang, 'Panneau gestes / Holomat.', 'Opening gestures / Holomat.');
   }
 
   if (lower.includes('scan')) setTimeout(() => fx.setScanningActive(true), 600);

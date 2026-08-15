@@ -66,6 +66,7 @@ class ChatHandlerMixin:
         from ...auth.profiles import load_hud_preferences, resolve_user_id, save_hud_preferences
         from ...capabilities import match_intent
         from ...locale import resolve_reply_language, system_prompt_language
+        from ...personality import LLMCallMode, PersonalityRequest, SpeakerEntity, resolve_personality
 
         # ── Commande avant conversation ──────────────────────────────────────
         #
@@ -102,6 +103,18 @@ class ChatHandlerMixin:
             for w in ("verrouill", "veille", "session", "déconnexion", "deconnexion", "bientôt", "bientot")
         ):
             logger.info("phrase IGNORÉE (écho TTS lock/veille) · « %s »", text[:48])
+            return
+
+        # Écho micro générique — le HUD n'a pas d'annulation d'écho acoustique
+        # matérielle : sans ça, le micro réentend N'IMPORTE QUELLE parole de
+        # JARVIS (annonces de boot comprises, pas seulement lock/veille
+        # ci-dessus) et la re-transcrit comme une commande. Incident constaté
+        # (2026-08-15) : « Noyau cognitif en ligne… » réentendu a interrompu
+        # une séquence de boot en cours. Généralise le garde ci-dessus à tout
+        # texte réellement parlé récemment (`orchestrator_speech.py`), sans
+        # liste de phrases à maintenir à la main.
+        if self.is_echo_of_recent_speech(text):
+            logger.info("phrase IGNORÉE (écho TTS générique) · « %s »", text[:48])
             return
 
         if cap := match_intent(text):
@@ -141,6 +154,45 @@ class ChatHandlerMixin:
                 await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
                 await self._open_intent(ws, cap, text)
                 return
+
+        # Capability-aware semantic routing — Phase 2 (chantier « Orchestration
+        # conversationnelle V1 »). match_intent() et le filet recherche ont déjà
+        # eu leur chance de reconnaître un trigger exact ; ici on regarde si une
+        # capacité JARVIS réellement disponible MAINTENANT répond quand même à
+        # la phrase, avant de tomber en conversation générique. Borné : le
+        # resolver ne peut choisir que parmi les capacités que la Phase 1 a
+        # jugées disponibles (`capability_routing.build_candidates`), jamais en
+        # inventer une — et la décision retombe dans le pipeline EXISTANT
+        # (`_open_intent` → Policy → executor → Verification), jamais un second
+        # orchestrateur.
+        from ...capability_routing import resolve_semantic_route
+
+        routing_context_note = ""
+        role_for_routing = self._session_role(ws)
+        routing = await resolve_semantic_route(text, orch=self, role=role_for_routing)
+        if routing.action == "use_capability" and routing.capability:
+            from ...capabilities import for_intent as _for_intent_routed
+
+            routed_cap = _for_intent_routed(routing.capability)
+            if routed_cap is not None:
+                logger.info(
+                    "phrase ROUTÉE (sémantique) · « %s » → %s · confiance=%.2f",
+                    text[:48], routed_cap.intent, routing.confidence,
+                )
+                await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
+                await self._open_intent(ws, routed_cap, text)
+                return
+        else:
+            logger.info(
+                "phrase NON ROUTÉE (sémantique) · « %s » → chat · %s",
+                text[:48], routing.reason[:80],
+            )
+            routing_context_note = (
+                " [Contexte système : les capacités JARVIS disponibles ont déjà "
+                "été évaluées pour cette demande ; aucune n'était appropriée. Ne "
+                "prétends jamais ignorer tes outils — dis simplement que tu n'as "
+                "pas de fonction dédiée pour ça.]"
+            )
 
         decision = self.policy.evaluate(action="chat", text=text, risk=RiskLevel.INFO)
         await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
@@ -183,11 +235,28 @@ class ChatHandlerMixin:
             "switchAck": bool(lang_res.get("switchAck")),
         }))
 
+        say_ctx = self._say_context(ws)
+        bindings = say_ctx.get("bindings") if isinstance(say_ctx.get("bindings"), dict) else {}
+        personality = resolve_personality(
+            PersonalityRequest(
+                speaker=SpeakerEntity.JARVIS,
+                user_role=self._session_role(ws),
+                language=reply_lang,
+                context=LLMCallMode.NARRATIVE,
+                address=say_ctx.get("address"),
+                title=bindings.get("titre"),
+                user_name=bindings.get("user"),
+            )
+        )
         prompt = (
-            f"{system_prompt_language(reply_lang)} "
+            f"{system_prompt_language(reply_lang)}{routing_context_note} "
             f"L'utilisateur dit : {text}"
         )
-        reply = await self.providers.complete(prompt)
+        reply = await self.providers.complete(
+            prompt,
+            call_mode=LLMCallMode.NARRATIVE,
+            personality=personality,
+        )
         logger.info(
             "chat libre · provider=%s · « %s » → %d car.",
             self.providers.current_mode(),
@@ -216,6 +285,9 @@ class ChatHandlerMixin:
             user_id=uid,
             language=reply_lang,
             preset=lang_res.get("voicePreset"),
+            speaker_entity=personality.speaker_entity.value,
+            voice_instruct=personality.voice_instruct,
+            voice_personality=personality.voice_personality,
         )
         await ws.send(json.dumps(ev))
         if ev.get("type") == "tts_skipped":

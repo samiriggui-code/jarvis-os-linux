@@ -65,6 +65,9 @@ class SystemExecutorsMixin:
             "Préférences HUD chargées depuis le profil utilisateur. "
             "Les modifications passent par le panneau Réglages ou WS preferences."
         )
+        await self.broadcast(
+            {"type": "hud_command", "action": "open_space", "app": "settings"}
+        )
         await publish_result_surface(
             self,
             "settings",

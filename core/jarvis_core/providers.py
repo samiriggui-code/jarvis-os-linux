@@ -107,7 +107,34 @@ class AIProviderManager:
     def current_mode(self) -> str:
         return self._mode.value
 
-    async def complete(self, prompt: str) -> str:
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        call_mode: Any = None,
+        personality: Any = None,
+    ) -> str:
+        """Complétion LLM.
+
+        ``call_mode`` / ``personality`` : voir ``jarvis_core.personality``.
+        COMPOSER et STRUCTURED ignorent la personnalité narrative.
+        """
+        from .personality import LLMCallMode, PersonalityRequest, resolve_personality
+        from .personality.resolver import build_system_message
+
+        mode = call_mode if call_mode is not None else LLMCallMode.NARRATIVE
+        if personality is None:
+            personality = resolve_personality(PersonalityRequest(context=mode))
+
+        env_prompt = (
+            os.environ.get("JARVIS_OPERATOR_PROMPT")
+            or os.environ.get("JARVIS_SYSTEM_PROMPT")
+        )
+        system = build_system_message(
+            personality,
+            operator_instructions=env_prompt,
+        )
+
         if self._mode == ProviderMode.SYSTEM:
             return (
                 "Mode système : aucun moteur IA disponible. "
@@ -117,12 +144,12 @@ class AIProviderManager:
 
         if self._mode == ProviderMode.CLOUD and os.environ.get("OPENROUTER_API_KEY"):
             try:
-                return await self._openrouter_complete(prompt)
+                return await self._openrouter_complete(prompt, system=system)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("OpenRouter échec : %s — repli Ollama si dispo", exc)
                 if _ollama_base():
                     try:
-                        return await self._ollama_complete(prompt)
+                        return await self._ollama_complete(prompt, system=system)
                     except Exception as exc2:  # noqa: BLE001
                         return f"Erreur OpenRouter puis Ollama : {exc2}"
                 return f"Erreur OpenRouter : {exc}"
@@ -130,12 +157,12 @@ class AIProviderManager:
         # Ollama (local ou remote)
         if self._mode in (ProviderMode.LOCAL, ProviderMode.REMOTE):
             try:
-                return await self._ollama_complete(prompt)
+                return await self._ollama_complete(prompt, system=system)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Ollama échec (%s) — fallback OpenRouter si dispo : %s", self._mode.value, exc)
                 if os.environ.get("OPENROUTER_API_KEY"):
                     try:
-                        return await self._openrouter_complete(prompt)
+                        return await self._openrouter_complete(prompt, system=system)
                     except Exception as exc2:  # noqa: BLE001
                         return f"Erreur Ollama puis OpenRouter : {exc2}"
                 return f"Erreur Ollama : {exc}"
@@ -145,7 +172,7 @@ class AIProviderManager:
             "(OpenRouter recommandé pour le 1er test)."
         )
 
-    async def _openrouter_complete(self, prompt: str) -> str:
+    async def _openrouter_complete(self, prompt: str, *, system: str | None = None) -> str:
         """Appel OpenAI-compatible OpenRouter + log usage_events."""
         import asyncio
 
@@ -154,11 +181,16 @@ class AIProviderManager:
         api_key = os.environ["OPENROUTER_API_KEY"]
         model = os.environ.get("JARVIS_OPENROUTER_MODEL", "qwen/qwen3.5-flash-02-23")
         base = os.environ.get("JARVIS_OPENROUTER_BASE", "https://openrouter.ai/api/v1").rstrip("/")
-        system = os.environ.get(
-            "JARVIS_SYSTEM_PROMPT",
-            "Tu es JARVIS, assistant IA français. Réponds brièvement, calmement, "
-            "avec élégance et précision. Pas de markdown lourd.",
-        )
+        if system is None:
+            from .personality import LLMCallMode, PersonalityRequest, resolve_personality
+            from .personality.resolver import build_system_message
+
+            personality = resolve_personality(PersonalityRequest(context=LLMCallMode.NARRATIVE))
+            operator = (
+                os.environ.get("JARVIS_OPERATOR_PROMPT")
+                or os.environ.get("JARVIS_SYSTEM_PROMPT")
+            )
+            system = build_system_message(personality, operator_instructions=operator)
 
         def _call() -> tuple[str, dict]:
             body = json.dumps(
@@ -235,7 +267,7 @@ class AIProviderManager:
         )
         return text
 
-    async def _ollama_complete(self, prompt: str) -> str:
+    async def _ollama_complete(self, prompt: str, *, system: str | None = None) -> str:
         """Chat Ollama (/api/chat) + log tokens estimés."""
         import asyncio
 
@@ -245,10 +277,16 @@ class AIProviderManager:
         if not base:
             raise RuntimeError("URL Ollama absente")
         model = os.environ.get("JARVIS_OLLAMA_MODEL", "qwen2.5:7b")
-        system = os.environ.get(
-            "JARVIS_SYSTEM_PROMPT",
-            "Tu es JARVIS, assistant IA français. Réponds brièvement.",
-        )
+        if system is None:
+            from .personality import LLMCallMode, PersonalityRequest, resolve_personality
+            from .personality.resolver import build_system_message
+
+            personality = resolve_personality(PersonalityRequest(context=LLMCallMode.NARRATIVE))
+            operator = (
+                os.environ.get("JARVIS_OPERATOR_PROMPT")
+                or os.environ.get("JARVIS_SYSTEM_PROMPT")
+            )
+            system = build_system_message(personality, operator_instructions=operator)
 
         def _call() -> dict:
             body = json.dumps(

@@ -7,18 +7,18 @@ Fichier principal : [`MEMORY.md`](./MEMORY.md).
 | Règle | Détail |
 |-------|--------|
 | Format | Markdown sections claires, faits durables seulement |
-| Qui écrit | Humain (seed) ou Hermes outil `memory` → résumé ici si durable |
+| Qui écrit | Humain (seed wiki). Faits foyer → Core `POST /v1/memory/store_note` |
 | Qui lit | Hermes en **progressive retrieve** avant tâches non triviales |
 | Store | Pas d’embeddings obligatoires ici ; lisible par un humain |
 | Verify | Après seed NUC : `test -f $HERMES_HOME/memories/MEMORY.md` + health `:8642` |
 
-## Trois magasins (figé)
+## Magasins (M4)
 
-1. `core/jarvis_core/memory.py` — foyer / Core  
-2. Outil Hermes `memory` — runtime agent  
-3. Ce dossier — wiki conscience  
+1. **Core MemoryAPI** — foyer / autorité (`PgAdapter` prod, JSON fallback)  
+2. Ce dossier — wiki conscience (seed humain)  
+3. Outil Hermes `memory` — **transitoire**, plus pour les faits foyer  
 
-**Pas** de 4ᵉ magasin (memU SQLite/cloud, FAISS DeerFlow, etc.) sans arbitrage Samir.
+**Pas** de 4ᵉ magasin (memU, MemPalace direct, CBM).
 
 ## Futur (doc only)
 

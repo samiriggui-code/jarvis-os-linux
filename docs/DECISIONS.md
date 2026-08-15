@@ -36,6 +36,7 @@
 | 2026-08-10 | **awesome-llm-apps = idées only** : trust-gate/audit, corrective RAG, always-on doc, scope creep Cursor ; gen-UI déjà couvert ; voice Live ≠ auth. **Pas** de clone monorepo. Amont : `vendor/README.md`. |
 | 2026-08-10 | **memU = idées only** : wiki `MEMORY.md` + progressive retrieve ; 3 magasins max ; pas de `memu-hermes` / cloud / auto-skills / 4ᵉ store. Amont : `vendor/README.md`. |
 | 2026-08-10 | **CrewAI = idées only** : personas role/goal/backstory + CR tâches + sequential/hierarchical dans vision fan-out ; Flows → Mission Core ; pas de runtime CrewAI (Hermes reste agent #1). Amont : `vendor/README.md`. |
+| 2026-08-11 | **Hermes Agent Control Room = idées only** : templates inventory/runbook/env-map/backup, manuel→automate, checklist sécu, registry doc, control plane ≠ runtime → `architecture/JARVIS-Agent-Control-Plane.md`. **Pas** multi-Hermes / task bus fichiers / orchestrateur Hermes front door. Amont : `vendor/README.md`. |
 
 | Date | Décision |
 |------|----------|
@@ -61,6 +62,9 @@
 | 2026-08 | Agent-Reach **épinglé** dans `core/requirements.txt` (commit GitHub, pas PyPI) |
 | 2026-08 | hermes-agent sur NUC = **clone git amont**, pas copie `vendor/` |
 | 2026-08 | voicebox sur VPS = docker-compose amont |
+| 2026-08-11 | **Voice Filter candidat = `hologramme`** (`core/data/voice/voice_filter_candidate.yaml`, lab + `vendor/test.mp3`). WAV cache = **bruts** ; filtre à la lecture. **Pas encore** runtime HUD branché. Régénération phrases fixes = **ElevenLabs** (`generate_voice_cache`) ; live maison = **voicebox** ; hors domicile = ElevenLabs live. |
+| 2026-08-11 | **Voix ElevenLabs principale = `HhLkLX9WkAwlzDXzuHzd`** (`voice_name: jarvis3` dans `cache_config.yaml`). Ancien `jarvis2` / `Z5gdl1qPL2yS8NNiW921` = bascule inverse. Cache à régénérer sur go Samir. |
+| 2026-08-11 | **Voice Filter hologramme ACTIF** runtime HUD : `hud/src/app/bridge/voiceFilter.ts` branché sur `ttsCore` (lecture `tts_audio`). WAV restent bruts. |
 | 2026-08 | `vendor/` = sas temporaire ; Agent-Reach dispatché ; CopilotKit supprimé |
 | 2026-08 | Core + HUD tournent sur **portable en dev** ; NUC = Hermes + PG seulement |
 | 2026-08-09 | **Sync NUC Core** : alias SSH `jarvis-nuc-wan` (Win) / `jarvis-nuc` (WSL) — **jamais** `root@IP` sans config clé. Script canonique : `sync-core-only-nuc.ps1` (scp → `/tmp` → rsync → `systemctl restart jarvis-core`). Exclusions prod : `.env`, `data/*.db`, `data/users/`, `data/holomat/`. `pip install` optionnel (`-Pip` / `NUC_PIP=1`) — venv NUC existant suffit en routine. Fronts : `sync-fronts-nuc.ps1` après `npm run build`. |

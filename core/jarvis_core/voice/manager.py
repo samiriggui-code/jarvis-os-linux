@@ -23,6 +23,7 @@ import time
 from typing import Any
 
 from .profiles import VoiceSelection, resolve_voice
+from .tts_config import voicebox_tts_enabled
 from .voicebox import (
     DEFAULT_ENGINE,
     VoiceboxClient,
@@ -66,6 +67,8 @@ class VoiceManager:
             "error": self.last_error,
             "speaking": self._active,
             "engine_default": DEFAULT_ENGINE,
+            "voicebox_tts": voicebox_tts_enabled(),
+            "dynamic_provider": "elevenlabs" if not voicebox_tts_enabled() else "voicebox_or_elevenlabs",
         }
 
     async def probe(self) -> bool:
@@ -87,7 +90,13 @@ class VoiceManager:
         self.available = True
         self.last_error = None
         self.backend = str(info.get("backend") or info.get("device") or "") or None
-        logger.info("voicebox prêt · %s · backend=%s", self.client.base, self.backend or "?")
+        tts_note = " · tts=skipped" if not voicebox_tts_enabled() else ""
+        logger.info(
+            "voicebox prêt · %s · backend=%s%s",
+            self.client.base,
+            self.backend or "?",
+            tts_note,
+        )
         return True
 
     def _should_retry(self) -> bool:
@@ -108,6 +117,9 @@ class VoiceManager:
         user_id: str = "local",
         language: str | None = None,
         preset: str | None = None,
+        speaker_entity: str | None = None,
+        voice_instruct: str | None = None,
+        voice_personality: bool | None = None,
     ) -> dict[str, Any]:
         """Retourne l'event à envoyer au HUD. Ne lève jamais.
 
@@ -122,7 +134,14 @@ class VoiceManager:
             return {"type": "tts_skipped", "utterance_id": utterance_id, "reason": "empty"}
 
         try:
-            selection = resolve_voice(user_id, language=language, preset=preset)
+            selection = resolve_voice(
+                user_id,
+                language=language,
+                preset=preset,
+                speaker_entity=speaker_entity,
+                instruct_hint=voice_instruct,
+                personality_hint=voice_personality,
+            )
         except Exception as exc:  # noqa: BLE001 — une préf cassée ne coupe pas la voix
             logger.warning("resolve_voice a échoué · user=%s : %s", user_id, exc)
             selection = None
@@ -138,38 +157,76 @@ class VoiceManager:
         self.cancel()
         self._active = utterance_id
 
+        speaker = speaker_entity or "jarvis"
+
+        if not voicebox_tts_enabled():
+            logger.info(
+                "TTS %s · speaker=%s · provider=ElevenLabs · cache=miss · voicebox_tts=disabled",
+                utterance_id,
+                speaker,
+            )
+            return await self._elevenlabs_or_fallback(
+                utterance_id,
+                clean,
+                "voicebox_tts_disabled",
+                selection,
+                speaker_entity=speaker_entity,
+            )
+
         if not self._should_retry():
             return await self._elevenlabs_or_fallback(
-                utterance_id, clean, "voicebox_unavailable", selection
+                utterance_id,
+                clean,
+                "voicebox_unavailable",
+                selection,
+                speaker_entity=speaker_entity,
             )
 
         try:
-            return await self._synthesize(utterance_id, clean, selection, user_id)
+            return await self._synthesize(
+                utterance_id, clean, selection, user_id, speaker_entity=speaker_entity
+            )
         except VoiceboxUnavailable as exc:
             self.available = False
             self.last_error = str(exc)
             self._last_probe = time.monotonic()
             logger.warning("voicebox tombé pendant la synthèse : %s", exc)
             return await self._elevenlabs_or_fallback(
-                utterance_id, clean, "voicebox_unavailable", selection
+                utterance_id,
+                clean,
+                "voicebox_unavailable",
+                selection,
+                speaker_entity=speaker_entity,
             )
         except VoiceboxModelDownloading as exc:
             self.last_error = str(exc)
             logger.info("voicebox télécharge « %s » — fallback HUD en attendant", exc.model)
             return await self._elevenlabs_or_fallback(
-                utterance_id, clean, "model_downloading", selection
+                utterance_id,
+                clean,
+                "model_downloading",
+                selection,
+                speaker_entity=speaker_entity,
             )
         except VoiceboxError as exc:
             self.last_error = str(exc)
             logger.warning("synthèse refusée : %s", exc)
             return await self._elevenlabs_or_fallback(
-                utterance_id, clean, "voicebox_error", selection
+                utterance_id,
+                clean,
+                "voicebox_error",
+                selection,
+                speaker_entity=speaker_entity,
             )
         except Exception as exc:  # noqa: BLE001 — jamais muet à cause d'un bug ici
             self.last_error = str(exc)
             logger.exception("synthèse : erreur inattendue")
             return await self._elevenlabs_or_fallback(
-                utterance_id, clean, "internal_error", selection
+                utterance_id,
+                clean,
+                "internal_error",
+                selection,
+                speaker_entity=speaker_entity,
             )
 
     async def _synthesize(
@@ -178,10 +235,16 @@ class VoiceManager:
         text: str,
         selection: VoiceSelection | None,
         user_id: str,
+        *,
+        speaker_entity: str | None = None,
     ) -> dict[str, Any]:
         if selection is None:
             return await self._elevenlabs_or_fallback(
-                utterance_id, text, "no_voice_selection", None
+                utterance_id,
+                text,
+                "no_voice_selection",
+                None,
+                speaker_entity=speaker_entity,
             )
 
         profile_id = await self.client.resolve_profile_id(selection.profile)
@@ -191,7 +254,13 @@ class VoiceManager:
                 "voicebox n'expose aucun profil — créer « %s » puis repli ElevenLabs",
                 selection.profile,
             )
-            return await self._elevenlabs_or_fallback(utterance_id, text, "no_profile", selection)
+            return await self._elevenlabs_or_fallback(
+                utterance_id,
+                text,
+                "no_profile",
+                selection,
+                speaker_entity=speaker_entity,
+            )
 
         started = time.monotonic()
         wav = await self.client.synthesize(
@@ -233,6 +302,7 @@ class VoiceManager:
             "bytes": len(wav),
             "text": text,
             "user_id": user_id,
+            "speaker_entity": speaker_entity or "jarvis",
             "voice": selection.to_dict(),
             "synth_ms": elapsed_ms,
             "estimated_ms": _estimated_ms(text),
@@ -245,19 +315,44 @@ class VoiceManager:
         text: str,
         reason: str,
         selection: VoiceSelection | None,
+        *,
+        speaker_entity: str | None = None,
     ) -> dict[str, Any]:
-        """Voicebox absent / sans profil → ElevenLabs (même voix que le cache).
-
-        Le HUD ignore SpeechSynthesis : sans ce repli, JARVIS est muet dès que
-        `/profiles` est vide — cas observé sur le tunnel VPS.
-        """
+        """Synthèse ElevenLabs — provider dynamique nominal (anti cross-voice)."""
+        speaker = speaker_entity or "jarvis"
         try:
+            from ..personality import resolve_elevenlabs_voice_id
             from .elevenlabs import ElevenLabsLive
 
+            # Même défaut que `speaker` ci-dessus, qui sert déjà au label/log
+            # — cette résolution-ci utilisait encore la valeur brute
+            # (souvent `None`), donc `tts_unavailable_for_entity` pour tout
+            # appelant qui ne précise pas `speaker_entity` (repli Hermes,
+            # introspection, feedback intermédiaire…). C'est CE chemin, pas
+            # celui d'`orchestrator_speech.py`, qui est réellement emprunté
+            # (`type: "tts_skipped"` renvoyé directement d'ici, jamais
+            # `"tts_fallback"` — le repli côté orchestrator ne voit donc
+            # jamais cette panne).
+            entity_voice = resolve_elevenlabs_voice_id(speaker)
+            if not entity_voice:
+                logger.warning(
+                    "TTS %s · speaker=%s · provider=none · reason=tts_unavailable_for_entity",
+                    utterance_id,
+                    speaker,
+                )
+                return {
+                    "type": "tts_skipped",
+                    "utterance_id": utterance_id,
+                    "reason": "tts_unavailable_for_entity",
+                    "speaker_entity": speaker,
+                    "text": text,
+                }
+
             live = ElevenLabsLive()
-            if not live.available:
+            if not live.enabled or not live._key:  # noqa: SLF001
                 return self._fallback(utterance_id, text, reason, selection)
-            wav = await live.synthesize(text)
+
+            wav = await live.synthesize(text, voice_id=entity_voice)
             if utterance_id in self._cancelled:
                 self._cancelled.discard(utterance_id)
                 return {
@@ -266,8 +361,10 @@ class VoiceManager:
                     "reason": "cancelled",
                 }
             logger.info(
-                "TTS %s · ElevenLabs fallback · %d o · cause=%s",
+                "TTS %s · speaker=%s · provider=ElevenLabs · cache=miss · voice_id=%s · %d o · cause=%s",
                 utterance_id,
+                speaker,
+                entity_voice,
                 len(wav),
                 reason,
             )
@@ -278,13 +375,16 @@ class VoiceManager:
                 "audio_b64": base64.b64encode(wav).decode("ascii"),
                 "bytes": len(wav),
                 "text": text,
+                "speaker_entity": speaker,
                 "voice": selection.to_dict() if selection else {},
                 "estimated_ms": _estimated_ms(text),
                 "interruptible": True,
-                "via": "elevenlabs_fallback",
+                "via": "elevenlabs",
+                "provider": "elevenlabs",
+                "voice_id": entity_voice,
             }
         except Exception as exc:  # noqa: BLE001
-            logger.warning("ElevenLabs fallback échoué (%s) : %s", reason, exc)
+            logger.warning("ElevenLabs échoué (%s) · speaker=%s : %s", reason, speaker, exc)
             return self._fallback(utterance_id, text, reason, selection)
 
     def _fallback(

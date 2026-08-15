@@ -25,11 +25,11 @@ function MetricCard({ label, value, unit, color, icon, data }: MetricCardProps) 
   return (
     <GlassPanel level="subtle" radius="md" padding="sm">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span style={{ color: tokens.color.textMuted }}>{icon}</span>
           <span style={visionCaption}>{label}</span>
         </div>
-        <span style={{ ...visionTitle, fontSize: 16, color: tokens.color.text }}>
+        <span style={{ ...visionTitle, fontSize: 16, color: tokens.color.text, flexShrink: 0 }}>
           {Math.round(value)}
           <span style={{ fontSize: 11, opacity: 0.55, marginLeft: 2 }}>{unit}</span>
         </span>
@@ -101,9 +101,9 @@ export function SystemMonitor() {
         </div>
       }
     >
-      <div className="flex flex-col h-full gap-3 overflow-hidden min-h-0">
-        <GlassPanel level="subtle" radius="md" padding="sm">
-          <div className="flex items-center gap-4">
+      <div className="flex flex-col h-full min-h-0 gap-3 overflow-hidden">
+        <GlassPanel level="subtle" radius="md" padding="sm" style={{ flexShrink: 0 }}>
+          <div className="flex items-start gap-3">
             <div className="relative w-12 h-12 flex-shrink-0">
               <svg viewBox="0 0 48 48" className="w-full h-full -rotate-90">
                 <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
@@ -126,48 +126,68 @@ export function SystemMonitor() {
                 </span>
               </div>
             </div>
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span style={{ ...visionTitle, fontSize: 14 }}>Menace système</span>
-              <span style={visionBody}>
-                Actif : {ready && sys ? formatUptime(sys.uptime_s) : '—'}
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span style={{ ...visionTitle, fontSize: 14 }}>Menace système</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Activity className="w-3.5 h-3.5" style={{ color: healthColor }} />
+                  <span style={{ ...visionCaption, color: healthColor, textTransform: 'none' }}>
+                    {ready ? THREAT_LABELS[level] : 'En attente'}
+                  </span>
+                </div>
+              </div>
+              <span style={{ ...visionBody, fontSize: 12 }}>
+                Actif {ready && sys ? formatUptime(sys.uptime_s) : '—'}
               </span>
               {ready && sys && sys.degraded > 0 && (
-                <span style={{ ...visionBody, color: tokens.color.warning }}>
+                <span style={{ ...visionBody, color: tokens.color.warning, fontSize: 12 }}>
                   {sys.degraded} brique{sys.degraded > 1 ? 's' : ''} dégradée{sys.degraded > 1 ? 's' : ''}
                 </span>
               )}
             </div>
-            <div className="ml-auto flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5" style={{ color: healthColor }} />
-              <span style={{ ...visionCaption, color: healthColor, textTransform: 'none' }}>
-                {ready ? THREAT_LABELS[level] : 'En attente'}
-              </span>
-            </div>
           </div>
         </GlassPanel>
 
-        <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto min-h-0">
+        <div className="grid grid-cols-2 gap-2 flex-shrink-0">
           {metrics.map((m) => (
             <MetricCard key={m.label} {...m} />
           ))}
         </div>
 
-        <GlassPanel level="subtle" radius="md" padding="sm">
-          <div className="flex items-center justify-between mb-2">
+        <GlassPanel
+          level="subtle"
+          radius="md"
+          padding="sm"
+          style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+        >
+          <div className="flex items-center justify-between mb-2 flex-shrink-0">
             <span style={visionCaption}>Processus</span>
             <span style={visionCaption}>Mémoire</span>
           </div>
-          {(sys?.processes ?? []).map((p) => (
-            <div
-              key={p.name}
-              className="flex items-center justify-between py-1.5"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-            >
-              <span style={{ ...visionBody, color: tokens.color.text }}>{p.name}</span>
-              <span style={visionMono}>{p.mem_mb} Mo</span>
-            </div>
-          ))}
-          {!ready && <span style={visionBody}>En attente du Core…</span>}
+          <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+            {(sys?.processes ?? []).map((p) => (
+              <div
+                key={p.name}
+                className="flex items-center justify-between py-1.5 gap-2"
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                <span
+                  style={{
+                    ...visionBody,
+                    color: tokens.color.text,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    minWidth: 0,
+                  }}
+                >
+                  {p.name}
+                </span>
+                <span style={{ ...visionMono, flexShrink: 0 }}>{p.mem_mb} Mo</span>
+              </div>
+            ))}
+            {!ready && <span style={visionBody}>En attente du Core…</span>}
+          </div>
         </GlassPanel>
       </div>
     </VisionChrome>

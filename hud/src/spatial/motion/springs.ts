@@ -1,6 +1,6 @@
-import { spatialTokens } from '../tokens/materials';
+import { spatialMotionTokens } from '../tokens/spatial';
 
-export const spatialSprings = spatialTokens.spring;
+export const spatialSprings = spatialMotionTokens.spring;
 
 /**
  * Appear sans transform/filter — scale/y/filter créent un containing block

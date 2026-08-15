@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
+    "graph3d:code-map": "python ../scripts/export-code-map-process-dirs.py",
+    "graph3d:core-l1": "python ../scripts/export-code-map-core-l1.py",
     "mediapipe": "node scripts/fetch-mediapipe.mjs",
     "prebuild": "node scripts/fetch-mediapipe.mjs",
     "build": "vite build",

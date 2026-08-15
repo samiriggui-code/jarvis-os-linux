@@ -1,6 +1,7 @@
 """Phase 6 — routing intentions (Policy → Router → exécutant unique)."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -190,7 +191,16 @@ class IntentRoutingMixin:
             await _emit("started")
 
             try:
-                result = await self.intents.execute(intent, exec_payload)
+                if cap and cap.owner is Owner.HERMES:
+                    # Seul chemin dont l'attente est réellement longue et
+                    # imprévisible (délégation réseau) — voir §6 de la mission
+                    # « finition V1 ». Core/Device restent un appel direct,
+                    # inchangé.
+                    result = await self._execute_hermes_with_interim_feedback(
+                        ws, intent, exec_payload
+                    )
+                else:
+                    result = await self.intents.execute(intent, exec_payload)
             except IntentNotExecutable as exc:
                 logger.error("intention NON EXÉCUTÉE · %s — %s", intent, exc)
                 await _emit(
@@ -218,11 +228,20 @@ class IntentRoutingMixin:
                     reason=str(exc),
                     duration_ms=(time.monotonic() - started) * 1000,
                 )
-                if intent == "web.search" and cap and cap.owner is Owner.HERMES:
-                    await self._fallback_web_surface(
+                if cap and cap.owner is Owner.HERMES:
+                    if intent == "web.search":
+                        await self._fallback_web_surface(
+                            ws,
+                            str(payload.get("prompt") or ""),
+                            reason=str(exc),
+                        )
+                        return
+                    await self._fallback_hermes_failure(
                         ws,
-                        str(payload.get("prompt") or ""),
+                        intent=intent,
                         reason=str(exc),
+                        route_meta=route_meta,
+                        base=base,
                     )
                     return
                 await ws.send(
@@ -243,32 +262,78 @@ class IntentRoutingMixin:
                 intent,
                 tool_route.device_id,
             )
+            verification_meta = await self._verify_after_execution(
+                intent=intent,
+                result=result,
+                payload=exec_payload,
+                user_id=user_id or "local",
+                device_id=host_route.device_id or tool_route.device_id,
+            )
             await _emit("completed", duration_ms=(time.monotonic() - started) * 1000)
             await self._maybe_publish_surface_decision(
                 intent=intent,
                 debounce_key=f"intent:{intent}",
             )
-            await ws.send(
-                json.dumps(
-                    {
-                        **base,
-                        "ok": True,
-                        "executed": True,
-                        "route": route_meta,
-                        "result": (
-                            result
-                            if isinstance(
-                                result, (str, int, float, bool, list, dict, type(None))
-                            )
-                            else str(result)
-                        ),
-                    }
-                )
-            )
+            surface_body: dict[str, Any] = {
+                **base,
+                "ok": True,
+                "executed": True,
+                "route": route_meta,
+                "result": (
+                    result
+                    if isinstance(
+                        result, (str, int, float, bool, list, dict, type(None))
+                    )
+                    else str(result)
+                ),
+            }
+            if verification_meta is not None:
+                surface_body["verification"] = verification_meta
+            await ws.send(json.dumps(surface_body))
             await self._deliver_chat_result(ws, intent, result, payload)
         finally:
             self._intent_ws = None
             self._clear_output_route()
+
+    async def _verify_after_execution(
+        self,
+        *,
+        intent: str,
+        result: Any,
+        payload: dict[str, Any],
+        user_id: str,
+        device_id: str | None = None,
+        host: str | None = None,
+        proposition: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Gate Memory : VerificationPipeline seulement. N'altère pas l'exécution.
+
+        `async` depuis M2.2 : home.control fait une vraie re-lecture HA
+        (réseau) avant de conclure — les autres intents restent instantanés.
+        """
+        from ..verification_hooks import (
+            build_verification_request,
+            needs_verification,
+            run_verification_safe,
+            verification_surface_payload,
+        )
+
+        if not needs_verification(intent):
+            return None
+        req = await build_verification_request(
+            intent=intent,
+            result=result,
+            user_id=user_id,
+            payload=payload,
+            orch=self,
+            host=host,
+            proposition=proposition,
+            device_id=device_id,
+        )
+        outcome = run_verification_safe(getattr(self, "verification", None), req)
+        if outcome is None:
+            return None
+        return verification_surface_payload(outcome, req)
 
     async def _deliver_chat_result(
         self,
@@ -277,23 +342,50 @@ class IntentRoutingMixin:
         result: Any,
         payload: dict[str, Any],
     ) -> None:
-        """TTS + chat_reply pour entrées voix/chat — Hermes uniquement (Core parle déjà)."""
+        """chat_reply après intent. TTS seulement pour Hermes. architecture.explain = texte, pas de voix."""
         from ..capabilities import Owner, for_intent
 
         prompt = str(payload.get("prompt") or "").strip()
         if not prompt:
             return
         cap = for_intent(intent)
-        if cap is None or cap.owner is not Owner.HERMES:
+        if cap is None:
+            return
+
+        # Architecture Awareness : texte dans le chat, jamais de TTS / HUD.
+        if intent == "architecture.explain":
+            if not isinstance(result, dict):
+                return
+            text = (result.get("explanation") or "").strip()
+            if not text:
+                return
+            await ws.send(json.dumps({"type": "chat_reply", "text": text, "intent": intent}))
+            await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
+            return
+
+        if cap.owner is not Owner.HERMES:
             return
         if not isinstance(result, dict):
             return
-        text = (result.get("text") or "").strip() or "C'est fait."
+        from ..hermes.bridge import strip_hermes_display_text
+
+        text = strip_hermes_display_text(result.get("text") or "").strip() or "C'est fait."
         uid = self._session_user_id(ws) or "local"
         await ws.send(json.dumps(self.cmd("set_orb_state", state="speaking")))
-        await ws.send(json.dumps({"type": "chat_reply", "text": text, "intent": intent}))
-        ev = await self.speak(text, user_id=uid)
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "chat_reply",
+                    "text": text,
+                    "intent": intent,
+                    "speaker_entity": "hermes",
+                    "producer": "hermes",
+                }
+            )
+        )
+        ev = await self.speak_hermes(text, user_id=uid)
         await ws.send(json.dumps(ev))
+        await self.handoff_speaker_jarvis(ws)
         if ev.get("type") == "tts_skipped":
             await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
 
@@ -357,3 +449,115 @@ class IntentRoutingMixin:
                 await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
         finally:
             self._clear_output_route()
+
+    async def _fallback_hermes_failure(
+        self,
+        ws: Any,
+        *,
+        intent: str,
+        reason: str,
+        route_meta: dict[str, Any],
+        base: dict[str, Any],
+    ) -> None:
+        """UX défaillance Hermes générique — tout intent Hermes hors `web.search`
+        (qui garde son propre repli Google, `_fallback_web_surface`).
+
+        Avant ce correctif, seul `web.search` recevait un `chat_reply` + TTS
+        sur échec : tout le reste (`outils`/`agent.tools` compris — le chemin
+        RÉEL d'un « brief actualités » quand `JARVIS_CHAT_PROVIDER=hermes`)
+        finissait sur une simple trame WS `surface_result`, orbe resté sur
+        `thinking`. Silence total côté utilisateur — c'est le symptôme
+        diagnostiqué (« ~2 min de silence, aucun fallback utile »).
+
+        Jamais de faux succès : `ok=False` reste dans la trame, `reason`
+        (provenance de l'échec) y voyage aussi, en clair — pas seulement dans
+        le journal `tool_events`.
+        """
+        timed_out = "délai sse" in reason.lower() or "timeout" in reason.lower()
+        if timed_out:
+            spoken = (
+                "Cette délégation à Hermes a dépassé le délai autorisé. "
+                "Je n'ai pas de résultat à donner."
+            )
+        else:
+            spoken = "Hermes n'a pas pu traiter cette demande."
+
+        await ws.send(
+            json.dumps(
+                {
+                    **base,
+                    "ok": False,
+                    "executed": True,
+                    "reason": f"échec : {reason}",
+                    "route": route_meta,
+                }
+            )
+        )
+        await ws.send(json.dumps({
+            "type": "chat_reply",
+            "text": spoken,
+            "intent": intent,
+        }))
+        await ws.send(json.dumps(self.cmd("set_orb_state", state="speaking")))
+        self._bind_output_route(ws)
+        try:
+            ev = await self.speak(spoken, user_id=self._session_user_id(ws) or "local")
+            await ws.send(json.dumps(ev))
+            if ev.get("type") == "tts_skipped":
+                await ws.send(json.dumps(self.cmd("set_orb_state", state="idle")))
+        finally:
+            self._clear_output_route()
+
+    async def _execute_hermes_with_interim_feedback(
+        self, ws: Any, intent: str, exec_payload: dict[str, Any]
+    ) -> Any:
+        """Un seul signal de vie si Hermes n'a rien renvoyé de terminal après
+        `resolve_hermes_interim_delay()` (défaut 18 s) — jamais un second,
+        jamais une annulation du run, jamais un faux résultat.
+
+        `DEFAULT_TIMEOUT` (120 s, `hermes/bridge.py`) reste entièrement
+        inchangé : ceci ne raccourcit ni n'accélère rien, ça comble
+        uniquement le silence perçu avant l'issue réelle (succès, ou le
+        repli déjà géré par `_fallback_web_surface` /
+        `_fallback_hermes_failure`).
+
+        Délai injectable via `JARVIS_HERMES_INTERIM_FEEDBACK_S` — aucun
+        smoke n'attend réellement 18 s.
+        """
+        from ..hermes.bridge import resolve_hermes_interim_delay
+
+        delay = resolve_hermes_interim_delay()
+        task: asyncio.Future = asyncio.ensure_future(self.intents.execute(intent, exec_payload))
+        if delay > 0:
+            done, _pending = await asyncio.wait({task}, timeout=delay)
+            if task in done:
+                return task.result()
+            await self._send_hermes_interim_feedback(ws, intent)
+        return await task
+
+    async def _send_hermes_interim_feedback(self, ws: Any, intent: str) -> None:
+        """Point d'étape audible pendant une délégation Hermes longue — pas
+        un résultat. `speaker_entity` par défaut (jamais « hermes ») : ce
+        n'est pas Hermes qui prétend avoir quelque chose, c'est JARVIS qui
+        explique honnêtement que ça prend du temps. Toujours suivi d'un
+        retour à `thinking`, jamais `idle` — la délégation continue
+        réellement en arrière-plan."""
+        spoken = "Je continue de travailler là-dessus, ça prend un peu plus de temps que prévu."
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "chat_reply",
+                    "text": spoken,
+                    "intent": intent,
+                    "interim": True,
+                }
+            )
+        )
+        await ws.send(json.dumps(self.cmd("set_orb_state", state="speaking")))
+        self._bind_output_route(ws)
+        try:
+            ev = await self.speak(spoken, user_id=self._session_user_id(ws) or "local")
+            await ws.send(json.dumps(ev))
+        finally:
+            self._clear_output_route()
+            await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))

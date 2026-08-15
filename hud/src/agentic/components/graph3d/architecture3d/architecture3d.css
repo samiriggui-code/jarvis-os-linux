@@ -1,0 +1,592 @@
+
+/* Layout shell — fond SpatialBackdrop, panneaux visual/glass */
+.architecture-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.architecture-shell .spatial-backdrop {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+}
+
+.architecture-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.architecture-stage canvas {
+  position: absolute !important;
+  inset: 0;
+}
+
+.neural-cell-lab__hud {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: clamp(18px, 4vh, 36px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.neural-cell-lab__tag {
+  font-family: var(--jarvis-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(140, 232, 255, 0.55);
+}
+
+.neural-cell-lab__title {
+  font-family: var(--jarvis-font-display, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(239, 248, 255, 0.82);
+}
+
+.neural-cell-lab__hint {
+  font-family: var(--jarvis-font-body, system-ui, sans-serif);
+  font-size: 11px;
+  color: rgba(207, 226, 235, 0.45);
+}
+
+.architecture-side {
+  position: absolute;
+  z-index: 10;
+  top: 12vh;
+  bottom: 12vh;
+  width: clamp(168px, 15vw, 210px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.architecture-side--left {
+  left: 22px;
+}
+
+.architecture-side--right {
+  right: 22px;
+}
+
+/** Rail focus Agentic — ancré verticalement sur le nœud, pas centré en permanence */
+.architecture-side--focus {
+  top: auto;
+  bottom: auto;
+  justify-content: flex-start;
+  transform: translateY(-35%);
+  pointer-events: auto;
+}
+
+.architecture-focus-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  pointer-events: auto;
+}
+
+.glass-panel {
+  padding: 16px;
+  border: 1px solid var(--jarvis-border);
+  border-radius: 22px;
+  background: var(--jarvis-panel);
+  backdrop-filter: blur(24px) saturate(130%);
+  -webkit-backdrop-filter: blur(24px) saturate(130%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  pointer-events: auto;
+}
+
+.glass-panel__title {
+  margin-bottom: 12px;
+  color: var(--jarvis-muted);
+  font-size: 11px;
+  letter-spacing: 0.11em;
+}
+
+.mini-row,
+.flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  color: var(--jarvis-text);
+  font-size: 12px;
+}
+
+.mini-row:last-child,
+.flow-row:last-child {
+  border-bottom: 0;
+}
+
+.mini-row b,
+.flow-row b {
+  color: var(--jarvis-cyan);
+  font-weight: 500;
+  font-size: 10px;
+}
+
+.activity-copy {
+  margin: 0;
+  color: var(--jarvis-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status-pill {
+  display: inline-flex;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(140, 232, 255, 0.08);
+  border: 1px solid rgba(140, 232, 255, 0.12);
+  color: var(--jarvis-cyan);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+/* —— Niveau A : labels process projetés (overlay HTML) —— */
+/* —— Niveau A : labels process projetés (overlay HTML) —— */
+.process-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+  transition: opacity 0.28s ease;
+}
+
+.process-labels--background {
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.process-labels__leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.process-labels__leader {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 0.75;
+  transition: stroke 0.2s ease, opacity 0.2s ease;
+}
+
+.process-labels__leader--active {
+  stroke: rgba(255, 255, 255, 0.38);
+}
+
+.process-labels__leader--dimmed {
+  stroke: rgba(255, 255, 255, 0.07);
+  opacity: 0.55;
+}
+
+.process-label {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: var(--jarvis-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: clamp(9px, 0.72vw, 12px);
+  font-weight: 400;
+  letter-spacing: 0.07em;
+  color: rgba(240, 248, 255, 0.78);
+  opacity: 1;
+  -webkit-font-smoothing: antialiased;
+  text-shadow:
+    0 0 8px rgba(0, 0, 0, 0.85),
+    0 1px 2px rgba(0, 0, 0, 0.9);
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+.process-label:hover,
+.process-label--active {
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow:
+    0 0 10px rgba(0, 0, 0, 0.9),
+    0 0 14px rgba(140, 232, 255, 0.18),
+    0 1px 2px rgba(0, 0, 0, 0.95);
+}
+
+.process-label--dimmed {
+  color: rgba(220, 232, 240, 0.42);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.75);
+}
+
+.process-label--left {
+  flex-direction: row;
+  text-align: right;
+}
+
+.process-label--right {
+  flex-direction: row;
+  text-align: left;
+}
+
+.process-label__name {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.process-label__line {
+  display: block;
+  width: clamp(10px, 1.4vw, 22px);
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.28));
+  flex: 0 0 auto;
+}
+
+.process-label--left .process-label__line {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08));
+}
+
+.process-label__dot {
+  width: 3px;
+  height: 3px;
+  flex: 0 0 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.process-label--active .process-label__dot {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.process-label--active .process-label__line {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.42));
+}
+
+/* —— Niveau B : callout contextuel —— */
+.context-callout {
+  position: absolute;
+  z-index: 5;
+  max-width: min(168px, 22vw);
+  pointer-events: none;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-family: var(--jarvis-font-mono, ui-monospace, monospace);
+}
+
+.context-callout--left {
+  text-align: right;
+}
+
+.context-callout--right {
+  text-align: left;
+}
+
+.context-callout__title {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: rgba(240, 248, 255, 0.88);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.85);
+}
+
+.context-callout__phrase {
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.03em;
+  color: rgba(220, 232, 240, 0.72);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+.context-callout__facts {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: rgba(200, 216, 228, 0.62);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.75);
+}
+
+/* —— Niveau C : panneau Agentic (inspect uniquement) —— */
+.architecture-agentic-panel {
+  position: absolute;
+  z-index: 10;
+  top: 14vh;
+  bottom: 14vh;
+  width: clamp(168px, 15vw, 210px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  pointer-events: auto;
+}
+
+.architecture-agentic-panel--left {
+  left: 18px;
+}
+
+.architecture-agentic-panel--right {
+  right: 18px;
+}
+
+/* —— DEV presentation —— */
+.architecture-presentation-debug {
+  position: absolute;
+  z-index: 20;
+  top: 14px;
+  right: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(140, 232, 255, 0.18);
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(12px);
+  font-family: var(--jarvis-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: rgba(240, 248, 255, 0.82);
+  pointer-events: auto;
+}
+
+.architecture-presentation-debug__title {
+  letter-spacing: 0.14em;
+  opacity: 0.55;
+  margin-bottom: 4px;
+}
+
+.architecture-presentation-debug__state {
+  margin-bottom: 8px;
+  color: rgba(140, 232, 255, 0.75);
+}
+
+.architecture-presentation-debug__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.architecture-presentation-debug__actions button {
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+}
+
+.architecture-presentation-debug__actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* —— Labels intérieur CORE (L1) —— */
+.core-interior-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.core-interior-labels__leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.core-interior-labels__leader {
+  stroke: rgba(140, 232, 255, 0.28);
+  stroke-width: 0.75;
+}
+
+.core-interior-label {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--jarvis-font-mono, ui-monospace, monospace);
+  font-size: clamp(8px, 0.68vw, 11px);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: rgba(200, 240, 255, 0.82);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.85);
+}
+
+.core-interior-label--left {
+  flex-direction: row;
+}
+
+.core-interior-label--right {
+  flex-direction: row;
+}
+
+.core-interior-label__line {
+  width: clamp(8px, 1.2vw, 18px);
+  height: 1px;
+  background: linear-gradient(90deg, rgba(140, 232, 255, 0.12), rgba(140, 232, 255, 0.38));
+}
+
+.core-interior-label--left .core-interior-label__line {
+  background: linear-gradient(90deg, rgba(140, 232, 255, 0.38), rgba(140, 232, 255, 0.12));
+}
+
+.core-interior-label__dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(180, 240, 255, 0.9);
+}
+
+/* Mode clair HUD — vendor était night-only */
+.architecture-shell[data-spatial-mode='light'] {
+  --jarvis-panel: rgba(255, 255, 255, 0.62);
+  --jarvis-panel-strong: rgba(255, 255, 255, 0.78);
+  --jarvis-border: rgba(15, 20, 30, 0.14);
+  --jarvis-text: rgba(15, 20, 30, 0.92);
+  --jarvis-muted: rgba(15, 20, 30, 0.55);
+  --jarvis-node: #0d5c7a;
+  --jarvis-line: rgba(13, 92, 122, 0.35);
+  --jarvis-cyan: #0071e3;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(10, 132, 255, 0.08), transparent 32%),
+    radial-gradient(circle at 20% 20%, rgba(100, 140, 180, 0.12), transparent 26%),
+    transparent;
+}
+
+.architecture-shell[data-spatial-mode='light'] .architecture-glow {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(10, 132, 255, 0.1), transparent 28%),
+    radial-gradient(circle at 48% 52%, rgba(255, 255, 255, 0.4), transparent 38%);
+}
+
+.architecture-shell[data-spatial-mode='light'] .mini-row,
+.architecture-shell[data-spatial-mode='light'] .flow-row {
+  border-bottom-color: rgba(15, 20, 30, 0.08);
+}
+
+.architecture-shell[data-spatial-mode='light'] .process-label {
+  color: rgba(18, 38, 58, 0.82);
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.95),
+    0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.architecture-shell[data-spatial-mode='light'] .process-label:hover,
+.architecture-shell[data-spatial-mode='light'] .process-label--active {
+  color: rgba(8, 28, 48, 0.95);
+}
+
+.architecture-shell[data-spatial-mode='light'] .process-label--dimmed {
+  color: rgba(18, 38, 58, 0.38);
+}
+
+.architecture-shell[data-spatial-mode='light'] .process-label__dot {
+  background: rgba(13, 92, 122, 0.85);
+}
+
+.architecture-shell[data-spatial-mode='light'] .process-labels__leader {
+  stroke: rgba(13, 92, 122, 0.28);
+}
+
+.architecture-shell[data-spatial-mode='light'] .context-callout__title {
+  color: rgba(15, 30, 50, 0.82);
+}
+
+.architecture-shell[data-spatial-mode='light'] .context-callout__phrase,
+.architecture-shell[data-spatial-mode='light'] .context-callout__facts {
+  color: rgba(15, 30, 50, 0.48);
+}
+
+.architecture-shell[data-spatial-mode='light'] .status-pill {
+  background: rgba(10, 132, 255, 0.1);
+  border-color: rgba(10, 132, 255, 0.2);
+}
+
+@media (max-width: 980px) {
+  .architecture-agentic-panel {
+    width: 210px;
+    opacity: 0.92;
+  }
+}
+
+@media (max-width: 760px) {
+  .architecture-agentic-panel {
+    width: min(42vw, 190px);
+    top: 9vh;
+    bottom: 9vh;
+  }
+
+  .architecture-agentic-panel--left {
+    left: 10px;
+  }
+
+  .architecture-agentic-panel--right {
+    right: 10px;
+  }
+
+  .glass-panel {
+    padding: 12px;
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .architecture-agentic-panel {
+    display: none;
+  }
+}
+
+.graph-debug-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  pointer-events: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.72);
+  color: rgba(255, 255, 255, 0.92);
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
+.graph-debug-overlay__title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #fff;
+}
+
+.graph-debug-overlay__section + .graph-debug-overlay__section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.graph-debug-overlay__warn {
+  color: #ff8a80;
+  font-weight: 700;
+}

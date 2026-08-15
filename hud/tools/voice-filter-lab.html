@@ -304,6 +304,7 @@
       <h2>Lecture</h2>
       <div class="row">
         <select id="voice" title="Pack vocal" aria-label="Pack vocal">
+          <option value="__vendor_test__">vendor/test.mp3</option>
           <option value="jarvis">jarvis</option>
           <option value="jarvis2">jarvis2</option>
         </select>
@@ -423,7 +424,9 @@
 
 <script>
 const CACHE_ROOT = '../../core/data/voice/cache/';
-const VOICES = ['jarvis', 'jarvis2'];
+const VENDOR_TEST = '../../vendor/test.mp3';
+const VOICES = ['jarvis3', 'jarvis2', 'jarvis'];
+const CUSTOM_VOICE = '__vendor_test__';
 
 const P = [
   'hp','body','eq','air','comp',
@@ -800,7 +803,8 @@ function buildChain(p, durationHint) {
 }
 
 async function fetchBuffer(file) {
-  const res = await fetch(cacheBase() + file);
+  const url = currentVoice === CUSTOM_VOICE ? file : cacheBase() + file;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(file + ' : ' + res.status);
   return ctx.decodeAudioData(await res.arrayBuffer());
 }
@@ -813,7 +817,26 @@ function fillDomains(prefer) {
   if (prefer && available.includes(prefer)) el('domain').value = prefer;
 }
 
+async function loadVendorTest() {
+  token++;
+  playing = false;
+  currentVoice = CUSTOM_VOICE;
+  el('voice').value = CUSTOM_VOICE;
+  const res = await fetch(VENDOR_TEST, { method: 'HEAD' });
+  if (!res.ok) throw new Error('vendor/test.mp3 introuvable (' + res.status + ')');
+  entries = [{
+    domain: 'test',
+    file: VENDOR_TEST,
+    text: 'vendor/test.mp3 — nouvelle voix',
+    pause_ms: 0,
+  }];
+  fillDomains('test');
+  logBox.innerHTML = '<div>Fichier <b>vendor/test.mp3</b> · 1 clip · choisis un preset (ex. Cristallin) puis Joue</div>';
+  setStatus(true, 'vendor/test.mp3 prêt');
+}
+
 async function loadVoice(name) {
+  if (name === CUSTOM_VOICE) return loadVendorTest();
   token++;
   playing = false;
   currentVoice = name;
@@ -935,15 +958,27 @@ el('copy').addEventListener('click', async () => {
   refresh();
   try {
     const present = [];
+    const testOk = (await fetch(VENDOR_TEST, { method: 'HEAD' })).ok;
     for (const name of VOICES) {
       const r = await fetch(CACHE_ROOT + name + '/manifest.json', { method: 'HEAD' });
       if (r.ok) present.push(name);
     }
-    if (!present.length) throw new Error('aucun pack jarvis / jarvis2 trouvé');
-    el('voice').innerHTML = present.map(n => `<option value="${n}">${n}</option>`).join('');
-    await loadVoice(present[0]);
+    const options = [];
+    // Pack produit d'abord (jarvis3), puis anciens, puis sample vendor.
+    options.push(...present.map(n => `<option value="${n}">${n}</option>`));
+    if (testOk) options.push(`<option value="${CUSTOM_VOICE}">vendor/test.mp3</option>`);
+    if (!options.length) throw new Error('ni pack jarvis* ni vendor/test.mp3');
+    el('voice').innerHTML = options.join('');
+    const prefer = present.includes('jarvis3') ? 'jarvis3' : (present[0] || CUSTOM_VOICE);
+    await loadVoice(prefer);
+    applyPreset('hologramme');
+    if (prefer === 'jarvis3' || prefer === 'jarvis2' || prefer === 'jarvis') {
+      const domains = [...el('domain').options].map(o => o.value);
+      if (domains.includes('auth')) el('domain').value = 'auth';
+      else if (domains.includes('enrolement')) el('domain').value = 'enrolement';
+    }
   } catch (err) {
-    setStatus(false, 'Cache introuvable');
+    setStatus(false, 'Source introuvable');
     logBox.innerHTML = '<div class="err">' + err.message +
       '<br><br>Lancer un serveur depuis la racine du dépôt :<br>' +
       '&nbsp;&nbsp;python -m http.server 8080<br><br>' +

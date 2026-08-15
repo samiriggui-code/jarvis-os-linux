@@ -46,8 +46,12 @@ class VoiceHandlerMixin:
 
         # Enrôlement phrase — disque seulement, pas voicebox.
         if action == "enroll_phrase":
-            from ...auth.db import default_data_dir
-            from ...auth.voice_phrase import DEFAULT_CHALLENGE, normalize_phrase, save_phrase
+            from ...auth.voice_phrase import (
+                DEFAULT_CHALLENGE,
+                normalize_phrase,
+                samples_pass_quality,
+                save_phrase,
+            )
 
             uid = resolve_user_id(
                 str(data.get("user_id") or data.get("userId") or "") or None,
@@ -62,6 +66,17 @@ class VoiceHandlerMixin:
                 await ws.send(json.dumps({"type": "VOICE_FAILED", "reason": "samples_required"}))
                 return
             samples = [str(s) for s in samples_raw]
+            ok_samples, good = samples_pass_quality(samples, min_ok=2)
+            if not ok_samples:
+                await ws.send(json.dumps({
+                    "type": "VOICE_FAILED",
+                    "reason": "samples_quality",
+                    "challenge": DEFAULT_CHALLENGE,
+                    "detail": "Au moins 2 prises doivent ressembler à « Jarvis, active-toi »",
+                    "heard": samples[:5],
+                }))
+                return
+            samples = good
             phrase = normalize_phrase(DEFAULT_CHALLENGE)
             users_dir = default_data_dir() / "users"
             saved = save_phrase(users_dir, target, phrase=phrase, samples=samples)

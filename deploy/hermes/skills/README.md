@@ -46,6 +46,7 @@ La `description` décide du chargement. Règles :
 | Skill | Rôle |
 |-------|------|
 | `jarvis-os` | Loi produit / Policy / voix / rôles |
+| `jarvis-memory` | Mémoire foyer via Core MemoryAPI (M4) |
 | `family-enroll` | Enrollment foyer |
 | `hud-apps` | Catalogue apps + intents |
 | `ecosystem-hosts` | Routage multi-hôte |

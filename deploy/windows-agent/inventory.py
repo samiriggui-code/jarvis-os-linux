@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -42,6 +43,31 @@ _SCAN_PROGRAM_DIRS = os.environ.get("JARVIS_INVENTORY_PROGRAM_DIRS", "1").lower(
     "true",
     "yes",
 )
+
+# Sans ça, chaque `powershell` flash une console → cascade de terminaux.
+_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000) if sys.platform == "win32" else 0
+
+
+def _run_powershell(script: str, *, timeout: float = 30) -> subprocess.CompletedProcess[str]:
+    """PowerShell 100 % silencieux (aucun terminal)."""
+    return subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        creationflags=_CREATE_NO_WINDOW,
+    )
 
 
 class AppLaunchError(Exception):
@@ -161,6 +187,7 @@ def _find_exe_in_dir(directory: str, name_hint: str = "") -> str:
 
 
 def _resolve_lnk(path: Path) -> str:
+    """Résout un .lnk → .exe. Utilisé au lancement seulement — pas pendant le scan menu."""
     if sys.platform != "win32" or not path.is_file():
         return ""
     try:
@@ -172,18 +199,12 @@ def _resolve_lnk(path: Path) -> str:
             return target
     except Exception:
         pass
+    # Fallback silencieux (jamais de fenêtre). Un seul appel — pas dans une boucle de scan.
     try:
-        out = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                f"(New-Object -ComObject WScript.Shell).CreateShortcut('{path}').TargetPath",
-            ],
-            capture_output=True,
-            text=True,
+        safe = str(path).replace("'", "''")
+        out = _run_powershell(
+            f"(New-Object -ComObject WScript.Shell).CreateShortcut('{safe}').TargetPath",
             timeout=8,
-            check=False,
         )
         target = (out.stdout or "").strip()
         if target.lower().endswith(".exe") and Path(target).is_file():
@@ -240,16 +261,16 @@ def _scan_start_menu() -> list[InstalledApp]:
             name = lnk.stem.strip()
             if not name or _SKIP_NAME_RE.search(name):
                 continue
-            exe = _resolve_lnk(lnk) or str(lnk)
-            launchable = exe.lower().endswith(".exe") or lnk.suffix.lower() == ".lnk"
+            # Ne PAS résoudre chaque .lnk via PowerShell ici (= N fenêtres / cascade).
+            # Le lancement passe par os.startfile / _resolve_lnk au moment du click.
             app_id = _dedupe_id(slugify(name), seen)
             apps.append(
                 InstalledApp(
                     app_id=app_id,
                     display_name=name,
-                    exe=exe,
+                    exe=str(lnk),
                     source="start_menu",
-                    launchable=launchable,
+                    launchable=True,
                     metadata={"shortcut": str(lnk)},
                 )
             )
@@ -260,19 +281,11 @@ def _scan_appx() -> list[InstalledApp]:
     if sys.platform != "win32" or not _SCAN_APPX:
         return []
     try:
-        out = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                "Get-AppxPackage | Where-Object { $_.IsFramework -eq $false } "
-                "| Select-Object Name, InstallLocation, Publisher, Version "
-                "| ConvertTo-Json -Compress",
-            ],
-            capture_output=True,
-            text=True,
+        out = _run_powershell(
+            "Get-AppxPackage | Where-Object { $_.IsFramework -eq $false } "
+            "| Select-Object Name, InstallLocation, Publisher, Version "
+            "| ConvertTo-Json -Compress",
             timeout=90,
-            check=False,
         )
         raw = (out.stdout or "").strip()
         if not raw:
@@ -474,6 +487,7 @@ def host_capabilities_from_inventory(
     running = running or {}
 
     inv_meta: dict[str, Any] = {
+        "status": "implemented",
         "total_apps": len(app_list),
         "launchable_apps": len(launchable),
         "platform": "windows",
@@ -495,7 +509,10 @@ def host_capabilities_from_inventory(
             "capability_id": "app.launch",
             "name": "app_launch",
             "value": bool(launchable),
-            "metadata": {"allowed_apps": allowed},
+            # Handler toujours présent (status=implemented) — `value` reflète
+            # seulement s'il y a au moins une app lançable maintenant. Ne pas
+            # confondre « capacité codée » et « utilisable là, tout de suite ».
+            "metadata": {"status": "implemented", "allowed_apps": allowed},
         },
         {
             "capability_id": "shell.execute",
@@ -510,6 +527,13 @@ def host_capabilities_from_inventory(
             "metadata": {"status": "planned", "owner_target": "device"},
         },
     ]
+
+    try:
+        from metrics import metrics_capability
+
+        caps.insert(1, metrics_capability())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("system.metrics skip: %s", exc)
 
     for app in app_list:
         soft = app.to_software_capability()
@@ -537,11 +561,20 @@ class InventoryManager:
     def refresh(self, *, force_full: bool = False) -> bool:
         self._full_counter += 1
         full = force_full or self._full_counter == 1 or self._full_counter % 6 == 0
+        started = time.monotonic()
         apps = scan_installed_apps(full=full)
         running = _running_snapshot()
         fp = compute_fingerprint(apps)
         diff = diff_inventory(self._apps, apps) if self._apps else InventoryDiff(added=apps)
         changed = fp != self._fingerprint or diff.changed
+
+        logger.info(
+            "INVENTORY · scan=%s · changed=%s · apps=%d · %.0fms",
+            "full" if full else "partial",
+            changed,
+            len(apps),
+            (time.monotonic() - started) * 1000,
+        )
 
         if changed:
             if diff.added:

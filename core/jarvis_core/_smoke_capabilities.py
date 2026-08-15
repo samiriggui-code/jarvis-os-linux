@@ -153,16 +153,46 @@ async def main() -> int:
     check("« mission control dev » l'emporte sur « mission control »",
           c is not None and c.intent == "core.mission_dev")
 
+    c = match_intent("ferme les paramètres")
+    check("« ferme les paramètres » → fermeture HUD", c is not None and c.intent == "hud.close_app")
+    c = match_intent("ouvre les paramètres")
+    check("« ouvre les paramètres » → ouverture prefs", c is not None and c.intent == "core.preferences")
+
+    c = match_intent("regarde youtube")
+    check("« regarde youtube » → streaming", c is not None and c.intent == "media.streaming")
+    c = match_intent("lance netflix")
+    check("« lance netflix » → streaming", c is not None and c.intent == "media.streaming")
+    c = match_intent("regarde sur amazon prime")
+    check("« regarde sur amazon prime » → streaming", c is not None and c.intent == "media.streaming")
+
+    c = match_intent("qu est ce que je te montre")
+    check("« qu'est-ce que je te montre » → vision", c is not None and c.intent == "vision.analyze")
+
+    c = match_intent("que vois-tu")
+    check("« que vois-tu » → scène Worker", c is not None and c.intent == "vision.scene")
+
     check("une question reste une conversation", match_intent("quelle heure est-il") is None)
     check("phrase vide → rien", match_intent("") is None)
     check("phrase inconnue → rien", match_intent("raconte-moi une blague") is None)
+
+    c = match_intent("comment tu fonctionnes")
+    check("« comment tu fonctionnes » → architecture.explain", c is not None and c.intent == "architecture.explain")
+    c = match_intent("où tourne hermes")
+    check("« où tourne hermes » → architecture.explain", c is not None and c.intent == "architecture.explain")
+    c = match_intent("tes skills hermes")
+    check("« tes skills hermes » reste introspect", c is not None and c.intent == "system.introspect")
+    c = match_intent("carte hermes")
+    check("« carte hermes » reste neural_map", c is not None and c.intent == "core.neural_map")
 
     print("\n── Cohérence propriétaire / toolset ────────────────────────────")
 
     # vps-terminal / pi-terminal : Terminal admin Dashboard, pas des tuiles
     # HUD — aucune phrase ne doit les router (`match_intent`), donc pas de
     # déclencheur à leur donner.
-    NO_TRIGGER_OK = frozenset({"vps-terminal", "pi-terminal"})
+    NO_TRIGGER_OK = frozenset({
+        "vps-terminal", "pi-terminal",
+        "memory-search", "memory-recall", "memory-store-note",
+    })
     sans_declencheur = [
         c.app_id for c in CAPABILITIES.values()
         if not c.triggers and c.app_id not in NO_TRIGGER_OK
@@ -174,7 +204,9 @@ async def main() -> int:
     # Clés dict != app_id quand plusieurs intentions partagent une tuile HUD.
     KEY_APP_MISMATCH_OK = frozenset({
         "capabilities", "introspect", "media-pause", "media-streaming",
-        "software", "device-launch",
+        "software", "device-launch", "hud-close-app", "hud-toggle-app", "vision-analyze",
+        "pc-health",
+        "dev-board-create", "dev-board-assign", "dev-board-start-run",
     })
     dupes = [
         k for k, c in CAPABILITIES.items()

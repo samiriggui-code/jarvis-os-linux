@@ -1,5 +1,7 @@
 # JARVIS Windows Agent (P4+)
 
+**Version courante : `0.5.0-windows`** — voir [`CHANGELOG.md`](./CHANGELOG.md).
+
 Agent **machine** — inventorie le PC, déclare les caps au Core, lance les apps.
 
 ## Démarrer en local (maintenant)

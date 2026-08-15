@@ -1,0 +1,330 @@
+{
+  "_regenerate": "cd hud && npm run graph3d:core-l1",
+  "schemaVersion": "1.0.0",
+  "processId": "core",
+  "processLabel": "CORE",
+  "fileCount": 92,
+  "visualWeightNote": "visualWeight = sqrt(descendantFiles + 1) \u2014 stats r\u00e9elles inchang\u00e9es",
+  "nodes": [
+    {
+      "id": "repo:core/jarvis_core/architecture",
+      "name": "architecture",
+      "path": "core/jarvis_core/architecture",
+      "kind": "directory",
+      "descendantFiles": 8,
+      "visualWeight": 3.0
+    },
+    {
+      "id": "repo:core/jarvis_core/auth",
+      "name": "auth",
+      "path": "core/jarvis_core/auth",
+      "kind": "directory",
+      "descendantFiles": 9,
+      "visualWeight": 3.1623
+    },
+    {
+      "id": "repo:core/jarvis_core/db",
+      "name": "db",
+      "path": "core/jarvis_core/db",
+      "kind": "directory",
+      "descendantFiles": 5,
+      "visualWeight": 2.4495
+    },
+    {
+      "id": "repo:core/jarvis_core/executors",
+      "name": "executors",
+      "path": "core/jarvis_core/executors",
+      "kind": "directory",
+      "descendantFiles": 10,
+      "visualWeight": 3.3166
+    },
+    {
+      "id": "repo:core/jarvis_core/intents",
+      "name": "intents",
+      "path": "core/jarvis_core/intents",
+      "kind": "directory",
+      "descendantFiles": 6,
+      "visualWeight": 2.6458
+    },
+    {
+      "id": "repo:core/jarvis_core/mission_dev",
+      "name": "mission_dev",
+      "path": "core/jarvis_core/mission_dev",
+      "kind": "directory",
+      "descendantFiles": 2,
+      "visualWeight": 1.7321
+    },
+    {
+      "id": "repo:core/jarvis_core/missions",
+      "name": "missions",
+      "path": "core/jarvis_core/missions",
+      "kind": "directory",
+      "descendantFiles": 3,
+      "visualWeight": 2.0
+    },
+    {
+      "id": "repo:core/jarvis_core/routing",
+      "name": "routing",
+      "path": "core/jarvis_core/routing",
+      "kind": "directory",
+      "descendantFiles": 4,
+      "visualWeight": 2.2361
+    },
+    {
+      "id": "repo:core/jarvis_core/surfaces",
+      "name": "surfaces",
+      "path": "core/jarvis_core/surfaces",
+      "kind": "directory",
+      "descendantFiles": 3,
+      "visualWeight": 2.0
+    },
+    {
+      "id": "repo:core/jarvis_core/ws",
+      "name": "ws",
+      "path": "core/jarvis_core/ws",
+      "kind": "directory",
+      "descendantFiles": 13,
+      "visualWeight": 3.7417
+    },
+    {
+      "id": "repo:core/jarvis_core/__init__.py",
+      "name": "__init__.py",
+      "path": "core/jarvis_core/__init__.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/__main__.py",
+      "name": "__main__.py",
+      "path": "core/jarvis_core/__main__.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/agent_reach_status.py",
+      "name": "agent_reach_status.py",
+      "path": "core/jarvis_core/agent_reach_status.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/alerts.py",
+      "name": "alerts.py",
+      "path": "core/jarvis_core/alerts.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/bus.py",
+      "name": "bus.py",
+      "path": "core/jarvis_core/bus.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/capabilities.py",
+      "name": "capabilities.py",
+      "path": "core/jarvis_core/capabilities.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/capability_router.py",
+      "name": "capability_router.py",
+      "path": "core/jarvis_core/capability_router.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/composer.py",
+      "name": "composer.py",
+      "path": "core/jarvis_core/composer.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/device_dispatch.py",
+      "name": "device_dispatch.py",
+      "path": "core/jarvis_core/device_dispatch.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/eval_matrix.py",
+      "name": "eval_matrix.py",
+      "path": "core/jarvis_core/eval_matrix.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/litmus.py",
+      "name": "litmus.py",
+      "path": "core/jarvis_core/litmus.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/locale.py",
+      "name": "locale.py",
+      "path": "core/jarvis_core/locale.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/metrics.py",
+      "name": "metrics.py",
+      "path": "core/jarvis_core/metrics.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/orchestrator.py",
+      "name": "orchestrator.py",
+      "path": "core/jarvis_core/orchestrator.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/orchestrator_boot.py",
+      "name": "orchestrator_boot.py",
+      "path": "core/jarvis_core/orchestrator_boot.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/orchestrator_lifecycle.py",
+      "name": "orchestrator_lifecycle.py",
+      "path": "core/jarvis_core/orchestrator_lifecycle.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/orchestrator_session.py",
+      "name": "orchestrator_session.py",
+      "path": "core/jarvis_core/orchestrator_session.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/orchestrator_speech.py",
+      "name": "orchestrator_speech.py",
+      "path": "core/jarvis_core/orchestrator_speech.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/providers.py",
+      "name": "providers.py",
+      "path": "core/jarvis_core/providers.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/recovery.py",
+      "name": "recovery.py",
+      "path": "core/jarvis_core/recovery.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/remote_exec.py",
+      "name": "remote_exec.py",
+      "path": "core/jarvis_core/remote_exec.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/sequences.py",
+      "name": "sequences.py",
+      "path": "core/jarvis_core/sequences.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/supervisor.py",
+      "name": "supervisor.py",
+      "path": "core/jarvis_core/supervisor.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/surface.py",
+      "name": "surface.py",
+      "path": "core/jarvis_core/surface.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/surface_decision.py",
+      "name": "surface_decision.py",
+      "path": "core/jarvis_core/surface_decision.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/tool_events.py",
+      "name": "tool_events.py",
+      "path": "core/jarvis_core/tool_events.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/ui_catalog.json",
+      "name": "ui_catalog.json",
+      "path": "core/jarvis_core/ui_catalog.json",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/usage.py",
+      "name": "usage.py",
+      "path": "core/jarvis_core/usage.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/verification.py",
+      "name": "verification.py",
+      "path": "core/jarvis_core/verification.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/verification_hooks.py",
+      "name": "verification_hooks.py",
+      "path": "core/jarvis_core/verification_hooks.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    }
+  ]
+}

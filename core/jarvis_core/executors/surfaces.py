@@ -235,7 +235,7 @@ class SurfaceExecutorsMixin:
             items=lines[:40],
         )
         spoken = f"J'affiche {len(lines)} connexions."
-        await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
         return {"ok": True, "count": len(lines)}
 
     async def _execute_devices_software(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -285,7 +285,56 @@ class SurfaceExecutorsMixin:
             items=items[:60],
         )
         spoken = "Voici les logiciels déclarés par vos machines."
-        await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
+        return {"ok": True, "agents": agents}
+
+    async def _execute_devices_metrics(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Santé PC — lit ``system.metrics`` des agents Windows online."""
+        from ..surfaces.publisher import publish_result_surface
+
+        items: list[str] = []
+        agents = 0
+        for dev in self.devices.iter_online():
+            if dev.runtime_kind not in ("windows_agent", "fake_agent"):
+                continue
+            cap = dev.capabilities.get("system.metrics")
+            if cap is None:
+                continue
+            agents += 1
+            meta = cap.metadata if isinstance(cap.metadata, dict) else {}
+            label = (dev.metadata or {}).get("hostname") or (dev.metadata or {}).get("label") or dev.device_id
+            if not meta.get("ok"):
+                items.append(f"=== {label} · métriques indisponibles ===")
+                items.append(f"  {meta.get('error') or 'en attente'}")
+                continue
+            items.append(f"=== {label} ===")
+            items.append(f"  CPU {meta.get('cpu_percent', '—')} %")
+            items.append(
+                f"  RAM {meta.get('ram_percent', '—')} % "
+                f"({meta.get('ram_total_gb', '—')} Go)"
+            )
+            items.append(
+                f"  Disque {meta.get('disk_percent', '—')} % "
+                f"({meta.get('disk_total_gb', '—')} Go)"
+            )
+            items.append(f"  Processus {meta.get('process_count', '—')}")
+
+        if not items:
+            body = "Aucun agent Windows online avec system.metrics — agent déconnecté ?"
+            spoken = "Je ne vois pas ton PC en ligne. Vérifie l'agent Windows."
+        else:
+            body = f"Santé machine · {agents} agent(s)."
+            spoken = "Voici l'état de ton PC."
+
+        await publish_result_surface(
+            self,
+            "connexions",
+            title="Santé PC",
+            body=body,
+            source="devices.metrics",
+            items=items[:40],
+        )
+        await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
         return {"ok": True, "agents": agents}
 
     async def _execute_devices_topology(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -311,7 +360,7 @@ class SurfaceExecutorsMixin:
             items=items[:40],
         )
         spoken = "Voici la topologie réseau."
-        await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
         return {"ok": True, "nodes": len(items)}
 
     @staticmethod
@@ -405,11 +454,14 @@ class SurfaceExecutorsMixin:
             "action": "open_space",
             "app": "mission-control-dev",
         })
-        spoken = (
-            "Mission Control Dev — dites « nouveau projet MonNom » "
-            "ou lancez un scénario depuis le panneau."
+        await self._publish_mission_dev_board(
+            voice_hint=(
+                "Voix : « nouveau ticket … » · « assigne à cursor » · "
+                "« lance le run » · « nouveau projet MonNom » pour une mission complète."
+            ),
         )
-        await self.speak(spoken, user_id=self._session_user_id() or "local")
+        spoken = "Mission Control Dev — board ouvert. Parlez pour agir."
+        await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
         return {
             "ok": True,
             "intent": "core.mission_dev",

@@ -1,166 +1,1227 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="night">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>JARVIS Agent — Config</title>
+  <title>JARVIS Agent</title>
   <style>
-    :root {
-      --bg: #0f1117;
-      --card: #171a22;
-      --border: #2a3140;
-      --text: #e8ecf4;
-      --muted: #8b95a8;
-      --ok: #3dd68c;
-      --warn: #f5c542;
-      --err: #ff6b6b;
-      --accent: #5b9dff;
+    :root, [data-theme="night"] {
+      --void: #08080a;
+      --bg0: #0b0c10;
+      --bg1: #12141a;
+      --text: rgba(255,255,255,0.92);
+      --muted: rgba(255,255,255,0.45);
+      --faint: rgba(255,255,255,0.08);
+      --accent: rgb(10, 132, 255);
+      --accent-rgb: 10, 132, 255;
+      --ok: rgb(52, 199, 89);
+      --warn: rgb(255, 159, 28);
+      --danger: rgb(255, 59, 48);
+      --glass: linear-gradient(165deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.045) 48%, rgba(255,255,255,0.018) 100%);
+      --border: rgba(255,255,255,0.18);
+      --shadow: 0 22px 60px -24px rgba(0,0,0,0.55), 0 4px 16px -6px rgba(0,0,0,0.28);
+      --inset: inset 0.5px 0.5px 0 rgba(255,255,255,0.24), inset -0.5px -0.5px 0 rgba(0,0,0,0.28);
+      --input-bg: rgba(0,0,0,0.28);
+      --blur: 48px;
+      --sat: 170%;
+    }
+    [data-theme="light"] {
+      --void: #e8ecf2;
+      --bg0: #eef1f6;
+      --bg1: #f7f8fb;
+      --text: rgba(10,12,18,0.92);
+      --muted: rgba(10,12,18,0.48);
+      --faint: rgba(10,12,18,0.06);
+      --accent: rgb(0, 113, 227);
+      --accent-rgb: 0, 113, 227;
+      --ok: rgb(40, 170, 72);
+      --warn: rgb(200, 120, 0);
+      --danger: rgb(220, 50, 40);
+      --glass: linear-gradient(165deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.48) 50%, rgba(255,255,255,0.36) 100%);
+      --border: rgba(10,12,18,0.12);
+      --shadow: 0 18px 48px -20px rgba(20,30,50,0.22), 0 4px 14px -6px rgba(20,30,50,0.12);
+      --inset: inset 0.5px 0.5px 0 rgba(255,255,255,0.9), inset -0.5px -0.5px 0 rgba(0,0,0,0.06);
+      --input-bg: rgba(255,255,255,0.65);
+      --blur: 40px;
+      --sat: 160%;
     }
     * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
     body {
-      margin: 0; font-family: Segoe UI, system-ui, sans-serif;
-      background: var(--bg); color: var(--text); line-height: 1.45;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 70% 45% at 50% -10%, rgba(var(--accent-rgb),0.16) 0%, transparent 55%),
+        radial-gradient(ellipse 40% 30% at 90% 80%, rgba(var(--accent-rgb),0.06) 0%, transparent 50%),
+        linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 50%, var(--void) 100%);
+      line-height: 1.45;
     }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
-    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 4px; }
-    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
-    .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 10px; padding: 16px; margin-bottom: 14px;
+    .shell { width: 100%; max-width: 1400px; margin: 0 auto; padding: 18px 22px 48px; }
+    .topbar {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+      padding: 12px 14px; border-radius: 20px;
+      background: var(--glass); border: 0.5px solid var(--border);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+      position: relative;
+      z-index: 200;
+      overflow: visible;
     }
-    .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: .06em;
-      color: var(--muted); margin: 0 0 12px; }
-    .row { display: flex; justify-content: space-between; gap: 12px;
-      padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+    .orb {
+      width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+      background: rgba(0,0,0,0.25);
+      box-shadow: 0 0 0 0.5px var(--border), 0 0 20px rgba(var(--accent-rgb),0.3);
+      animation: orbPulse 1.4s ease-in-out infinite;
+    }
+    .orb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .orb.off { animation: none; opacity: 0.55; filter: grayscale(0.8); }
+    @keyframes orbPulse {
+      0%, 100% { transform: scale(0.96); }
+      50% { transform: scale(1.03); }
+    }
+    .brand { min-width: 0; }
+    .brand h1 { margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.04em; white-space: nowrap; }
+    .brand .sub { margin: 2px 0 0; color: var(--muted); font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+    .hdr-metrics {
+      display: flex; align-items: center; gap: 8px; margin-left: 8px; flex: 1; min-width: 0;
+      justify-content: center; flex-wrap: wrap;
+    }
+    .hdr-metric {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 14px;
+      background: var(--faint); border: 0.5px solid var(--border);
+      min-width: 108px;
+    }
+    .hdr-metric svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; }
+    .hdr-metric .hm-n { font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .hdr-metric .hm-l { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .hdr-metric.warn svg, .hdr-metric.warn .hm-n { color: var(--warn); }
+    .hdr-metric.danger svg, .hdr-metric.danger .hm-n { color: var(--danger); }
+    .top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .tabs {
+      display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px;
+      padding: 5px; border-radius: 14px;
+      background: var(--faint); border: 0.5px solid var(--border);
+      position: relative; z-index: 1;
+    }
+    .tab {
+      appearance: none; border: 0; cursor: pointer; font-family: inherit;
+      padding: 7px 12px; border-radius: 10px; font-size: 0.8rem; font-weight: 550;
+      background: transparent; color: var(--muted);
+    }
+    .tab:hover { color: var(--text); background: rgba(var(--accent-rgb),0.08); }
+    .tab.active { color: var(--text); background: rgba(var(--accent-rgb),0.18); box-shadow: var(--inset); }
+    .panel { display: none; position: relative; z-index: 0; }
+    .panel.active { display: block; }
+    .grid3 {
+      display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 12px; align-items: stretch;
+    }
+    .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-top: 12px; align-items: stretch; }
+    .span-2 { grid-column: 1 / -1; }
+    @media (max-width: 1100px) {
+      .hdr-metrics { order: 3; flex: 1 1 100%; justify-content: flex-start; margin: 4px 0 0; }
+      .grid3, .grid2 { grid-template-columns: 1fr; }
+      .topbar { flex-wrap: wrap; }
+    }
+    .glass {
+      background: var(--glass);
+      border: 0.5px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+      -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .grid3 > .glass, .grid2 > .glass, .grid > .glass { height: 100%; }
+    .glass::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      box-shadow: var(--inset);
+    }
+    .glass h2 {
+      margin: 0 0 10px; font-size: 0.68rem; font-weight: 650;
+      letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted);
+    }
+    .row {
+      display: flex; justify-content: space-between; gap: 10px; align-items: center;
+      padding: 6px 0; border-bottom: 0.5px solid var(--faint); font-size: 0.86rem;
+    }
     .row:last-child { border-bottom: none; }
     .label { color: var(--muted); }
-    .val { text-align: right; word-break: break-all; }
+    .val { text-align: right; word-break: break-all; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.76rem; }
     .badge {
-      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+      border: 0.5px solid var(--border);
+    }
+    .badge.ok { color: var(--ok); background: rgba(52,199,89,0.12); }
+    .badge.err { color: var(--danger); background: rgba(255,59,48,0.12); }
+    .badge.warn { color: var(--warn); background: rgba(255,159,28,0.12); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    /* Horizontal meters — pas de faux sparkline */
+    .meters { display: flex; flex-direction: column; gap: 14px; }
+    .meter { display: grid; grid-template-columns: 88px 1fr 48px; gap: 10px; align-items: center; }
+    .meter .ml {
+      display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted);
+    }
+    .meter .ml svg { width: 15px; height: 15px; color: var(--accent); }
+    .meter .track {
+      height: 10px; border-radius: 999px; background: rgba(var(--accent-rgb),0.12);
+      overflow: hidden; border: 0.5px solid var(--border);
+    }
+    .meter .track > i {
+      display: block; height: 100%; border-radius: inherit; width: 0%;
+      background: linear-gradient(90deg, rgba(var(--accent-rgb),0.55), var(--accent));
+      transition: width 0.35s ease;
+    }
+    .meter.warn .track > i { background: linear-gradient(90deg, #e0a020, var(--warn)); }
+    .meter.danger .track > i { background: linear-gradient(90deg, #e05040, var(--danger)); }
+    .meter.warn .ml svg, .meter.danger .ml svg { color: inherit; }
+    .meter.warn .ml { color: var(--warn); }
+    .meter.danger .ml { color: var(--danger); }
+    .meter .mv { font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; font-size: 0.9rem; }
+    .kpi-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .kpi {
+      flex: 1; min-width: 90px; padding: 10px 12px; border-radius: 12px;
+      background: var(--faint); border: 0.5px solid var(--border);
+    }
+    .kpi .k { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi .v { font-size: 1rem; font-weight: 650; margin-top: 2px; letter-spacing: -0.02em; }
+    .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .action-pill {
+      appearance: none; cursor: pointer; font-family: inherit; color: var(--text);
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-radius: 999px;
+      background: var(--faint); border: 0.5px solid var(--border);
+      font-size: 0.82rem; font-weight: 550;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .action-pill:hover { background: rgba(var(--accent-rgb),0.14); border-color: rgba(var(--accent-rgb),0.4); }
+    .action-pill svg { width: 15px; height: 15px; opacity: 0.85; }
+    .icon-btn {
+      appearance: none; cursor: pointer; width: 38px; height: 38px; border-radius: 11px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--faint); border: 0.5px solid var(--border); color: var(--text);
+      position: relative; padding: 0;
+    }
+    .icon-btn:hover { background: rgba(var(--accent-rgb),0.14); }
+    .icon-btn svg { width: 17px; height: 17px; }
+    .icon-btn .notif-dot {
+      position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--danger); box-shadow: 0 0 0 2px var(--bg1); display: none;
+    }
+    .icon-btn .notif-dot.on { display: block; }
+    .notif-wrap { position: relative; z-index: 210; }
+    .notif-panel {
+      display: none; position: absolute; right: 0; top: calc(100% + 8px); width: 320px; max-height: 380px;
+      overflow: auto; z-index: 1000; padding: 10px; border-radius: 16px;
+      background: var(--bg1); border: 0.5px solid var(--border); box-shadow: var(--shadow);
+      backdrop-filter: blur(24px) saturate(160%);
+      -webkit-backdrop-filter: blur(24px) saturate(160%);
+    }
+    .notif-panel.open { display: block; }
+    .notif-panel h3 { margin: 0 0 8px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .notif-item {
+      padding: 9px; border-radius: 11px; margin-bottom: 6px;
+      background: var(--faint); border: 0.5px solid var(--border); font-size: 0.78rem;
+    }
+    .notif-item .t { font-weight: 600; }
+    .notif-item .m { color: var(--muted); font-size: 0.7rem; margin-top: 2px; }
+    .notif-item.level-warn .t { color: var(--warn); }
+    .notif-item.level-danger .t { color: var(--danger); }
+    .notif-item.level-ok .t { color: var(--ok); }
+    .callout {
+      font-size: 0.8rem; color: var(--muted); line-height: 1.45;
+      padding: 11px 13px; border-radius: 12px; background: var(--faint);
+      border: 0.5px solid var(--border);
+    }
+    .callout strong { color: var(--text); font-weight: 600; }
+    .intents { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .intent {
+      appearance: none; cursor: pointer; text-align: left; font-family: inherit;
+      padding: 12px; border-radius: 14px;
+      background: var(--faint); border: 0.5px solid var(--border); color: var(--text);
+    }
+    .intent:hover { background: rgba(var(--accent-rgb),0.12); }
+    .intent .t { font-size: 0.84rem; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 7px; }
+    .intent .t svg { width: 15px; height: 15px; }
+    .intent .d { font-size: 0.7rem; color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    button.btn, .btn {
+      appearance: none; cursor: pointer; border-radius: 999px; font-family: inherit;
+      padding: 8px 14px; font-size: 0.8rem; font-weight: 550;
+      background: var(--faint); border: 0.5px solid var(--border); color: var(--text);
+    }
+    button.btn.primary { background: rgba(var(--accent-rgb),0.92); border-color: transparent; color: #fff; }
+    button.btn.danger { color: var(--danger); border-color: rgba(255,59,48,0.35); }
+    label.field { display: block; font-size: 0.72rem; color: var(--muted); margin: 10px 0 4px; }
+    input[type=text], input[type=url], input[type=number], select {
+      width: 100%; padding: 10px 12px; border-radius: 12px; font-family: inherit;
+      border: 0.5px solid var(--border); background: var(--input-bg); color: var(--text);
+    }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.85rem; color: var(--muted); }
+    .note { font-size: 0.75rem; color: var(--muted); margin-top: 12px; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+    .toolbar input { flex: 1; min-width: 160px; }
+    .table-wrap { overflow: auto; max-height: min(60vh, 520px); border-radius: 14px; border: 0.5px solid var(--border); width: 100%; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 0.5px solid var(--faint); }
+    th { position: sticky; top: 0; background: var(--bg1); color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    tr:hover td { background: rgba(var(--accent-rgb),0.06); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; border: 0.5px solid var(--border); }
+    .pill.on { color: var(--ok); }
+    .pill.off { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .host-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 7px 11px; border-radius: 14px;
+      background: var(--faint); border: 0.5px solid var(--border);
+      font-size: 0.74rem; color: var(--muted); max-width: 280px;
+    }
+    .host-chip svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .host-chip svg.win-logo, .os-badge svg.win-logo { color: #3db4ff; }
+    .host-health {
+      margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(255,59,48,0.1); border: 0.5px solid rgba(255,59,48,0.35);
+      font-size: 0.78rem; color: var(--text); display: none;
+    }
+    .host-health.on { display: block; }
+    .host-health.warn {
+      background: rgba(255,159,28,0.12); border-color: rgba(255,159,28,0.4);
+    }
+    .host-health .hh-t { font-weight: 650; margin-bottom: 4px; }
+    .host-health li { margin: 2px 0 0 1.1em; color: var(--muted); }
+    .host-chip .ip { color: var(--text); font-family: ui-monospace, Menlo, monospace; font-size: 0.78rem; }
+    .host-chip .osn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .os-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 12px;
+      background: rgba(var(--accent-rgb),0.12); border: 0.5px solid var(--border);
       font-size: 0.78rem; font-weight: 600;
     }
-    .badge.ok { background: rgba(61,214,140,.15); color: var(--ok); }
-    .badge.err { background: rgba(255,107,107,.15); color: var(--err); }
-    .badge.neutral { background: rgba(139,149,168,.15); color: var(--muted); }
-    label { display: block; font-size: 0.82rem; color: var(--muted); margin: 10px 0 4px; }
-    input[type=text], input[type=url] {
-      width: 100%; padding: 8px 10px; border-radius: 8px;
-      border: 1px solid var(--border); background: #0c0e14; color: var(--text);
+    .os-badge svg { width: 18px; height: 18px; color: var(--accent); }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: var(--text); }
+    th.sortable .sort { opacity: 0.35; margin-left: 4px; font-size: 0.65rem; }
+    th.sortable.asc .sort, th.sortable.desc .sort { opacity: 1; color: var(--accent); }
+    .view-toggle { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--faint); border: 0.5px solid var(--border); }
+    .view-toggle button {
+      appearance: none; border: 0; cursor: pointer; font-family: inherit;
+      width: 32px; height: 28px; border-radius: 8px; background: transparent; color: var(--muted);
+      display: inline-flex; align-items: center; justify-content: center;
     }
-    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.9rem; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    button {
-      border: 1px solid var(--border); background: #1e2430; color: var(--text);
-      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.88rem;
+    .view-toggle button.active { background: rgba(var(--accent-rgb),0.2); color: var(--text); }
+    .view-toggle svg { width: 14px; height: 14px; }
+    .app-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .app-ico {
+      width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+      background: rgba(var(--accent-rgb),0.14); border: 0.5px solid var(--border);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 700; color: var(--accent); overflow: hidden;
     }
-    button.primary { background: var(--accent); border-color: var(--accent); color: #041018; font-weight: 600; }
-    button:hover { filter: brightness(1.08); }
-    .probe { font-size: 0.85rem; padding: 4px 0; }
-    .note { font-size: 0.8rem; color: var(--muted); margin-top: 16px; }
-    #toast { position: fixed; bottom: 16px; right: 16px; background: #1e2430;
-      border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px;
-      display: none; font-size: 0.85rem; }
+    .app-ico img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .app-ico.fallback { letter-spacing: -0.02em; }
+    .app-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .data-shell { width: 100%; min-width: 0; display: block; }
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      width: 100%;
+      max-width: 100%;
+      max-height: min(65vh, 640px);
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 4px 2px 8px;
+      box-sizing: border-box;
+    }
+    .app-card {
+      appearance: none; text-align: left; font-family: inherit; color: var(--text);
+      padding: 12px; border-radius: 14px; cursor: default;
+      background: var(--faint); border: 0.5px solid var(--border);
+      display: flex; flex-direction: column; gap: 8px; min-height: 108px;
+      min-width: 0; max-width: 100%; overflow: hidden; box-sizing: border-box;
+    }
+    .app-card .top { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+    .app-card .app-ico { width: 36px; height: 36px; border-radius: 10px; font-size: 0.85rem; flex-shrink: 0; }
+    .app-card .title {
+      font-size: 0.84rem; font-weight: 600; line-height: 1.25; min-width: 0; flex: 1;
+      overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      word-break: break-word;
+    }
+    .app-card .meta { font-size: 0.68rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; }
+    .pill.run { color: var(--ok); border-color: rgba(52,199,89,0.35); }
+    .pill.no { color: var(--muted); }
+    .seg {
+      display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px;
+      background: var(--faint); border: 0.5px solid var(--border); flex-wrap: wrap;
+    }
+    .seg button {
+      appearance: none; border: 0; cursor: pointer; font-family: inherit;
+      padding: 6px 10px; border-radius: 8px; font-size: 0.72rem; font-weight: 550;
+      background: transparent; color: var(--muted);
+    }
+    .seg button.on { background: rgba(var(--accent-rgb),0.2); color: var(--text); }
+    .data-shell.list .app-grid { display: none !important; }
+    .data-shell.grid .table-wrap { display: none !important; }
+    .data-shell.grid .app-grid { display: grid !important; }
+    #tab-apps > .glass,
+    #tab-caps .data-shell { width: 100%; }
+    #tab-apps > .glass { overflow: visible; }
+
+    #toast {
+
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,22,28,0.92); color: #fff; border: 0.5px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(20px); padding: 10px 16px; border-radius: 999px;
+      display: none; font-size: 0.82rem; box-shadow: var(--shadow); z-index: 40;
+    }
+    [data-theme="light"] #toast { background: rgba(255,255,255,0.92); color: #111; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>JARVIS Agent Windows</h1>
-    <p class="sub">Panneau config local · habillage glass à brancher plus tard sur le HUD</p>
-
-    <div class="card">
-      <h2>Connexion Core</h2>
-      <div class="row"><span class="label">Agent WebSocket</span><span class="val" id="wsConnected">—</span></div>
-      <div class="row"><span class="label">Core HTTP</span><span class="val" id="coreReach">—</span></div>
-      <div class="row"><span class="label">Mode réseau</span><span class="val" id="modeLabel">—</span></div>
-      <div class="row"><span class="label">URL WebSocket</span><span class="val" id="wsUrl">—</span></div>
-      <div class="row"><span class="label">HUD</span><span class="val" id="hudUrl">—</span></div>
-      <div class="row"><span class="label">Device ID</span><span class="val" id="deviceId">—</span></div>
-      <div class="row"><span class="label">Inventaire</span><span class="val" id="inventory">—</span></div>
-    </div>
-
-    <div class="card">
-      <h2>Tests réseau</h2>
-      <div id="probes">Chargement…</div>
-      <div class="actions">
-        <button type="button" id="btnProbe">Retester</button>
-        <button type="button" class="primary" id="btnDiscover">Auto-découverte</button>
+  <div class="shell">
+    <header class="topbar">
+      <div class="orb" id="orb"><img src="/assets/orb-panel.png" alt="" width="44" height="44" /></div>
+      <div class="brand">
+        <h1>JARVIS Agent</h1>
+        <p class="sub" id="heroSub">PC ↔ Core</p>
       </div>
-    </div>
+      <div class="host-chip" id="hostChip" title="Hôte">
+        <svg class="win-logo" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4.5 11.2 3.3v8.2H3V4.5zm9.3-1.4L21 1.8v9.7h-8.7V3.1zM3 12.7h8.2v8.2L3 19.7v-7zm9.3.1H21V22l-8.7-1.3v-8z"/></svg>
+        <div>
+          <div class="ip" id="hdrIp">—</div>
+          <div class="osn" id="hdrOs">Windows</div>
+        </div>
+      </div>
+      <div class="hdr-metrics" aria-label="Santé PC">
+        <div class="hdr-metric" id="hdrCpu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+          <div><div class="hm-n" id="mCpu">—</div><div class="hm-l">CPU</div></div>
+        </div>
+        <div class="hdr-metric" id="hdrRam">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7V5m5 2V5m5 2V5M7 19v-2m5 2v-2m5 2v-2"/></svg>
+          <div><div class="hm-n" id="mRam">—</div><div class="hm-l">RAM</div></div>
+        </div>
+        <div class="hdr-metric" id="hdrDisk">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+          <div><div class="hm-n" id="mDisk">—</div><div class="hm-l">Disque</div></div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span id="connBadge" class="badge warn"><span class="dot"></span>—</span>
+        <div class="notif-wrap">
+          <button type="button" class="icon-btn" id="btnNotif" title="Notifications" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>
+            <span class="notif-dot" id="notifDot"></span>
+          </button>
+          <div class="notif-panel" id="notifPanel">
+            <h3>Événements</h3>
+            <div id="notifList"></div>
+            <div class="actions"><button type="button" class="btn" id="btnNotifClear">Tout marquer lu</button></div>
+          </div>
+        </div>
+        <button type="button" class="icon-btn" id="btnTheme" title="Clair / Nuit" aria-label="Thème">
+          <svg id="icoSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg id="icoMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z"/></svg>
+        </button>
+        <button type="button" class="btn primary" id="btnHud">HUD</button>
+      </div>
+    </header>
 
-    <div class="card">
-      <h2>Paramètres</h2>
-      <label for="cfgWs">JARVIS_WS_URL</label>
-      <input type="url" id="cfgWs" placeholder="ws://192.168.1.37:8080/ws" />
-      <label for="cfgHud">JARVIS_HUD_URL</label>
-      <input type="url" id="cfgHud" placeholder="http://192.168.1.37:8080" />
-      <label for="cfgLabel">JARVIS_AGENT_LABEL</label>
-      <input type="text" id="cfgLabel" />
-      <label for="cfgNuc">JARVIS_NUC_HOST</label>
-      <input type="text" id="cfgNuc" placeholder="192.168.1.37" />
-      <div class="check">
-        <input type="checkbox" id="cfgForce" />
-        <label for="cfgForce" style="margin:0">Forcer l'URL (ignorer auto-découverte)</label>
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab active" data-tab="overview">Vue</button>
+      <button type="button" class="tab" data-tab="apps">Apps</button>
+      <button type="button" class="tab" data-tab="caps">Capabilities</button>
+      <button type="button" class="tab" data-tab="sync">Sync</button>
+      <button type="button" class="tab" data-tab="automations">Automatismes</button>
+      <button type="button" class="tab" data-tab="settings">Paramètres</button>
+    </nav>
+
+    <!-- OVERVIEW -->
+    <section class="panel active" id="tab-overview">
+      <div class="grid3">
+        <div class="glass">
+          <h2>Hôte</h2>
+          <div class="os-badge" style="margin-bottom:10px">
+            <svg class="win-logo" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4.5 11.2 3.3v8.2H3V4.5zm9.3-1.4L21 1.8v9.7h-8.7V3.1zM3 12.7h8.2v8.2L3 19.7v-7zm9.3.1H21V22l-8.7-1.3v-8z"/></svg>
+            <span id="hostOsProduct">Windows</span>
+          </div>
+          <div class="row"><span class="label">Hostname</span><span class="val" id="hostName">—</span></div>
+          <div class="row"><span class="label">IP locale</span><span class="val" id="hostIp">—</span></div>
+          <div class="row"><span class="label">Autres IP</span><span class="val" id="hostIps">—</span></div>
+          <div class="row"><span class="label">Version OS</span><span class="val" id="hostRelease">—</span></div>
+          <div class="row"><span class="label">Architecture</span><span class="val" id="hostArch">—</span></div>
+          <div class="row"><span class="label">Utilisateur</span><span class="val" id="hostUser">—</span></div>
+          <div class="row"><span class="label">CPU logique</span><span class="val" id="hostCpuN">—</span></div>
+          <div class="row"><span class="label">Dossier agent</span><span class="val" id="hostAgentDir">—</span></div>
+          <div class="host-health" id="hostHealth"><div class="hh-t">Points d’attention</div><ul id="hostHealthList"></ul></div>
+        </div>
+        <div class="glass">
+          <h2>Connexion</h2>
+          <div class="row"><span class="label">État</span><span class="val" id="wsConnected">—</span></div>
+          <div class="row"><span class="label">Core HTTP</span><span class="val" id="coreReach">—</span></div>
+          <div class="row"><span class="label">Réseau</span><span class="val" id="modeLabel">—</span></div>
+          <div class="row"><span class="label">WebSocket</span><span class="val" id="wsUrl">—</span></div>
+          <div class="row"><span class="label">Device</span><span class="val" id="deviceId">—</span></div>
+          <div class="row"><span class="label">Uptime</span><span class="val" id="uptime">—</span></div>
+        </div>
+        <div class="glass">
+          <h2>Flux</h2>
+          <div class="row"><span class="label">Messages ↑</span><span class="val" id="txMsg">—</span></div>
+          <div class="row"><span class="label">Volume ↑</span><span class="val" id="txBytes">—</span></div>
+          <div class="row"><span class="label">Messages ↓</span><span class="val" id="rxMsg">—</span></div>
+          <div class="row"><span class="label">Bruit HUD ↓</span><span class="val" id="rxNoise">—</span></div>
+          <div class="row"><span class="label">Commandes ↓</span><span class="val" id="rxCmd">—</span></div>
+          <div class="row"><span class="label">Inventaire</span><span class="val" id="inventory">—</span></div>
+        </div>
       </div>
-      <div class="actions">
-        <button type="button" class="primary" id="btnSave">Enregistrer</button>
-        <button type="button" id="btnOpenHud">Ouvrir HUD</button>
+      <div class="grid2">
+        <div class="glass">
+          <h2>Charge machine</h2>
+          <div class="meters">
+            <div class="meter" id="meterCpu">
+              <div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
+              <div class="track"><i id="barCpu"></i></div>
+              <div class="mv" id="mvCpu">—</div>
+            </div>
+            <div class="meter" id="meterRam">
+              <div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7V5m5 2V5m5 2V5M7 19v-2m5 2v-2m5 2v-2"/></svg>RAM</div>
+              <div class="track"><i id="barRam"></i></div>
+              <div class="mv" id="mvRam">—</div>
+            </div>
+            <div class="meter" id="meterDisk">
+              <div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/></svg>Disque</div>
+              <div class="track"><i id="barDisk"></i></div>
+              <div class="mv" id="mvDisk">—</div>
+            </div>
+          </div>
+          <div class="kpi-row">
+            <div class="kpi"><div class="k">Processus</div><div class="v" id="stProc">—</div></div>
+            <div class="kpi"><div class="k">RAM totale</div><div class="v" id="stRamGb">—</div></div>
+            <div class="kpi"><div class="k">Disque</div><div class="v" id="stDiskGb">—</div></div>
+            <div class="kpi"><div class="k">Caps</div><div class="v" id="stCaps">—</div></div>
+          </div>
+          <div class="actions-row" style="margin-top:12px">
+            <button type="button" class="action-pill" data-intent="health"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19h16M6 16V9m4 7V5m4 11v-4m4 4V7"/></svg>Analyser</button>
+            <button type="button" class="action-pill" data-intent="refresh_inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>Rescan</button>
+            <button type="button" class="action-pill" data-intent="discover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Redécouvrir</button>
+          </div>
+        </div>
+        <div class="glass">
+          <h2>Session</h2>
+          <div class="row"><span class="label">Dernière action</span><span class="val" id="stLastAct">—</span></div>
+          <div class="row"><span class="label">Reconnexions</span><span class="val" id="stReconn">—</span></div>
+          <div class="row"><span class="label">Apps lançables</span><span class="val" id="stApps">—</span></div>
+          <div class="row"><span class="label">Config</span><span class="val" id="hostConfigDir">—</span></div>
+          <div class="row"><span class="label">Version</span><span class="val" id="stVer">—</span></div>
+          <div class="callout" style="margin-top:12px">
+            <strong>USER → Hermes → Core → Policy → Agent → OS</strong><br>
+            Push inventaire / heartbeat. Core → commandes ciblées seulement.
+          </div>
+        </div>
       </div>
-      <p class="note">Config : <span id="configPath">—</span><br>
-      Redémarrez l'agent après changement (tâche planifiée ou relance manuelle).</p>
-    </div>
+    </section>
+
+    <!-- APPS -->
+    <section class="panel" id="tab-apps">
+      <div class="glass span-2">
+        <h2>Applications inventoriées</h2>
+        <div class="toolbar">
+          <input type="text" id="appQ" placeholder="Filtrer (nom ou app_id)…" />
+          <div class="seg" id="appFilterSeg" title="Filtre">
+            <button type="button" class="on" data-filter="all">Tous</button>
+            <button type="button" data-filter="launchable">Lançables</button>
+            <button type="button" data-filter="running">Actifs</button>
+            <button type="button" data-filter="nolaunch">Non lançables</button>
+          </div>
+          <div class="view-toggle" id="appsViewToggle">
+            <button type="button" class="active" data-view="list" title="Liste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+            <button type="button" data-view="grid" title="Grille"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+          </div>
+          <button type="button" class="btn" id="btnAppsReload">Actualiser</button>
+        </div>
+        <div class="data-shell list" id="appsShell">
+          <div class="table-wrap">
+            <table id="appsTable">
+              <thead>
+                <tr>
+                  <th class="sortable" data-key="name">Nom <span class="sort">↕</span></th>
+                  <th class="sortable" data-key="app_id">ID <span class="sort">↕</span></th>
+                  <th class="sortable" data-key="source">Source <span class="sort">↕</span></th>
+                  <th class="sortable" data-key="running">Actif <span class="sort">↕</span></th>
+                  <th class="sortable" data-key="launchable">Lançable <span class="sort">↕</span></th>
+                </tr>
+              </thead>
+              <tbody id="appsBody"><tr><td colspan="5">Chargement…</td></tr></tbody>
+            </table>
+          </div>
+          <div class="app-grid" id="appsGrid"></div>
+        </div>
+        <p class="note" id="appsMeta">—</p>
+      </div>
+    </section>
+
+    <!-- CAPS -->
+    <section class="panel" id="tab-caps">
+      <div class="grid">
+        <div class="glass">
+          <h2>Capabilities système</h2>
+          <div class="table-wrap" style="max-height:360px">
+            <table>
+              <thead><tr><th>ID</th><th>Valeur</th><th>Statut</th></tr></thead>
+              <tbody id="capsSysBody"><tr><td colspan="3">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="glass">
+          <h2>Relation Core / Hermes</h2>
+          <div class="callout" id="capsRelation">—</div>
+          <div class="row"><span class="label">Total caps</span><span class="val" id="capsTotal">—</span></div>
+          <div class="row"><span class="label">app.software.*</span><span class="val" id="capsSoft">—</span></div>
+          <div class="actions">
+            <button type="button" class="btn" id="btnCapsReload">Recharger</button>
+          </div>
+        </div>
+        <div class="glass span-2">
+          <h2>Échantillon logiciels (40)</h2>
+          <div class="toolbar">
+            <input type="text" id="softQ" placeholder="Filtrer l’échantillon…" />
+            <div class="seg" id="softFilterSeg">
+              <button type="button" class="on" data-filter="all">Tous</button>
+              <button type="button" data-filter="launchable">Lançables</button>
+              <button type="button" data-filter="running">Actifs</button>
+            </div>
+            <div class="view-toggle" id="softViewToggle">
+              <button type="button" class="active" data-view="list" title="Liste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+              <button type="button" data-view="grid" title="Grille"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+            </div>
+          </div>
+          <div class="data-shell list" id="softShell">
+            <div class="table-wrap">
+              <table id="softTable">
+                <thead>
+                  <tr>
+                    <th class="sortable" data-key="display_name">App <span class="sort">↕</span></th>
+                    <th class="sortable" data-key="capability_id">capability_id <span class="sort">↕</span></th>
+                    <th class="sortable" data-key="running">Actif <span class="sort">↕</span></th>
+                    <th class="sortable" data-key="launchable">Lançable <span class="sort">↕</span></th>
+                  </tr>
+                </thead>
+                <tbody id="capsSoftBody"><tr><td colspan="4">—</td></tr></tbody>
+              </table>
+            </div>
+            <div class="app-grid" id="softGrid"></div>
+          </div>
+          <p class="note" id="softMeta">—</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SYNC -->
+    <section class="panel" id="tab-sync">
+      <div class="grid">
+        <div class="glass span-2">
+          <h2>Pourquoi des milliers de Messages ↓ ?</h2>
+          <div class="callout" id="syncExplain">—</div>
+        </div>
+        <div class="glass">
+          <h2>Compteurs</h2>
+          <div class="row"><span class="label">↓ total</span><span class="val" id="sRecv">—</span></div>
+          <div class="row"><span class="label">↓ bruit HUD</span><span class="val" id="sNoise">—</span></div>
+          <div class="row"><span class="label">↓ commandes</span><span class="val" id="sCmd">—</span></div>
+          <div class="row"><span class="label">↓ acks</span><span class="val" id="sAck">—</span></div>
+          <div class="row"><span class="label">↑ total</span><span class="val" id="sSent">—</span></div>
+          <div class="row"><span class="label">Reconnexions</span><span class="val" id="reconnects">—</span></div>
+        </div>
+        <div class="glass">
+          <h2>Envois par action ↑</h2>
+          <div class="table-wrap" style="max-height:280px">
+            <table>
+              <thead><tr><th>Action</th><th>Count</th></tr></thead>
+              <tbody id="sentBody"><tr><td colspan="2">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="glass span-2">
+          <h2>Types reçus ↓ (top)</h2>
+          <div class="table-wrap" style="max-height:240px">
+            <table>
+              <thead><tr><th>Type</th><th>Count</th></tr></thead>
+              <tbody id="recvBody"><tr><td colspan="2">—</td></tr></tbody>
+            </table>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn danger" id="btnClearTel">Vider télémétrie</button>
+            <button type="button" class="btn" id="btnClearAll">Vider cache + inventaire</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AUTOMATIONS -->
+    <section class="panel" id="tab-automations">
+      <div class="glass">
+        <h2>Automatismes locaux</h2>
+        <div class="callout">Réglages persistés dans <code>%ProgramData%\JARVIS\automations.json</code>. Certains exigent un redémarrage de l’agent.</div>
+        <div class="check"><input type="checkbox" id="autoInvChange" checked disabled /> <label for="autoInvChange" style="margin:0">Push inventaire seulement si changé (toujours actif en 0.5.0)</label></div>
+        <div class="check"><input type="checkbox" id="autoHbMetrics" /> <label for="autoHbMetrics" style="margin:0">Métriques à chaque heartbeat (désactivé = moins de spam ↑)</label></div>
+        <div class="check"><input type="checkbox" id="autoHudHttps" checked /> <label for="autoHudHttps" style="margin:0">HUD navigateur forcé HTTPS FQDN</label></div>
+        <div class="check"><input type="checkbox" id="autoRediscover" /> <label for="autoRediscover" style="margin:0">Redécouvrir Core après déconnexion (prévu — flag stocké)</label></div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="btnAutoSave">Enregistrer automatismes</button>
+        </div>
+        <p class="note" id="autoNotes">—</p>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="panel" id="tab-settings">
+      <div class="grid">
+        <div class="glass span-2">
+          <h2>Paramètres de communication</h2>
+          <label class="field" for="cfgWs">JARVIS_WS_URL (agent ↔ Core)</label>
+          <input type="url" id="cfgWs" placeholder="ws://192.168.1.37:8080/ws" />
+          <label class="field" for="cfgHud">JARVIS_HUD_URL (navigateur — HTTPS)</label>
+          <input type="url" id="cfgHud" placeholder="https://jarvis.global-it-ss.com" />
+          <label class="field" for="cfgLabel">JARVIS_AGENT_LABEL</label>
+          <input type="text" id="cfgLabel" />
+          <div class="grid" style="margin-top:8px">
+            <div>
+              <label class="field" for="cfgPoll">Inventaire poll (s)</label>
+              <input type="number" id="cfgPoll" min="15" max="600" step="5" />
+            </div>
+            <div>
+              <label class="field" for="cfgHb">Heartbeat (s)</label>
+              <input type="number" id="cfgHb" min="10" max="120" step="5" />
+            </div>
+          </div>
+          <div class="check"><input type="checkbox" id="cfgForce" /> <label for="cfgForce" style="margin:0">Forcer l’URL WS (ignorer auto-découverte)</label></div>
+          <div class="check"><input type="checkbox" id="cfgHbMet" /> <label for="cfgHbMet" style="margin:0">JARVIS_HEARTBEAT_METRICS</label></div>
+          <div class="check"><input type="checkbox" id="cfgAppx" checked /> <label for="cfgAppx" style="margin:0">Scanner AppX (plus lent)</label></div>
+          <div class="actions">
+            <button type="button" class="btn primary" id="btnSave">Enregistrer</button>
+            <button type="button" class="btn" id="btnProbe">Retester réseau</button>
+          </div>
+          <p class="note">Config : <span id="configPath">—</span> · Version <span id="agentVer">—</span></p>
+        </div>
+        <div class="glass span-2">
+          <h2>Workspaces Mission DEV</h2>
+          <p class="note">Le Core connaît <code>workspace_id</code> + device. Les chemins Windows se configurent ici.</p>
+          <label class="field" for="cfgWsRoot">JARVIS_WORKSPACE_ROOT (projets Laragon)</label>
+          <input type="text" id="cfgWsRoot" placeholder="C:\laragon\www" />
+          <label class="field" for="cfgWsMain">JARVIS_MAIN_LOCAL_PATH (jarvis-main)</label>
+          <input type="text" id="cfgWsMain" placeholder="C:\laragon\www\jarvis-os-linux" />
+          <div class="check"><input type="checkbox" id="cfgDevAgent" checked /> <label for="cfgDevAgent" style="margin:0">JARVIS_AGENT_DEV_AGENT (Claude / Cursor CLI)</label></div>
+          <p class="note" style="margin-top:10px">Bindings · <span id="bindingsPath">—</span></p>
+          <table class="table compact" id="wsBindingsTable">
+            <thead><tr><th>workspace_id</th><th>Chemin local</th><th></th></tr></thead>
+            <tbody id="wsBindingsBody"></tbody>
+          </table>
+          <div class="actions">
+            <button type="button" class="btn" id="btnWsAdd">+ Ajouter un repo</button>
+            <button type="button" class="btn primary" id="btnWsSave">Enregistrer workspaces</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
   <div id="toast"></div>
 
   <script>
     const $ = (id) => document.getElementById(id);
+
+    const letterHue = (s) => {
+      let h = 0;
+      for (let i = 0; i < (s || '').length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      return h % 360;
+    };
+    const appIconHtml = (row) => {
+      const name = row.name || row.display_name || row.app_id || '?';
+      const letter = (name.trim()[0] || '?').toUpperCase();
+      const hue = letterHue(row.app_id || name);
+      const bg = `hsla(${hue},55%,48%,0.22)`;
+      const id = 'ico_' + (row.app_id || '').replace(/[^a-z0-9_-]/gi, '_');
+      if (row.icon) {
+        return `<span class="app-ico" style="background:${bg}"><img id="${id}" src="${row.icon}" alt="" onerror="this.style.display='none';this.parentElement.classList.add('fallback');this.parentElement.textContent='${letter}'"/></span>`;
+      }
+      return `<span class="app-ico fallback" style="background:${bg};color:hsl(${hue},70%,62%)">${letter}</span>`;
+    };
+    const yesNo = (v, yesCls, noCls) =>
+      `<span class="pill ${v ? (yesCls || 'on') : (noCls || 'off')}">${v ? 'oui' : 'non'}</span>`;
+
+    const makeTableState = () => ({ rows: [], sortKey: 'name', sortDir: 1, filter: 'all', view: 'list', q: '' });
+    const appsState = makeTableState();
+    appsState.sortKey = 'name';
+    const softState = makeTableState();
+    softState.sortKey = 'display_name';
+    let wsBindings = [];
+
+    const renderWsBindings = () => {
+      const body = $('wsBindingsBody');
+      if (!body) return;
+      body.innerHTML = wsBindings.map((row, i) =>
+        '<tr><td><input type="text" data-i="'+i+'" data-k="workspace_id" value="'+(row.workspace_id||'').replace(/"/g,'&quot;')+'" style="width:100%"/></td>'+
+        '<td><input type="text" data-i="'+i+'" data-k="local_path" value="'+(row.local_path||'').replace(/"/g,'&quot;')+'" style="width:100%"/></td>'+
+        '<td><button type="button" class="btn" data-del="'+i+'">×</button></td></tr>'
+      ).join('') || '<tr><td colspan="3" class="note">Aucun binding — ajoutez jarvis-main</td></tr>';
+      body.querySelectorAll('input[data-i]').forEach((inp) => {
+        inp.onchange = () => {
+          const idx = +inp.dataset.i;
+          const key = inp.dataset.k;
+          if (wsBindings[idx]) wsBindings[idx][key] = inp.value.trim();
+        };
+      });
+      body.querySelectorAll('button[data-del]').forEach((btn) => {
+        btn.onclick = () => {
+          wsBindings.splice(+btn.dataset.del, 1);
+          renderWsBindings();
+        };
+      });
+    };
+
+    async function loadWorkspaces() {
+      const r = await fetch('/api/workspaces');
+      const d = await r.json();
+      if (!d.ok) return;
+      const cfg = d.config || {};
+      if ($('cfgWsRoot')) $('cfgWsRoot').value = cfg.JARVIS_WORKSPACE_ROOT || d.workspace_root || '';
+      if ($('cfgWsMain')) $('cfgWsMain').value = cfg.JARVIS_MAIN_LOCAL_PATH || '';
+      if ($('cfgDevAgent')) $('cfgDevAgent').checked = !['0','false','no'].includes(String(cfg.JARVIS_AGENT_DEV_AGENT || '1').toLowerCase());
+      if ($('bindingsPath')) $('bindingsPath').textContent = d.bindings_path || '—';
+      wsBindings = (d.bindings || []).map((b) => ({ workspace_id: b.workspace_id, local_path: b.local_path }));
+      renderWsBindings();
+    }
+
+    const sortRows = (rows, key, dir) => {
+      const copy = rows.slice();
+      copy.sort((a, b) => {
+        let va = a[key], vb = b[key];
+        if (typeof va === 'boolean') { va = va ? 1 : 0; vb = vb ? 1 : 0; }
+        va = (va == null ? '' : va).toString().toLowerCase();
+        vb = (vb == null ? '' : vb).toString().toLowerCase();
+        if (va < vb) return -1 * dir;
+        if (va > vb) return 1 * dir;
+        return 0;
+      });
+      return copy;
+    };
+    const filterApps = (rows, filter, q) => {
+      const needle = (q || '').trim().toLowerCase();
+      return rows.filter((r) => {
+        if (filter === 'launchable' && !r.launchable) return false;
+        if (filter === 'running' && !r.running) return false;
+        if (filter === 'nolaunch' && r.launchable) return false;
+        if (!needle) return true;
+        const blob = ((r.name || r.display_name || '') + ' ' + (r.app_id || '') + ' ' + (r.capability_id || '')).toLowerCase();
+        return blob.includes(needle);
+      });
+    };
+    const bindSortHeaders = (tableId, state, renderFn) => {
+      const table = $(tableId);
+      if (!table) return;
+      table.querySelectorAll('th.sortable').forEach((th) => {
+        th.onclick = () => {
+          const key = th.dataset.key;
+          if (state.sortKey === key) state.sortDir *= -1;
+          else { state.sortKey = key; state.sortDir = 1; }
+          table.querySelectorAll('th.sortable').forEach((x) => x.classList.remove('asc', 'desc'));
+          th.classList.add(state.sortDir > 0 ? 'asc' : 'desc');
+          renderFn();
+        };
+      });
+    };
+    const bindViewToggle = (toggleId, shellId, state, renderFn) => {
+      const toggle = $(toggleId);
+      const shell = $(shellId);
+      if (!toggle || !shell) return;
+      toggle.querySelectorAll('button').forEach((btn) => {
+        btn.onclick = () => {
+          toggle.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.view = btn.dataset.view;
+          shell.classList.toggle('list', state.view === 'list');
+          shell.classList.toggle('grid', state.view === 'grid');
+          renderFn();
+        };
+      });
+    };
+    const bindFilterSeg = (segId, state, renderFn) => {
+      const seg = $(segId);
+      if (!seg) return;
+      seg.querySelectorAll('button').forEach((btn) => {
+        btn.onclick = () => {
+          seg.querySelectorAll('button').forEach((b) => b.classList.remove('on'));
+          btn.classList.add('on');
+          state.filter = btn.dataset.filter;
+          renderFn();
+        };
+      });
+    };
+
+
     const toast = (msg) => {
       const t = $('toast'); t.textContent = msg; t.style.display = 'block';
       setTimeout(() => { t.style.display = 'none'; }, 2800);
     };
-    const badge = (ok, yes, no) => `<span class="badge ${ok ? 'ok' : 'err'}">${ok ? yes : no}</span>`;
-
-    function renderProbes(probes) {
-      $('probes').innerHTML = (probes || []).map(p =>
-        `<div class="probe">${badge(p.ok, 'OK', 'KO')} <strong>${p.mode}</strong> · ${p.probe_url}</div>`
-      ).join('') || '<span class="muted">Aucun probe</span>';
-    }
-
-    async function refresh() {
-      const r = await fetch('/api/status');
-      const d = await r.json();
-      $('wsConnected').innerHTML = badge(d.agent.connected, 'Connecté', 'Déconnecté');
-      $('coreReach').innerHTML = badge(d.core.reachable, 'Joignable', 'Injoignable');
-      $('modeLabel').textContent = d.core.mode_label + (d.core.forced ? ' (forcé)' : '');
-      $('wsUrl').textContent = d.core.ws_url || '—';
-      $('hudUrl').textContent = d.core.hud_url || '—';
-      $('deviceId').textContent = d.agent.device_id || '—';
-      $('inventory').textContent = d.inventory.total
-        ? `${d.inventory.launchable} lançables / ${d.inventory.total} apps`
-        : '—';
-      $('configPath').textContent = d.config_path || '—';
-      renderProbes(d.probes);
-
-      const c = d.config || {};
-      $('cfgWs').value = c.JARVIS_WS_URL || d.core.ws_url || '';
-      $('cfgHud').value = c.JARVIS_HUD_URL || d.core.hud_url || '';
-      $('cfgLabel').value = c.JARVIS_AGENT_LABEL || d.agent.label || '';
-      $('cfgNuc').value = c.JARVIS_NUC_HOST || '192.168.1.37';
-      $('cfgForce').checked = ['1','true','yes'].includes(String(c.JARVIS_WS_URL_FORCE || '').toLowerCase());
-    }
-
-    $('btnProbe').onclick = async () => {
-      const r = await fetch('/api/probe', { method: 'POST' });
-      const d = await r.json();
-      renderProbes(d.probes);
-      toast('Tests réseau terminés');
+    const badge = (ok, yes, no) =>
+      `<span class="badge ${ok ? 'ok' : 'err'}"><span class="dot"></span>${ok ? yes : no}</span>`;
+    const fmtBytes = (n) => {
+      n = Number(n) || 0;
+      if (n < 1024) return n + ' o';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' Ko';
+      return (n / (1024 * 1024)).toFixed(2) + ' Mo';
+    };
+    const fmtUptime = (s) => {
+      s = Number(s) || 0;
+      const m = Math.floor(s / 60), h = Math.floor(m / 60);
+      if (h > 0) return h + ' h ' + (m % 60) + ' min';
+      if (m > 0) return m + ' min';
+      return s + ' s';
     };
 
-    $('btnDiscover').onclick = async () => {
-      const r = await fetch('/api/discover', { method: 'POST' });
+    /* Theme */
+    const themeKey = 'jarvis-agent-theme';
+    const applyTheme = (t) => {
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem(themeKey, t);
+      const night = t === 'night';
+      $('icoMoon').style.display = night ? 'none' : 'block';
+      $('icoSun').style.display = night ? 'block' : 'none';
+    };
+    applyTheme(localStorage.getItem(themeKey) || 'night');
+    $('btnTheme').onclick = () => {
+      const cur = document.documentElement.getAttribute('data-theme');
+      applyTheme(cur === 'night' ? 'light' : 'night');
+    };
+
+    /* Notifications */
+    const notifKey = 'jarvis-agent-notifs';
+    let prevSnap = null;
+    const loadNotifs = () => {
+      try { return JSON.parse(localStorage.getItem(notifKey) || '[]'); } catch { return []; }
+    };
+    const saveNotifs = (list) => localStorage.setItem(notifKey, JSON.stringify(list.slice(0, 40)));
+    const pushNotif = (title, msg, level) => {
+      const list = loadNotifs();
+      list.unshift({ title, msg, level: level || 'info', ts: Date.now(), unread: true });
+      saveNotifs(list);
+      renderNotifs();
+    };
+    const renderNotifs = () => {
+      const list = loadNotifs();
+      const unread = list.filter((x) => x.unread).length;
+      $('notifDot').classList.toggle('on', unread > 0);
+      $('notifList').innerHTML = list.length
+        ? list.slice(0, 12).map((n) => {
+            const ago = Math.max(0, Math.round((Date.now() - n.ts) / 60000));
+            return '<div class="notif-item level-'+(n.level||'info')+'"><div class="t">'+n.title+'</div><div class="m">'+n.msg+' · '+(ago < 1 ? 'à l’instant' : ago+' min')+'</div></div>';
+          }).join('')
+        : '<div class="notif-item"><div class="t">Aucun événement</div><div class="m">PC · Core · agent</div></div>';
+    };
+    $('btnNotif').onclick = (e) => {
+      e.stopPropagation();
+      $('notifPanel').classList.toggle('open');
+    };
+    document.addEventListener('click', () => $('notifPanel').classList.remove('open'));
+    $('notifPanel').addEventListener('click', (e) => e.stopPropagation());
+    $('btnNotifClear').onclick = () => {
+      const list = loadNotifs().map((n) => ({ ...n, unread: false }));
+      saveNotifs(list);
+      renderNotifs();
+    };
+    renderNotifs();
+
+    const setLoad = (hdrId, meterId, barId, mvId, val) => {
+      const n = Number(val);
+      const hdr = $(hdrId);
+      const meter = $(meterId);
+      hdr.classList.remove('warn', 'danger');
+      meter.classList.remove('warn', 'danger');
+      if (!Number.isFinite(n)) {
+        $(mvId).textContent = '—';
+        $(barId).style.width = '0%';
+        return;
+      }
+      const pct = Math.min(100, Math.max(0, n));
+      $(barId).style.width = pct + '%';
+      $(mvId).textContent = Math.round(pct) + '%';
+      if (n >= 90) { hdr.classList.add('danger'); meter.classList.add('danger'); }
+      else if (n >= 75) { hdr.classList.add('warn'); meter.classList.add('warn'); }
+    };
+
+    /* Tabs */
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        $('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'apps') loadApps();
+        if (btn.dataset.tab === 'caps') loadCaps();
+      });
+    });
+
+    async function loadStatus() {
+      const r = await fetch('/api/status');
       const d = await r.json();
-      if (!d.ok) { toast(d.error || 'Échec'); return; }
-      toast(`Core · ${d.mode_label}`);
-      await refresh();
+      const ag = d.agent || {};
+      const core = d.core || {};
+      const inv = d.inventory || {};
+      const tel = d.telemetry || {};
+      const met = d.metrics || ag.metrics || {};
+      const sync = d.sync || {};
+      const tune = d.tuning || {};
+      const auto = d.automations || {};
+
+      $('orb').classList.toggle('off', !ag.connected);
+      $('heroSub').textContent = ag.connected
+        ? ((ag.label || 'Connecté') + ' · v' + (ag.version || ''))
+        : (ag.last_error || 'Hors ligne');
+      const host = d.host || {};
+      const ip = host.primary_ip || (host.ips && host.ips[0]) || '—';
+      if ($('hdrIp')) $('hdrIp').textContent = ip;
+      if ($('hdrOs')) $('hdrOs').textContent = host.os_product || host.os || 'Windows';
+      if ($('hostOsProduct')) $('hostOsProduct').textContent = host.os_product || 'Windows';
+      if ($('hostName')) $('hostName').textContent = host.hostname || d.hostname || '—';
+      if ($('hostIp')) $('hostIp').textContent = ip;
+      if ($('hostIps')) $('hostIps').textContent = (host.ips && host.ips.length > 1) ? host.ips.slice(1).join(', ') : '—';
+      if ($('hostRelease')) $('hostRelease').textContent = host.os_release || '—';
+      if ($('hostArch')) $('hostArch').textContent = host.arch_label || host.arch || '—';
+      if ($('hostUser')) $('hostUser').textContent = host.user || '—';
+      if ($('hostCpuN')) $('hostCpuN').textContent = host.cpu_count != null ? host.cpu_count : '—';
+      if ($('hostAgentDir')) $('hostAgentDir').textContent = host.agent_dir || d.install_dir || '—';
+      if ($('hostConfigDir')) $('hostConfigDir').textContent = host.config_dir || d.config_path || '—';
+      /* Alertes PC (disque/RAM/agent) — pas des bugs d’affichage */
+      const healthEl = $('hostHealth');
+      const healthList = $('hostHealthList');
+      if (healthEl && healthList) {
+        const issues = [];
+        const diskP = Number(met.disk_percent);
+        const ramP = Number(met.ram_percent);
+        if (Number.isFinite(diskP) && diskP >= 90) issues.push('Disque C: à ' + Math.round(diskP) + '% — espace critique');
+        else if (Number.isFinite(diskP) && diskP >= 85) issues.push('Disque C: à ' + Math.round(diskP) + '% — espace faible');
+        if (Number.isFinite(ramP) && ramP >= 90) issues.push('RAM saturée (' + Math.round(ramP) + '%)');
+        if (!ag.connected) issues.push('Agent hors ligne (WebSocket Core)');
+        healthList.innerHTML = issues.map((x) => '<li>' + x + '</li>').join('');
+        healthEl.classList.toggle('on', issues.length > 0);
+        healthEl.classList.toggle('warn', issues.length > 0 && !(Number.isFinite(diskP) && diskP >= 90));
+      }
+      $('connBadge').className = 'badge ' + (ag.connected ? 'ok' : 'err');
+      $('connBadge').innerHTML = '<span class="dot"></span>' + (ag.connected ? 'Connecté' : 'Déconnecté');
+
+      $('wsConnected').innerHTML = badge(!!ag.connected, 'Connecté', 'Déconnecté');
+      $('coreReach').innerHTML = badge(!!core.reachable, 'Joignable', 'Injoignable');
+      $('modeLabel').textContent = core.mode_label || '—';
+      $('wsUrl').textContent = ag.ws_url || core.ws_url || '—';
+      $('deviceId').textContent = ag.device_id || '—';
+      $('uptime').textContent = fmtUptime(ag.uptime_s || tel.uptime_s);
+
+      const pct = (v) => (v == null || v === '' ? '—' : Math.round(Number(v)) + '%');
+      const cpuN = met.cpu_percent, ramN = met.ram_percent, diskN = met.disk_percent;
+      $('mCpu').textContent = pct(cpuN);
+      $('mRam').textContent = pct(ramN);
+      $('mDisk').textContent = pct(diskN);
+      setLoad('hdrCpu', 'meterCpu', 'barCpu', 'mvCpu', cpuN);
+      setLoad('hdrRam', 'meterRam', 'barRam', 'mvRam', ramN);
+      setLoad('hdrDisk', 'meterDisk', 'barDisk', 'mvDisk', diskN);
+      $('stProc').textContent = met.process_count != null ? met.process_count : '—';
+      $('stRamGb').textContent = met.ram_total_gb != null ? met.ram_total_gb + ' Go' : '—';
+      $('stDiskGb').textContent = met.disk_total_gb != null ? met.disk_total_gb + ' Go' : '—';
+      $('stCaps').textContent = tel.caps_last_count ?? '—';
+      $('stLastAct').textContent = tel.last_action || '—';
+      $('stReconn').textContent = tel.reconnects ?? '0';
+      $('stApps').textContent = inv.pending ? '…' : ((inv.launchable || 0) + '/' + (inv.total || 0));
+      $('stVer').textContent = ag.version || '—';
+
+      /* Events PC / Core / agent */
+      if (prevSnap) {
+        if (prevSnap.connected && !ag.connected) pushNotif('Agent déconnecté', 'Lien WebSocket Core perdu', 'danger');
+        if (!prevSnap.connected && ag.connected) pushNotif('Agent reconnecté', core.mode_label || 'Core joignable', 'ok');
+        if ((prevSnap.reconnects || 0) < (tel.reconnects || 0)) pushNotif('Reconnexion', 'Session WS rétablie', 'warn');
+        if (Number(diskN) >= 90 && Number(prevSnap.disk || 0) < 90) pushNotif('Disque critique', Math.round(diskN) + '% utilisé', 'danger');
+        else if (Number(diskN) >= 85 && Number(prevSnap.disk || 0) < 85) pushNotif('Disque élevé', Math.round(diskN) + '% utilisé', 'warn');
+        if (Number(ramN) >= 90 && Number(prevSnap.ram || 0) < 90) pushNotif('RAM saturée', Math.round(ramN) + '%', 'danger');
+        if (prevSnap.coreOk && !core.reachable) pushNotif('Core injoignable', 'Probe HTTP en échec', 'danger');
+        if (!prevSnap.coreOk && core.reachable) pushNotif('Core OK', 'HTTP joignable', 'ok');
+      }
+      prevSnap = {
+        connected: !!ag.connected,
+        reconnects: tel.reconnects || 0,
+        disk: Number(diskN) || 0,
+        ram: Number(ramN) || 0,
+        coreOk: !!core.reachable,
+      };
+
+      $('txMsg').textContent = tel.messages_sent ?? '—';
+      $('txBytes').textContent = fmtBytes(tel.bytes_sent);
+      $('rxMsg').textContent = tel.messages_recv ?? '—';
+      $('rxNoise').textContent = tel.recv_noise ?? '0';
+      $('rxCmd').textContent = tel.recv_commands ?? '0';
+      if ($('reconnects')) $('reconnects').textContent = tel.reconnects ?? '0';
+      $('inventory').textContent = inv.pending
+        ? 'Scan…'
+        : ((inv.launchable || 0) + ' / ' + (inv.total || 0) + ' lançables');
+
+      $('sRecv').textContent = tel.messages_recv ?? '—';
+      $('sNoise').textContent = tel.recv_noise ?? '0';
+      $('sCmd').textContent = tel.recv_commands ?? '0';
+      $('sAck').textContent = tel.recv_acks ?? '0';
+      $('sSent').textContent = tel.messages_sent ?? '—';
+
+      const explain = sync.messages_down_explained || '';
+      $('syncExplain').innerHTML = '<strong>' + (sync.model || 'push').toUpperCase() + '</strong> — '
+        + (sync.direction || '') + '<br><br>' + explain
+        + '<br><br>' + ((sync.efficiency || []).map((x) => '· ' + x).join('<br>') || '');
+
+      const sent = tel.sent_by_action || {};
+      $('sentBody').innerHTML = Object.keys(sent).length
+        ? Object.entries(sent).sort((a,b)=>b[1]-a[1]).map(([k,v]) => '<tr><td>'+k+'</td><td>'+v+'</td></tr>').join('')
+        : '<tr><td colspan="2">Aucun</td></tr>';
+      const recv = tel.recv_by_type || {};
+      $('recvBody').innerHTML = Object.keys(recv).length
+        ? Object.entries(recv).sort((a,b)=>b[1]-a[1]).slice(0,30).map(([k,v]) => '<tr><td>'+k+'</td><td>'+v+'</td></tr>').join('')
+        : '<tr><td colspan="2">Aucun</td></tr>';
+
+      const cfg = d.config || {};
+      $('cfgWs').value = cfg.JARVIS_WS_URL || '';
+      const hudCfg = cfg.JARVIS_HUD_URL || '';
+      $('cfgHud').value = (!hudCfg || hudCfg.startsWith('http://')) ? 'https://jarvis.global-it-ss.com' : hudCfg;
+      $('cfgLabel').value = cfg.JARVIS_AGENT_LABEL || '';
+      $('cfgPoll').value = tune.inventory_poll_s || cfg.JARVIS_INVENTORY_POLL_S || '45';
+      $('cfgHb').value = tune.heartbeat_s || cfg.JARVIS_HEARTBEAT_S || '30';
+      $('cfgForce').checked = ['1','true','yes'].includes(String(cfg.JARVIS_WS_URL_FORCE || '').toLowerCase());
+      $('cfgHbMet').checked = ['1','true','yes'].includes(String(tune.heartbeat_metrics || '0').toLowerCase());
+      $('cfgAppx').checked = !['0','false','no'].includes(String(tune.inventory_appx || '1').toLowerCase());
+      $('configPath').textContent = d.config_path || '—';
+      $('agentVer').textContent = ag.version || '—';
+
+      $('autoHbMetrics').checked = !!auto.heartbeat_metrics;
+      $('autoHudHttps').checked = auto.hud_https_only !== false;
+      $('autoRediscover').checked = !!auto.rediscover_on_disconnect;
+      $('autoNotes').textContent = auto.notes || '';
+    }
+
+    function renderApps() {
+      const filtered = filterApps(appsState.rows, appsState.filter, appsState.q);
+      const rows = sortRows(filtered, appsState.sortKey, appsState.sortDir);
+      $('appsBody').innerHTML = rows.map((a) =>
+        '<tr><td><div class="app-cell">'+appIconHtml(a)+'<span class="app-name">'+a.name+'</span></div></td>'+
+        '<td>'+a.app_id+'</td><td>'+a.source+'</td>'+
+        '<td>'+yesNo(a.running,'run','no')+'</td>'+
+        '<td>'+yesNo(a.launchable,'on','off')+'</td></tr>'
+      ).join('') || '<tr><td colspan="5">Aucune app</td></tr>';
+      $('appsGrid').innerHTML = rows.map((a) =>
+        '<div class="app-card"><div class="top">'+appIconHtml(a)+'<div class="title">'+a.name+'</div></div>'+
+        '<div class="meta"><span class="pill">'+(a.source||'')+'</span>'+yesNo(a.running,'run','no')+yesNo(a.launchable,'on','off')+'</div></div>'
+      ).join('') || '<div class="note">Aucune app</div>';
+      $('appsMeta').textContent = rows.length + ' affichées / ' + appsState.rows.length + ' chargées · filtre ' + appsState.filter;
+    }
+    async function loadApps() {
+      appsState.q = $('appQ').value.trim();
+      const r = await fetch('/api/apps?q=&launchable=0&running=0');
+      const d = await r.json();
+      if (!d.ok) { $('appsBody').innerHTML = '<tr><td colspan="5">'+(d.error||'Erreur')+'</td></tr>'; return; }
+      appsState.rows = d.apps || [];
+      renderApps();
+      $('appsMeta').textContent = (d.shown || appsState.rows.length) + ' / ' + (d.total || 0) + ' totales · actifs listés ' + (d.running_matched || 0);
+    }
+
+    function renderSoft() {
+      softState.q = ($('softQ') && $('softQ').value.trim()) || '';
+      const filtered = filterApps(softState.rows, softState.filter, softState.q);
+      const rows = sortRows(filtered, softState.sortKey, softState.sortDir);
+      $('capsSoftBody').innerHTML = rows.map((c) =>
+        '<tr><td><div class="app-cell">'+appIconHtml(c)+'<span class="app-name">'+(c.display_name||c.name)+'</span></div></td>'+
+        '<td>'+c.capability_id+'</td>'+
+        '<td>'+yesNo(c.running,'run','no')+'</td>'+
+        '<td>'+yesNo(c.launchable,'on','off')+'</td></tr>'
+      ).join('') || '<tr><td colspan="4">—</td></tr>';
+      $('softGrid').innerHTML = rows.map((c) =>
+        '<div class="app-card"><div class="top">'+appIconHtml(c)+'<div class="title">'+(c.display_name||c.name)+'</div></div>'+
+        '<div class="meta"><span class="pill">'+(c.app_id||'')+'</span>'+yesNo(c.running,'run','no')+yesNo(c.launchable,'on','off')+'</div></div>'
+      ).join('') || '';
+      if ($('softMeta')) $('softMeta').textContent = rows.length + ' / ' + softState.rows.length + ' (échantillon 40)';
+    }
+    function capStatusBadge(status) {
+      const s = status || (status === false ? 'unavailable' : 'planned');
+      const cls = s === 'implemented' ? 'ok' : (s === 'unavailable' ? 'err' : 'warn');
+      return '<span class="badge '+cls+'"><span class="dot"></span>'+s+'</span>';
+    }
+    async function loadCaps() {
+      const r = await fetch('/api/capabilities');
+      const d = await r.json();
+      if (!d.ok) { toast(d.error || 'Erreur caps'); return; }
+      $('capsSysBody').innerHTML = (d.system || []).map((c) =>
+        '<tr><td>'+c.capability_id+'</td><td>'+JSON.stringify(c.value)+'</td><td>'+capStatusBadge((c.metadata||{}).status)+'</td></tr>'
+      ).join('') || '<tr><td colspan="3">—</td></tr>';
+      softState.rows = (d.software_sample || []).map((c) => ({
+        ...c,
+        name: c.display_name || c.name,
+      }));
+      renderSoft();
+      $('capsTotal').textContent = d.total ?? '—';
+      $('capsSoft').textContent = d.software_count ?? '—';
+      const rel = d.relation || {};
+      $('capsRelation').innerHTML =
+        '<strong>Core</strong> — '+(rel.core||'')+'<br>'+
+        '<strong>Hermes</strong> — '+(rel.hermes||'')+'<br>'+
+        '<strong>Flux</strong> — '+(rel.flow||'');
+    }
+
+    async function runIntent(id) {
+      const r = await fetch('/api/intent', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intent: id }),
+      });
+      const d = await r.json();
+      if (d.open_url) window.open(d.open_url, '_blank');
+      toast(d.message || (d.ok ? 'OK' : (d.error || 'Échec')));
+      await loadStatus();
+      if (id === 'refresh_inventory') loadApps();
+    }
+
+    document.querySelectorAll('.intent, .action-pill').forEach((btn) => {
+      btn.addEventListener('click', () => runIntent(btn.dataset.intent));
+    });
+    $('btnHud').onclick = () => runIntent('hud');
+    $('btnAppsReload').onclick = loadApps;
+    $('appQ').addEventListener('input', () => { appsState.q = $('appQ').value; renderApps(); });
+    $('appQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadApps(); });
+    if ($('softQ')) $('softQ').addEventListener('input', () => renderSoft());
+    bindSortHeaders('appsTable', appsState, renderApps);
+    bindSortHeaders('softTable', softState, renderSoft);
+    bindViewToggle('appsViewToggle', 'appsShell', appsState, renderApps);
+    bindViewToggle('softViewToggle', 'softShell', softState, renderSoft);
+    bindFilterSeg('appFilterSeg', appsState, renderApps);
+    bindFilterSeg('softFilterSeg', softState, renderSoft);
+    $('btnCapsReload').onclick = loadCaps;
+
+    $('btnClearTel').onclick = async () => {
+      await fetch('/api/cache/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inventory: false, telemetry: true }) });
+      toast('Télémétrie vidée');
+      await loadStatus();
+    };
+    $('btnClearAll').onclick = async () => {
+      await fetch('/api/cache/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inventory: true, telemetry: true }) });
+      toast('Cache vidé');
+      await loadStatus();
+    };
+
+    $('btnAutoSave').onclick = async () => {
+      const body = {
+        heartbeat_metrics: $('autoHbMetrics').checked,
+        hud_https_only: $('autoHudHttps').checked,
+        rediscover_on_disconnect: $('autoRediscover').checked,
+        inventory_on_change_only: true,
+      };
+      const r = await fetch('/api/automations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      toast(d.ok ? 'Automatismes enregistrés' : (d.error || 'Erreur'));
+      await loadStatus();
     };
 
     $('btnSave').onclick = async () => {
@@ -168,28 +1229,64 @@
         JARVIS_WS_URL: $('cfgWs').value.trim(),
         JARVIS_HUD_URL: $('cfgHud').value.trim(),
         JARVIS_AGENT_LABEL: $('cfgLabel').value.trim(),
-        JARVIS_NUC_HOST: $('cfgNuc').value.trim(),
+        JARVIS_INVENTORY_POLL_S: String($('cfgPoll').value || '45'),
+        JARVIS_HEARTBEAT_S: String($('cfgHb').value || '30'),
         JARVIS_WS_URL_FORCE: $('cfgForce').checked ? '1' : '0',
+        JARVIS_HEARTBEAT_METRICS: $('cfgHbMet').checked ? '1' : '0',
+        JARVIS_INVENTORY_APPX: $('cfgAppx').checked ? '1' : '0',
+        JARVIS_WORKSPACE_ROOT: $('cfgWsRoot').value.trim(),
+        JARVIS_MAIN_LOCAL_PATH: $('cfgWsMain').value.trim(),
+        JARVIS_AGENT_DEV_AGENT: $('cfgDevAgent').checked ? '1' : '0',
       };
-      const r = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const r = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
-      if (d.ok) toast('Config enregistrée');
-      await refresh();
+      toast(d.ok ? (d.hint || 'Config enregistrée') : (d.error || 'Erreur'));
+      if (d.ok && ($('cfgWsRoot').value.trim() || $('cfgWsMain').value.trim())) {
+        await fetch('/api/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        toast('Redémarrage agent (~3 s)…');
+      }
     };
 
-    $('btnOpenHud').onclick = () => {
-      const url = $('cfgHud').value.trim();
-      if (url) window.open(url, '_blank');
+    if ($('btnWsAdd')) {
+      $('btnWsAdd').onclick = () => {
+        wsBindings.push({ workspace_id: '', local_path: '' });
+        renderWsBindings();
+      };
+    }
+    if ($('btnWsSave')) {
+      $('btnWsSave').onclick = async () => {
+        wsBindingsBodySync();
+        const body = {
+          JARVIS_WORKSPACE_ROOT: $('cfgWsRoot').value.trim(),
+          JARVIS_MAIN_LOCAL_PATH: $('cfgWsMain').value.trim(),
+          JARVIS_AGENT_DEV_AGENT: $('cfgDevAgent').checked ? '1' : '0',
+          bindings: wsBindings.filter((b) => b.workspace_id && b.local_path),
+        };
+        const r = await fetch('/api/workspaces', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const d = await r.json();
+        toast(d.ok ? 'Workspaces enregistrés — redémarrage…' : (d.error || 'Erreur'));
+        if (d.ok) {
+          await fetch('/api/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        }
+      };
+    }
+    function wsBindingsBodySync() {
+      $('wsBindingsBody').querySelectorAll('input[data-i]').forEach((inp) => {
+        const idx = +inp.dataset.i;
+        const key = inp.dataset.k;
+        if (wsBindings[idx]) wsBindings[idx][key] = inp.value.trim();
+      });
+    }
+
+    $('btnProbe').onclick = async () => {
+      await fetch('/api/probe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      toast('Sondes relancées');
+      await loadStatus();
     };
 
-    refresh();
-    setInterval(refresh, 8000);
-
-    fetch('/api/probe', { method: 'POST' }).then(r => r.json()).then(d => renderProbes(d.probes));
+    loadStatus();
+    loadWorkspaces();
+    setInterval(loadStatus, 3000);
   </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
-
-import { coreWsUrl } from '../lib/coreWs'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 /**
  * Holomat côté Dashboard = admin (services, FaceEngine, calib machine).
@@ -15,30 +15,19 @@ import { coreWsUrl } from '../lib/coreWs'
  * (orchestrator_lifecycle.py registre "face" et "holomat").
  */
 type Component = { name: string; state?: string }
-const CORE_WS = coreWsUrl()
 const STATE_COLOR: Record<string, string> = { ready: '#34C759', loading: '#0A84FF', degraded: '#FF3B30', unknown: 'rgba(17,17,20,0.35)' }
 
 export default function HolomatPage() {
+  const { client } = useCoreSession()
   const [components, setComponents] = useState<Component[] | null>(null)
 
   const refresh = useCallback(() => {
-    let settled = false
-    const ws = new WebSocket(CORE_WS)
-    const finish = () => { if (!settled) { settled = true; try { ws.close() } catch { /* */ } } }
-    const timer = window.setTimeout(finish, 10000)
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'supervisor', action: 'status' }))
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'supervisor_status') {
-          window.clearTimeout(timer)
-          setComponents(Array.isArray(data.components) ? data.components : [])
-          finish()
-        }
-      } catch { /* */ }
-    }
-    ws.onerror = () => { window.clearTimeout(timer); finish() }
-  }, [])
+    void dashRequest(client, { type: 'supervisor', action: 'status' }, 'supervisor_status')
+      .then((data) => {
+        setComponents(Array.isArray(data.components) ? (data.components as Component[]) : [])
+      })
+      .catch(() => setComponents([]))
+  }, [client])
 
   useEffect(() => { refresh() }, [refresh])
 

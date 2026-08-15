@@ -166,7 +166,11 @@ export const HUD_APPS: HudApp[] = [
       'cherche', 'trouve', 'propose', 'recherche',
       'nouvelles', 'actualité', 'actualites', 'actualités',
       'cherche sur internet', 'cherche sur le web', 'cherche sur youtube',
-      'cherche sur github', 'github', 'youtube', 'reddit', 'rss', 'openclaw',
+      'cherche sur github', 'github', 'reddit', 'rss', 'openclaw',
+      // "youtube" nu retiré (2026-08-15) : appartient déjà à media.streaming
+      // (Core, capabilities.py) — le dupliquer ici induisait une incohérence
+      // Core↔HUD sans changer le routage réel (streaming gagne déjà la
+      // désambiguïsation en cas d'égalité, cf. `_disambiguate_intent`).
     ],
     intent: 'web.search',
   },
@@ -191,7 +195,8 @@ export const HUD_APPS: HudApp[] = [
     id: 'analyze', name: 'Analyse', icon: BarChart3, color: C.cyan, cat: 'Agent',
     status: 'surface', risk: 'admin', owner: 'hermes',
     blurb: 'Exécution de code — analyse de données',
-    voice: ['analyse', 'stats', 'données'],
+    // "analyse" seul retiré (2026-08-15, P.3) : cf. capabilities.py, même motif.
+    voice: ['stats', 'données'],
     intent: 'data.analyze',
   },
   {
@@ -354,14 +359,34 @@ export const HUD_APPS: HudApp[] = [
     id: 'home', name: 'Maison', icon: Home, color: C.green, cat: 'Maison',
     status: 'surface', risk: 'home', owner: 'core',
     blurb: 'Lumières, capteurs, ouvrants',
+    // "maison" / "domotique" / "home" nus retirés (2026-08-15, chantier
+    // Orchestration conversationnelle, P.5) : mots de sujet sans verbe
+    // d'action, cf. core/jarvis_core/capabilities.py (même trigger, même
+    // motif) — sinon une question d'observation ouvrait une action HOME.
     voice: [
-      'maison', 'domotique', 'lumière', 'lumières', 'lampe', 'home assistant',
-      'home', 'ouvre home', 'affiche home', 'affiche-moi home',
+      'lumière', 'lumières', 'lampe', 'home assistant',
+      'ouvre home', 'affiche home', 'affiche-moi home',
       'mission control home', 'mission contrôle home', 'mission controle home',
       'ouvre la maison', 'affiche la maison',
       'allume', 'éteint', 'eteint', 'allume le salon', 'éteint le salon',
     ],
     intent: 'home.control',
+  },
+  {
+    id: 'salon-camera', name: 'Caméra salon', icon: Camera, color: C.green, cat: 'Maison',
+    status: 'surface', risk: 'info', owner: 'core',
+    blurb: 'Flux live LG AN-VC500 (Pi salon)',
+    voice: [
+      'caméra du salon', 'caméra salon', 'affiche la caméra', 'affiche la caméra du salon',
+      'montre la caméra', 'montre-moi le salon', 'regarde ce qui se passe au salon',
+      'regarde le salon',
+      // "prends une image/photo", "snapshot du salon" : PAS ici, volontairement.
+      // Ce sont les déclencheurs de home.camera_snapshot (capabilities.py), pas
+      // de home.camera_view (seule intention que cette tuile peut envoyer). Les
+      // garder ici forçait le mauvais intent en mode JARVIS BASE dégradé (Core
+      // injoignable) — trouvé par le checker Graphify (architecture/build.py).
+    ],
+    intent: 'home.camera_view',
   },
   {
     id: 'music', name: 'Musique', icon: Music, color: C.green, cat: 'Médias',
@@ -374,7 +399,10 @@ export const HUD_APPS: HudApp[] = [
     id: 'video', name: 'Vidéo', icon: Video, color: C.amber, cat: 'Médias',
     status: 'surface', risk: 'media', owner: 'core',
     blurb: 'Plex — sans LLM',
-    voice: ['vidéo', 'video', 'film', 'plex', 'série', 'serie', 'épisode', 'episode', 'regarde', 'mets', 'lance'],
+    // "regarde" nu retiré (2026-08-15) : même défaut que "maison" (P.5) —
+    // mot trop générique, matchait aussi une question d'observation
+    // ("regarde si tout va bien à la maison") comme une commande média WRITE.
+    voice: ['vidéo', 'video', 'film', 'plex', 'série', 'serie', 'épisode', 'episode', 'mets', 'lance', 'play'],
     intent: 'media.video',
   },
 

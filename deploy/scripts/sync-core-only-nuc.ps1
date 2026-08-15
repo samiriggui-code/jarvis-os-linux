@@ -27,7 +27,7 @@ if ($Pip) {
     $pipCmd = 'echo skip pip;'
 }
 
-$remote = "set -e; rsync -a --delete --exclude '__pycache__' ${Tmp}/jarvis_core/ ${Opt}/core/jarvis_core/; cp ${Tmp}/requirements.txt ${Opt}/core/requirements.txt; cd ${Opt}/core; ${pipCmd} systemctl restart jarvis-core; sleep 3; systemctl is-active jarvis-core; journalctl -u jarvis-core -n 6 --no-pager | tail -6"
+$remote = "set -e; rsync -a --delete --exclude '__pycache__' --exclude 'vision/data/*.onnx' --exclude 'vision/data/*.task' --exclude 'vision/data/*.xml' ${Tmp}/jarvis_core/ ${Opt}/core/jarvis_core/; cp ${Tmp}/requirements.txt ${Opt}/core/requirements.txt; cd ${Opt}/core; ${pipCmd} systemctl restart jarvis-core; sleep 3; systemctl is-active jarvis-core; journalctl -u jarvis-core -n 6 --no-pager | tail -6"
 
 ssh -o BatchMode=yes $Nuc $remote
 Write-Host "==> Core sync OK" -ForegroundColor Green

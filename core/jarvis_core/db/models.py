@@ -99,3 +99,100 @@ class ProjectRow(Base):
     meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class WorkspaceRow(Base):
+    """P5 — binding workspace_id → machine autoritaire + chemin local."""
+
+    __tablename__ = "workspaces"
+    __table_args__ = (Index("ix_workspaces_authoritative_device", "authoritative_device_id"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    repo_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    authoritative_device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    local_path: Mapped[str] = mapped_column(Text, nullable=False)
+    sync_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="local_only")
+    project_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class DevIssueRow(Base):
+    """Mission DEV Board — ticket kanban (V1 local)."""
+
+    __tablename__ = "dev_issues"
+    __table_args__ = (
+        Index("ix_dev_issues_project", "project_id"),
+        Index("ix_dev_issues_column", "column"),
+        Index("ix_dev_issues_status", "status"),
+        Index("ix_dev_issues_run", "run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    column: Mapped[str] = mapped_column(String(32), nullable=False, default="backlog")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")
+    assignee_agent: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    assignee_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    workspace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    mission_dev_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class DevIssueCommentRow(Base):
+    """Commentaires / activité sur un ticket Mission DEV."""
+
+    __tablename__ = "dev_issue_comments"
+    __table_args__ = (Index("ix_dev_issue_comments_issue", "issue_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    issue_id: Mapped[str] = mapped_column(String(36), ForeignKey("dev_issues.id"), nullable=False)
+    author: Mapped[str] = mapped_column(String(64), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class MemoryRow(Base):
+    """Souvenirs Memory V2 — backend PostgreSQL (SQLite fallback tests).
+
+    Pas de FK vers users.id : les smokes et le profil `local` n'ont pas
+    forcément de ligne users. Isolation = filtre user_id dans PgAdapter.
+    """
+
+    __tablename__ = "memories"
+    __table_args__ = (
+        Index("ix_memories_user_id", "user_id"),
+        Index("ix_memories_user_kind", "user_id", "kind"),
+        Index("ix_memories_user_wing", "user_id", "wing"),
+        Index("ix_memories_user_room", "user_id", "room"),
+        Index("ix_memories_created", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    wing: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    room: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mission_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    source_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    evidence_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(40), nullable=False)
+    importance: Mapped[str] = mapped_column(String(16), nullable=False, default="normal")
+    ttl_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tombstone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    synced: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

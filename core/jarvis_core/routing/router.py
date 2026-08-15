@@ -180,6 +180,51 @@ class CapabilityRouter:
         _, best_id = scored[0]
         return RouteResult(best_id, "launch_scored")
 
+    def resolve_dev_agent_device(
+        self,
+        ctx: RouteContext,
+        *,
+        agent: str,
+        workspace: Any,
+    ) -> RouteResult:
+        """P5 — workspace autoritaire > simple présence capability ailleurs."""
+        agent = str(agent or "").strip().lower()
+        cap_id = f"dev.agent.{agent}"
+        auth_id = str(getattr(workspace, "authoritative_device_id", "") or "").strip()
+        ws_id = str(getattr(workspace, "workspace_id", "") or "").strip()
+        if not auth_id:
+            return RouteResult(None, "workspace_no_authoritative_device", rejected=True)
+
+        dev = self._registry.get_device(auth_id)
+        if dev is None or not dev.online:
+            return RouteResult(
+                None,
+                "workspace_device_offline",
+                rejected=True,
+                missing=[auth_id, cap_id],
+            )
+
+        cap = dev.capabilities.get(cap_id)
+        if cap is None or cap.value is False:
+            return RouteResult(
+                None,
+                "dev_agent_capability_missing",
+                rejected=True,
+                missing=[cap_id],
+            )
+
+        meta = cap.metadata or {}
+        ws_ids = meta.get("workspace_ids")
+        if isinstance(ws_ids, list) and ws_ids and ws_id and ws_id not in ws_ids:
+            return RouteResult(
+                None,
+                "workspace_not_on_device",
+                rejected=True,
+                missing=[ws_id],
+            )
+
+        return RouteResult(auth_id, "workspace_authoritative")
+
     def resolve_tool_device(self, ctx: RouteContext, *, owner: str) -> RouteResult:
         """Machine portée dans tool_event — exécution, pas forcément la bouche."""
         owner = (owner or "core").lower()

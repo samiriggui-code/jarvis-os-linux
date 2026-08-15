@@ -248,5 +248,16 @@ export function VoiceChatBridge() {
     };
   }, [aiState, micTestActive, sessionUnlocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!sessionUnlocked) return;
+    const onActivateVoice = () => {
+      if (micTestActive) return;
+      pauseWakeWord();
+      enterListening('Index levé — parlez.');
+    };
+    window.addEventListener('jarvis:activate-voice', onActivateVoice);
+    return () => window.removeEventListener('jarvis:activate-voice', onActivateVoice);
+  }, [sessionUnlocked, micTestActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return null;
 }

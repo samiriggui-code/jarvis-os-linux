@@ -25,14 +25,23 @@ function formatStatusLabel(status: string): string {
 }
 
 export function SectionHeader({ props }: AgenticProps) {
-  const { caption, body } = useVisionText();
+  const { caption, body, theme } = useVisionText();
+  // Typo seule — pas de dalle glass. Largeur = contenu.
   return (
-    <VisionPane material="ultraThin">
-      <p style={caption}>{String(props.title || 'Section')}</p>
+    <div
+      style={{
+        width: 'fit-content',
+        maxWidth: 'min(360px, 100%)',
+        padding: '2px 4px',
+      }}
+    >
+      <p style={{ ...caption, margin: 0, color: theme.text }}>{String(props.title || 'Section')}</p>
       {props.subtitle ? (
-        <p style={{ ...body, marginTop: 6 }}>{String(props.subtitle)}</p>
+        <p style={{ ...body, margin: '4px 0 0', fontSize: 12, color: theme.textMuted }}>
+          {String(props.subtitle)}
+        </p>
       ) : null}
-    </VisionPane>
+    </div>
   );
 }
 

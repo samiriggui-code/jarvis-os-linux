@@ -106,6 +106,7 @@ async def handler(orchestrator: Orchestrator, ws: Any) -> None:
         dropped = orchestrator.connections.unbind(ws)
         if device_id:
             orchestrator.device_dispatch.cancel_for_device(device_id)
+            orchestrator.dev_agent_dispatch.on_device_disconnect(device_id)
         if dropped and orchestrator.auth is not None:
             orchestrator.auth.on_disconnect(dropped)
         orchestrator.clients.discard(ws)

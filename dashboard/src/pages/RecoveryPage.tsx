@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
 import type { Page } from '../types'
 import { HOST } from '../types'
+import { useCoreSession } from '../context/CoreSessionContext'
 
 type CheckStatus = 'ok' | 'warn' | 'fail' | 'unk'
 
@@ -29,9 +30,6 @@ const STATUS_LABEL: Record<CheckStatus, string> = {
   fail: 'FAIL',
   unk: '—',
 }
-
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
 
 type Checks = {
   dashboard: CheckStatus
@@ -56,6 +54,7 @@ const UNKNOWN: Checks = {
 }
 
 export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
+  const { client } = useCoreSession()
   const [checks, setChecks] = useState<Checks>(UNKNOWN)
   const [checking, setChecking] = useState(false)
 
@@ -63,54 +62,37 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
     setChecking(true)
     const next: Checks = { ...UNKNOWN }
     let gotAny = false
-    let settled = false
-
-    const ws = new WebSocket(CORE_WS)
-    const finish = () => {
-      if (settled) return
-      settled = true
-      next.coreWs = gotAny ? 'ok' : 'fail'
-      setChecks(next)
+    client.connect()
+    const unsub = client.subscribe((data) => {
+      gotAny = true
+      if (data.type === 'hermes_result') {
+        next.hermes = data.healthy ? 'ok' : (data.configured ? 'fail' : 'warn')
+      }
+      if (data.type === 'providers_result') {
+        const orOk = (data.openrouter as { ok?: boolean } | undefined)?.ok === true
+        const ollamaOk = (data.ollama as { ok?: boolean } | undefined)?.ok === true
+        next.apiKeys = orOk || ollamaOk ? 'ok' : (data.mode === 'system' ? 'warn' : 'fail')
+      }
+      if (data.type === 'voicebox_result') {
+        next.voicebox = data.available === true ? 'ok' : (data.available === false ? 'fail' : 'unk')
+      }
+    })
+    client.send({ type: 'hermes_status', action: 'status' })
+    client.send({ type: 'providers', action: 'status' })
+    client.send({ type: 'voicebox', action: 'status' })
+    const timer = window.setTimeout(() => {
+      next.coreWs = gotAny || client.connected ? 'ok' : 'fail'
+      setChecks({ ...next })
       setChecking(false)
-      try { ws.close() } catch { /* */ }
-    }
-    const timer = window.setTimeout(finish, 8000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'hermes_status', action: 'status' }))
-      ws.send(JSON.stringify({ type: 'providers', action: 'status' }))
-      ws.send(JSON.stringify({ type: 'voicebox', action: 'status' }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        gotAny = true
-        if (data.type === 'hermes_result') {
-          next.hermes = data.healthy ? 'ok' : (data.configured ? 'fail' : 'warn')
-        }
-        if (data.type === 'providers_result') {
-          const orOk = data.openrouter?.ok === true
-          const ollamaOk = data.ollama?.ok === true
-          next.apiKeys = orOk || ollamaOk ? 'ok' : (data.mode === 'system' ? 'warn' : 'fail')
-        }
-        if (data.type === 'voicebox_result') {
-          next.voicebox = data.available === true ? 'ok' : (data.available === false ? 'fail' : 'unk')
-        }
-      } catch { /* */ }
-    }
-    ws.onerror = () => {
-      window.clearTimeout(timer)
-      finish()
-    }
-    // Le Core répond aux 3 requêtes vite (santé sondée en parallèle côté
-    // handlers) — pas besoin d'attendre les 8s si tout est déjà revenu.
-    const settleSoon = window.setTimeout(() => {
-      if (gotAny) { window.clearTimeout(timer); finish() }
+      unsub()
     }, 4000)
-    return () => window.clearTimeout(settleSoon)
-  }, [])
+    return () => {
+      window.clearTimeout(timer)
+      unsub()
+    }
+  }, [client])
 
-  useEffect(() => { runChecks() }, [runChecks])
+  useEffect(runChecks, [runChecks])
 
   const issues = [
     {

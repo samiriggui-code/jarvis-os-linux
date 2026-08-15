@@ -5,6 +5,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 type ProviderStatus = {
   ok?: boolean
@@ -14,9 +16,6 @@ type ProviderStatus = {
   error?: string
 }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 const MODE_LABEL: Record<string, string> = {
   local: 'Ollama local',
   remote: 'Ollama VPS',
@@ -25,6 +24,7 @@ const MODE_LABEL: Record<string, string> = {
 }
 
 export default function AIProviders() {
+  const { client } = useCoreSession()
   const [st, setSt] = useState<ProviderStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
@@ -32,41 +32,16 @@ export default function AIProviders() {
   const refresh = useCallback(() => {
     setLoading(true)
     setErr('')
-    let settled = false
-    const ws = new WebSocket(CORE_WS)
-    const timer = window.setTimeout(() => {
-      if (!settled) {
-        settled = true
-        setErr('Timeout Core — relance jarvis_core.')
+    void dashRequest(client, { type: 'providers', action: 'status' }, 'providers_result')
+      .then((data) => {
+        setSt(data as ProviderStatus)
         setLoading(false)
-        try { ws.close() } catch { /* */ }
-      }
-    }, 12000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'providers', action: 'status' }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'providers_result') {
-          settled = true
-          window.clearTimeout(timer)
-          setSt(data as ProviderStatus)
-          setLoading(false)
-          ws.close()
-        }
-      } catch { /* */ }
-    }
-    ws.onerror = () => {
-      if (!settled) {
-        settled = true
-        window.clearTimeout(timer)
+      })
+      .catch(() => {
         setErr('Core WS injoignable (8765).')
         setLoading(false)
-      }
-    }
-  }, [])
+      })
+  }, [client])
 
   useEffect(() => { refresh() }, [refresh])
 

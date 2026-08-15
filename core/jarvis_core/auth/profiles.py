@@ -32,6 +32,8 @@ DEFAULT_GESTURE: dict[str, Any] = {
         {"id": "swipe_down", "label": "Balayage bas", "action": "stack_next", "enabled": True},
         {"id": "open_hand", "label": "Paume ouverte", "action": "open_launcher", "enabled": True},
         {"id": "pinch", "label": "Pincement", "action": "select_or_close", "enabled": True},
+        {"id": "fist", "label": "Poing fermé", "action": "mute", "enabled": True},
+        {"id": "peace", "label": "Victoire", "action": "ack_done", "enabled": True},
         {"id": "point", "label": "Index levé", "action": "activate_voice", "enabled": True},
     ],
 }

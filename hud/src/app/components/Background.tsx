@@ -1,6 +1,5 @@
 /**
- * Fond HUD produit = SpatialBackdrop (dégradés colorés light|night).
- * Plus de grille `vision-bg` plate — même atmosphère que le lab Vision.
+ * Fond HUD produit = SpatialBackdrop (ambiance Vision Pro neutre ).
  */
 import React from 'react';
 import { SpatialBackdrop } from '../../spatial/SpatialBackdrop/SpatialBackdrop';

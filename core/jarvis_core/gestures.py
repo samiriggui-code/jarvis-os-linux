@@ -30,6 +30,8 @@ BINDING_OF_KIND: dict[str, str] = {
     "HAND_PINCH": "pinch",
     "HAND_OPEN": "open_hand",
     "HAND_FIST": "fist",
+    "HAND_PEACE": "peace",
+    "HAND_POSE_POINT": "point",
 }
 
 # `HAND_SWIPE` porte sa direction dans le payload : quatre bindings, un kind.
@@ -47,9 +49,11 @@ def binding_id_for(event: Event) -> str | None:
     """Id de binding visé par un geste, ou None s'il n'en vise aucun.
 
     `HAND_POINT` est **volontairement** absent : c'est le flux du curseur
-    (`Mode.COALESCE`, 30 fois par seconde), pas un geste discret. Le binding
-    `point` du profil par défaut n'a donc aucun producteur — le câbler ici
-    ferait tirer `activate_voice` à chaque déplacement de la main.
+    (`Mode.COALESCE`, 30 fois par seconde), pas un geste discret.
+
+    `HAND_POSE_POINT` porte l'index levé (autres doigts repliés) : geste
+    discret mappé au binding `point` → `activate_voice`. Ne pas confondre
+    avec le curseur continu.
     """
     if event.kind == "HAND_SWIPE":
         direction = str(event.payload.get("direction", "")).strip().lower()
@@ -189,7 +193,13 @@ def signals_from_hud(data: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
 
     out: list[tuple[str, dict[str, Any]]] = []
 
-    for field, kind in (("pinch", "HAND_PINCH"), ("fist", "HAND_FIST"), ("open", "HAND_OPEN")):
+    for field, kind in (
+        ("pinch", "HAND_PINCH"),
+        ("fist", "HAND_FIST"),
+        ("open", "HAND_OPEN"),
+        ("peace", "HAND_PEACE"),
+        ("point_pose", "HAND_POSE_POINT"),
+    ):
         if field not in data:
             continue
         confidence = _unit(data.get(field))
@@ -206,10 +216,12 @@ def signals_from_hud(data: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
                 {"hand": hand, "direction": direction, "confidence": confidence},
             ))
 
-    point = data.get("point")
-    if isinstance(point, dict):
-        x = _unit(point.get("x"))
-        y = _unit(point.get("y"))
+    cursor = data.get("cursor")
+    if not isinstance(cursor, dict):
+        cursor = data.get("point")
+    if isinstance(cursor, dict):
+        x = _unit(cursor.get("x"))
+        y = _unit(cursor.get("y"))
         if x is not None and y is not None:
             out.append(("HAND_POINT", {"hand": hand, "x": x, "y": y}))
 

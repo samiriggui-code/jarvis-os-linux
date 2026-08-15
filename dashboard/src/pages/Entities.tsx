@@ -1,16 +1,11 @@
 /**
- * Devices — liste réelle via Core WS type=device action=list (registre,
- * pas de droits nécessaires : discovery ≠ droits, §6).
- *
- * Utilisateurs — `auth`/`list_users` existe côté Core mais EXIGE une session
- * admin authentifiée liée à la connexion WS (`dashboard_access` ou
- * `user_management`). Le Dashboard n'a aujourd'hui aucun flux de login —
- * chaque page ouvre une connexion anonyme, requête, ferme. Résultat honnête :
- * "accès admin requis" plutôt qu'une liste inventée. Le vrai fix est un flux
- * d'auth dashboard, pas cette page.
+ * Devices — DeviceRegistry Core (`device` / `list`).
+ * Utilisateurs — `auth`/`list_users` sur la MÊME connexion que AdminLoginGate.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 type DeviceInfo = {
   device_id?: string
@@ -23,10 +18,8 @@ type DeviceInfo = {
 
 type UserInfo = { username?: string; display_name?: string; role?: string }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 export default function Entities() {
+  const { client, session } = useCoreSession()
   const [devices, setDevices] = useState<DeviceInfo[] | null>(null)
   const [users, setUsers] = useState<UserInfo[] | null>(null)
   const [usersError, setUsersError] = useState('')
@@ -37,62 +30,35 @@ export default function Entities() {
     setLoading(true)
     setErr('')
     setUsersError('')
-    let devicesDone = false
-    let usersDone = false
-    let settled = false
-    const finishIfDone = () => {
-      if (devicesDone && usersDone && !settled) {
-        settled = true
-        setLoading(false)
-        try { ws.close() } catch { /* */ }
-      }
-    }
-
-    const ws = new WebSocket(CORE_WS)
-    const timer = window.setTimeout(() => {
-      if (!settled) {
-        settled = true
-        setErr('Timeout Core — relance jarvis_core.')
-        setLoading(false)
-        try { ws.close() } catch { /* */ }
-      }
-    }, 12000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'device', action: 'list' }))
-      ws.send(JSON.stringify({ type: 'auth', action: 'list_users' }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'device_list') {
-          setDevices(Array.isArray(data.devices) ? data.devices : [])
-          devicesDone = true
-          window.clearTimeout(timer)
-          finishIfDone()
-        }
-        if (data.type === 'auth_users') {
-          if (data.ok) {
-            setUsers(Array.isArray(data.users) ? data.users : [])
-          } else {
-            setUsersError(String(data.error || 'refusé'))
-            setUsers([])
-          }
-          usersDone = true
-          window.clearTimeout(timer)
-          finishIfDone()
-        }
-      } catch { /* */ }
-    }
-    ws.onerror = () => {
-      if (!settled) {
-        settled = true
-        window.clearTimeout(timer)
+    void dashRequest(client, { type: 'device', action: 'list' }, 'device_list')
+      .then((data) => {
+        setDevices(Array.isArray(data.devices) ? (data.devices as DeviceInfo[]) : [])
+      })
+      .catch(() => {
         setErr('Core WS injoignable (8765).')
-        setLoading(false)
-      }
+        setDevices([])
+      })
+      .finally(() => setLoading(false))
+
+    if (!session) {
+      setUsersError('session admin absente (visage ou skipAuth sans login)')
+      setUsers([])
+      return
     }
-  }, [])
+    void dashRequest(client, { type: 'auth', action: 'list_users' }, 'auth_users')
+      .then((data) => {
+        if (data.ok) {
+          setUsers(Array.isArray(data.users) ? (data.users as UserInfo[]) : [])
+        } else {
+          setUsersError(String(data.error || 'refusé'))
+          setUsers([])
+        }
+      })
+      .catch((e) => {
+        setUsersError(e instanceof Error ? e.message : 'refusé')
+        setUsers([])
+      })
+  }, [client, session])
 
   useEffect(() => { refresh() }, [refresh])
 

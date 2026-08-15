@@ -58,7 +58,7 @@ class FakeProvider:
         self.reply = reply
         self.prompt: str | None = None
 
-    async def complete(self, prompt: str) -> str:
+    async def complete(self, prompt: str, **kwargs: object) -> str:
         self.prompt = prompt
         return self.reply
 
@@ -192,7 +192,7 @@ async def main() -> int:
     print("\n\033[1m6. Sans LLM, le Core ne casse pas\033[0m")
 
     class DeadProvider:
-        async def complete(self, prompt: str) -> str:
+        async def complete(self, prompt: str, **kwargs: object) -> str:
             raise ConnectionError("aucun fournisseur joignable")
 
     try:

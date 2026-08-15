@@ -19,14 +19,16 @@ class MediaExecutorsMixin:
         try:
             result = await self.hass.execute(prompt)
         except HomeAssistantUnavailable as exc:
-            await self.speak(
-                "Je n'ai pas accès à la musique pour le moment.",
-                user_id=self._session_user_id() or "local",
+            await self.broadcast(
+                await self.speak(
+                    "Je n'ai pas accès à la musique pour le moment.",
+                    user_id=self._session_user_id() or "local",
+                )
             )
             return {"ok": False, "reason": str(exc)}
         except Exception as exc:  # noqa: BLE001
             msg = str(exc) or "Impossible de couper la musique."
-            await self.speak(msg, user_id=self._session_user_id() or "local")
+            await self.broadcast(await self.speak(msg, user_id=self._session_user_id() or "local"))
             return {"ok": False, "reason": msg}
 
         if result.get("ok"):
@@ -108,7 +110,7 @@ class MediaExecutorsMixin:
                     if result.get("ok")
                     else "Je n'arrive pas à ouvrir la caméra sur la Freebox."
                 )
-                await self.speak(spoken, user_id=self._session_user_id() or "local")
+                await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
                 return {"ok": result.get("ok"), "text": spoken, "camera": True}
             return {"ok": False, "reason": "player non configuré"}
 
@@ -116,11 +118,16 @@ class MediaExecutorsMixin:
             ("netflix", "netflix", "Netflix"),
             ("disney", "disney", "Disney+"),
             ("youtube", "youtube", "YouTube"),
+            ("prime", "prime", "Prime Video"),
         ]
-        hit = next(
-            ((key, app, label) for key, app, label in platforms if f" {key} " in low),
-            None,
-        )
+        hit: tuple[str, str, str] | None = None
+        if any(k in low for k in ("amazon prime", "prime video")):
+            hit = ("prime", "prime", "Prime Video")
+        if hit is None:
+            hit = next(
+                ((key, app, label) for key, app, label in platforms if f" {key} " in low),
+                None,
+            )
         web_ask = (
             hit is None
             and getattr(self, "_salon_turn", False)
@@ -162,6 +169,7 @@ class MediaExecutorsMixin:
                 "netflix": "https://www.netflix.com/search?q=",
                 "disney": "https://www.disneyplus.com/search?q=",
                 "youtube": "https://www.youtube.com/results?search_query=",
+                "prime": "https://www.primevideo.com/search/ref=atv_sr_sug?ie=UTF8&phrase=",
             }
             url = meta_search[app] + quote(q or label)
 
@@ -188,5 +196,5 @@ class MediaExecutorsMixin:
             spoken = f"La Freebox ne répond pas — j'ouvre {label} sur le HUD."
         else:
             spoken = f"J'ouvre {label}."
-        await self.speak(spoken, user_id=self._session_user_id() or "local")
+        await self.broadcast(await self.speak(spoken, user_id=self._session_user_id() or "local"))
         return {"ok": True, "text": spoken, "url": url}

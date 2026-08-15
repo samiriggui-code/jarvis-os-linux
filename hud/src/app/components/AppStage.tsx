@@ -10,6 +10,7 @@ import { getAppById, VPS_ALLOWLIST, riskLabel } from '../apps/catalog';
 import { MissionControlDev, CursorSurface } from './missionDev';
 import { SystemMonitor } from './SystemMonitor';
 import { AgentSurface } from '../../agentic/AgentSurface';
+import { VisionLiveSurface } from './VisionLiveSurface';
 import { glassLevel, tokens } from '../../ui/tokens';
 import { bodyFont, monoFont, orbFont, DANGER, MUTED, SUCCESS, TEXT, WARNING } from './hudTheme';
 import { visionBody, visionCaption } from './visionChrome';
@@ -133,9 +134,24 @@ export function MockAppContent({ app }: { app: OpenApp }) {
 
   if (app.id === 'monitor') {
     return (
-      <div className="h-full overflow-auto p-2">
-        <SystemMonitor />
-      </div>
+      <AgentSurface
+        surfaceId="monitor"
+        fallback={
+          <div className="h-full overflow-auto p-2">
+            <SystemMonitor />
+          </div>
+        }
+      />
+    );
+  }
+
+  if (app.id === 'vision') {
+    return (
+      <AgentSurface
+        surfaceId="vision"
+        composeQuestion="Compose l'interface Holomat / vision."
+        fallback={<VisionLiveSurface />}
+      />
     );
   }
 

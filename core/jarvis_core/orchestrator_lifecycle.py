@@ -80,6 +80,16 @@ class OrchestratorLifecycleMixin:
         # sans exécutant reste refusée bruyamment — c'est l'invariant, pas un
         # défaut à masquer.
         register_capabilities(self)
+        # Memory V2 + Verification §7 (M2.1) — pipeline live ; Memory seulement
+        # après RESULT_VALIDATED. Hermes/LLM ne produisent jamais cette décision.
+        from .memory import get_memory_api
+        from .verification import VerificationPipeline
+
+        memory_api = get_memory_api(emit=self.emit)
+        self.verification = VerificationPipeline(
+            memory_api=memory_api,
+            emit=self.emit,
+        )
         # Device Capability Discovery (Phase 0) — registre mémoire.
         # IntentCapability inchangé ; HostCapability vit dans devices.py.
         from .devices import DeviceRegistry
@@ -90,8 +100,30 @@ class OrchestratorLifecycleMixin:
 
         self.router = CapabilityRouter(self.devices)
         from .device_dispatch import DeviceDispatch
+        from .dev_agent.dispatch import DevAgentDispatch
+        from .dev_agent.registry import DevRunRegistry
+        from .workspace.registry import WorkspaceRegistry
 
         self.device_dispatch = DeviceDispatch(self.connections)
+        self.dev_runs = DevRunRegistry()
+        self.workspaces = WorkspaceRegistry()
+        from .workspace.conventions import ensure_jarvis_main
+
+        ensure_jarvis_main(self.workspaces)
+        self.dev_agent_dispatch = DevAgentDispatch(
+            self.connections,
+            self.dev_runs,
+            self.workspaces,
+            self.router,
+            emit=self.emit,
+        )
+        from .perception_dispatch import PerceptionDispatch
+        from .vision_objects import SceneStore
+
+        self.perception = PerceptionDispatch()
+        # Scène objets (Worker isolé) — distincte de FaceEngine / holomat.
+        self.scene = SceneStore()
+        self.vision_objects = None
         # Auth / User Manager — optionnel, ne doit jamais empêcher le boot Core
         self.auth = None
         try:
@@ -132,8 +164,16 @@ class OrchestratorLifecycleMixin:
         # tourne dans le HUD, le Core est en 3.14 où la roue n'existe pas).
         # Il ne peut donc pas échouer à la construction : pas de try/except.
         from .gestures import GestureRouter
+        from .vision_objects import VisionObjectRouter
 
         self.gestures = GestureRouter(self.bus, self._load_gesture_profile)
+        self.vision_objects = VisionObjectRouter(self.bus, self.scene)
+
+        from .alerts import AlertRouter, DevicePresenceWatcher, ThresholdEngine
+
+        self.thresholds = ThresholdEngine(emit=self.emit)
+        self.device_watch = DevicePresenceWatcher(self.devices, emit=self.emit)
+        self.alert_router: AlertRouter | None = None  # câblé dans start_background
 
         # Métriques système. `disk_path` : la racine porte /var, /storage et
         # les logs sur le NUC — c'est ce disque-là qui fait tomber JARVIS.
@@ -146,8 +186,10 @@ class OrchestratorLifecycleMixin:
         )
 
         from .mission_dev import MissionDevRunner
+        from .mission_dev.board import MissionDevBoardService
 
         self.mission_dev = MissionDevRunner()
+        self.mission_board = MissionDevBoardService()
 
         # Cache vocal — ~680 clips pré-générés. Aucun réseau, aucun coût, et
         # JARVIS parle même quand voicebox, Ollama et Internet sont tombés.
@@ -167,7 +209,7 @@ class OrchestratorLifecycleMixin:
 
         # Repli TTS payant — DÉSACTIVÉ par défaut (JARVIS_ELEVENLABS_FALLBACK=1).
         # Sans lui, une réponse libre sort avec la voix du navigateur pendant
-        # que le cache parle avec `jarvis2` : deux voix dans la même phrase.
+        # que le cache parle avec `jarvis3` : deux voix dans la même phrase.
         # Avec lui, une voix unique — mais ça consomme des caractères, d'où
         # l'activation explicite.
         self.tts_live = None
@@ -182,6 +224,19 @@ class OrchestratorLifecycleMixin:
                 logger.warning("Repli ElevenLabs demandé mais indisponible : %s", live.last_error)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Repli ElevenLabs indisponible : %s", exc)
+
+        try:
+            from .voice.tts_config import voicebox_tts_enabled
+
+            vb_tts = "ENABLED" if voicebox_tts_enabled() else "DISABLED"
+            el_dyn = "ACTIVE" if self.tts_live is not None else "inactive"
+            logger.info(
+                "TTS routing · dynamic=ElevenLabs (%s) · voicebox_tts=%s · voicebox_service=probe_deferred",
+                el_dyn,
+                vb_tts,
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
         # La séquence de boot ne se joue qu'UNE fois, à la première connexion
         # d'un HUD : la jouer au démarrage du Core parlerait dans le vide,
@@ -347,7 +402,14 @@ class OrchestratorLifecycleMixin:
         """
         asyncio.create_task(self._forward_bus())
         asyncio.create_task(self.gestures.run())
+        if self.vision_objects is not None:
+            asyncio.create_task(self.vision_objects.run())
         asyncio.create_task(self.metrics.run())
+        asyncio.create_task(self.thresholds.run(self.bus))
+        asyncio.create_task(self.device_watch.run())
+        self.alert_router = self._build_alert_router()
+        if self.alert_router is not None:
+            asyncio.create_task(self.alert_router.run())
         self._apply_gesture_sensitivity()
         self._register_components()
         self._components_ready.set()
@@ -358,6 +420,28 @@ class OrchestratorLifecycleMixin:
             asyncio.create_task(self._load_face())
         asyncio.create_task(self._probe_agents())
         self._start_salon_ingest()
+
+    def _build_alert_router(self):
+        """AlertRouter V1 — notif HUD + voix, sans Hermes."""
+        from .alerts import AlertRouter
+
+        async def notify(message: str, level: str) -> None:
+            await self.broadcast(
+                self.cmd(
+                    "display_notification",
+                    message=message,
+                    level=level,
+                    duration=5.0,
+                )
+            )
+
+        async def speak_alert(message: str) -> None:
+            uid = self._session_user_id() or "local"
+            ev = await self.speak(message, user_id=uid)
+            if ev:
+                await self.broadcast(ev)
+
+        return AlertRouter(self.bus, notify=notify, speak=speak_alert)
     def _start_salon_ingest(self) -> None:
         """HTTP Pi → Core (loopback :8766, nginx proxifie `/v1/salon/` + `/v1/devices/`)."""
         try:

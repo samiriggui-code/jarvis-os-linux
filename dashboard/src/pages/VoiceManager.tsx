@@ -4,6 +4,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
+import { useCoreSession } from '../context/CoreSessionContext'
+import { dashRequest } from '../lib/dashQuery'
 
 type VoiceboxStatus = {
   ok?: boolean
@@ -15,10 +17,8 @@ type VoiceboxStatus = {
   engine_default?: string
 }
 
-import { coreWsUrl } from '../lib/coreWs'
-const CORE_WS = coreWsUrl()
-
 export default function VoiceManager() {
+  const { client } = useCoreSession()
   const [st, setSt] = useState<VoiceboxStatus | null>(null)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,41 +26,16 @@ export default function VoiceManager() {
   const refresh = useCallback(() => {
     setLoading(true)
     setErr('')
-    let settled = false
-    const ws = new WebSocket(CORE_WS)
-    const timer = window.setTimeout(() => {
-      if (!settled) {
-        settled = true
-        setErr('Timeout Core — sonde voicebox lente ou Core hors ligne.')
+    void dashRequest(client, { type: 'voicebox', action: 'status' }, 'voicebox_result', 15000)
+      .then((data) => {
+        setSt(data as VoiceboxStatus)
         setLoading(false)
-        try { ws.close() } catch { /* */ }
-      }
-    }, 15000)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'voicebox', action: 'status' }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(String(ev.data))
-        if (data.type === 'voicebox_result') {
-          settled = true
-          window.clearTimeout(timer)
-          setSt(data as VoiceboxStatus)
-          setLoading(false)
-          ws.close()
-        }
-      } catch { /* */ }
-    }
-    ws.onerror = () => {
-      if (!settled) {
-        settled = true
-        window.clearTimeout(timer)
+      })
+      .catch(() => {
         setErr('Core WS injoignable (8765).')
         setLoading(false)
-      }
-    }
-  }, [])
+      })
+  }, [client])
 
   useEffect(() => { refresh() }, [refresh])
 

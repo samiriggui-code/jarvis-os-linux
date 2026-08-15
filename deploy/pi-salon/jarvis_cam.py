@@ -125,6 +125,22 @@ class CamBroker:
             if q in self._clients:
                 self._clients.remove(q)
 
+    def one_frame(self, timeout_s: float = 10.0) -> bytes | None:
+        """Une image JPEG unique — s'abonne au flux déjà ouvert, prend la
+        première frame, se désabonne. Ne lance pas un second ffmpeg."""
+        import time as _time
+
+        q = self.subscribe()
+        deadline = _time.monotonic() + timeout_s
+        try:
+            while _time.monotonic() < deadline:
+                if q:
+                    return q[0]
+                _time.sleep(0.02)
+            return None
+        finally:
+            self.unsubscribe(q)
+
 
 BROKER: CamBroker | None = None
 
@@ -151,6 +167,20 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return
+        if path in ("/snapshot.jpg", "/snapshot.jpeg"):
+            assert BROKER is not None
+            frame = BROKER.one_frame()
+            if frame is None:
+                self.send_error(503, "aucune frame disponible")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(frame)))
+            self.send_header("Cache-Control", "no-cache, no-store")
+            self.end_headers()
+            self.wfile.write(frame)
+            return
+
         if path not in ("/stream.mjpg", "/stream.mjpeg"):
             self.send_error(404)
             return

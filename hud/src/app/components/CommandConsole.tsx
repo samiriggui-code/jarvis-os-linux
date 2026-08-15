@@ -5,6 +5,9 @@ import { useApp } from '../context/AppContext';
 import { isCoreOnline, sendChatToCore } from './CoreBridge';
 import { interpretCommand } from '../bridge/chatPipeline';
 import { useChatFx } from '../bridge/useChatFx';
+import { useVerification } from '../bridge/verificationStore';
+import { ToolTimeline } from './ToolTimeline';
+import { VerificationCard } from '../../agentic/library/VerificationCard';
 import { VisionChrome, visionBody, visionCaption, visionMono } from './visionChrome';
 import { GlassButton, GlassPanel } from '../../components/glass/';
 import { tokens } from '../../ui/tokens';
@@ -39,6 +42,7 @@ export function CommandConsole() {
     addNotification,
   } = useApp();
   const fx = useChatFx();
+  const verification = useVerification();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -79,15 +83,44 @@ export function CommandConsole() {
       fill
       trailing={<GlassButton tone="neutral" aria-label="Effacer l’historique" title="Effacer l’historique" onClick={() => clearMessages()} icon={<Trash2 className="w-3.5 h-3.5" />} />}
     >
-      <div className="flex flex-col h-full gap-3 overflow-hidden">
-        <p style={{ ...visionBody, marginTop: -4 }}>Transcription et mémoire de session</p>
-        <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: `${tokens.color.borderActive} transparent` }}>
+      <div className="flex flex-col h-full min-h-0 gap-3 overflow-hidden">
+        <p style={{ ...visionBody, marginTop: -4, flexShrink: 0 }}>Transcription et mémoire de session</p>
+        {verification && (
+          <div style={{ flexShrink: 0, maxHeight: 200, overflow: 'auto' }}>
+            <VerificationCard
+              id="console-verification"
+              props={{
+                proposition: verification.proposition,
+                action_requested: verification.action_requested,
+                action_executed: verification.action_executed,
+                result_observed: verification.result_observed,
+                result_validated: verification.result_validated,
+                outcome: verification.outcome,
+              }}
+              state={verification.outcome || 'pending'}
+              emit={() => undefined}
+            >
+              {null}
+            </VerificationCard>
+          </div>
+        )}
+        <ToolTimeline limit={4} />
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: `${tokens.color.borderActive} transparent` }}>
           <AnimatePresence initial={false}>
             {messages.map(msg => (
               <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-2 ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <GlassPanel level={msg.type === 'user' ? 'regular' : 'subtle'} padding="sm" className="max-w-[88%]" style={{ borderRadius: msg.type === 'user' ? '16px 6px 16px 16px' : '6px 16px 16px 16px' }}>
+                <GlassPanel
+                  level={msg.type === 'user' ? 'regular' : 'subtle'}
+                  padding="sm"
+                  className="max-w-[88%] min-w-0"
+                  style={{
+                    borderRadius: msg.type === 'user' ? '16px 6px 16px 16px' : '6px 16px 16px 16px',
+                    overflow: 'hidden',
+                    wordBreak: 'break-word',
+                  }}
+                >
                   {msg.source === 'voice' && <div style={{ ...visionCaption, marginBottom: 4 }}>Voix</div>}
-                  {msg.type === 'ai' ? <p className="hud-console-msg" style={{ ...visionBody, color: tokens.color.text, fontSize: 13, lineHeight: 1.55 }}><TypingText text={msg.text} /></p> : <p className="hud-console-msg" style={{ ...visionBody, color: tokens.color.text, fontSize: 13, lineHeight: 1.55 }}>{msg.text}</p>}
+                  {msg.type === 'ai' ? <p className="hud-console-msg" style={{ ...visionBody, color: tokens.color.text, fontSize: 13, lineHeight: 1.55, overflowWrap: 'anywhere' }}><TypingText text={msg.text} /></p> : <p className="hud-console-msg" style={{ ...visionBody, color: tokens.color.text, fontSize: 13, lineHeight: 1.55, overflowWrap: 'anywhere' }}>{msg.text}</p>}
                   <div className="mt-1 flex justify-end"><span style={{ ...visionMono, color: tokens.color.textMuted, fontSize: 9 }}>{msg.timestamp.toLocaleTimeString('fr-FR', { hour12: false })}</span></div>
                 </GlassPanel>
               </motion.div>
@@ -95,9 +128,9 @@ export function CommandConsole() {
           </AnimatePresence>
 
           {aiState === 'listening' && (
-            <GlassPanel level="subtle" padding="sm">
+            <GlassPanel level="subtle" padding="sm" style={{ overflow: 'hidden' }}>
               <div style={{ ...visionCaption, color: tokens.color.success, marginBottom: 4 }}>Transcription en direct</div>
-              <p style={{ ...visionBody, color: tokens.color.text, minHeight: 20 }}>{liveTranscript || 'Écoute…'}<motion.span animate={{ opacity: [1, 0.2] }} transition={{ repeat: Infinity, duration: 0.8 }} style={{ color: tokens.color.success }}> ▋</motion.span></p>
+              <p style={{ ...visionBody, color: tokens.color.text, minHeight: 20, overflowWrap: 'anywhere' }}>{liveTranscript || 'Écoute…'}<motion.span animate={{ opacity: [1, 0.2] }} transition={{ repeat: Infinity, duration: 0.8 }} style={{ color: tokens.color.success }}> ▋</motion.span></p>
             </GlassPanel>
           )}
 
@@ -105,8 +138,8 @@ export function CommandConsole() {
           <div ref={endRef} />
         </div>
 
-        <GlassPanel level="subtle" padding="sm" className="flex items-center gap-2 flex-shrink-0">
-          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }} placeholder="Écrire ou parler — tout va ici…" className="flex-1 bg-transparent outline-none" style={{ ...visionBody, color: tokens.color.text, fontSize: 13 }} />
+        <GlassPanel level="subtle" padding="sm" className="flex items-center gap-2 flex-shrink-0" style={{ overflow: 'hidden' }}>
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }} placeholder="Écrire ou parler — tout va ici…" className="flex-1 min-w-0 bg-transparent outline-none" style={{ ...visionBody, color: tokens.color.text, fontSize: 13 }} />
           <GlassButton tone="accent" aria-label="Envoyer le message" onClick={handleSubmit} icon={<Send className="w-4 h-4" />} />
         </GlassPanel>
       </div>

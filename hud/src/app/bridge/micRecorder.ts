@@ -23,6 +23,8 @@
 
 import { getCoreClient } from './coreClient';
 import { ensureMic } from './mediaDevices';
+import { stopTtsPlayback } from './ttsCore';
+import { stopDev } from './ttsDev';
 
 /** Un enregistrement plus long que ça n'est plus une phrase. */
 const MAX_MS = 12_000;
@@ -30,6 +32,42 @@ const MAX_MS = 12_000;
 const MIN_BYTES = 2_000;
 /** Le Core transcrit puis répond ; voicebox distant peut prendre son temps. */
 const REPLY_TIMEOUT_MS = 45_000;
+
+/** Coupe Jarvis avant d'écouter — sinon le micro capte le TTS. */
+async function quietBeforeCapture(): Promise<void> {
+  try {
+    stopDev();
+    stopTtsPlayback();
+    const c = getCoreClient();
+    c.send({ type: 'auth', action: 'sequence_stop' });
+    c.send({ type: 'voice', action: 'cancel' });
+  } catch { /* */ }
+  await new Promise((r) => window.setTimeout(r, 700));
+}
+
+function looksLikeAuthChallenge(text: string): boolean {
+  const h = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!h || h.length < 4) return false;
+  const collapsed = h.replace(/\s/g, '');
+  const hasJarvis =
+    /j\s*ar?vise|j\s*arvis|jarvis|jarlis|charvis|jarvi[sz]?\b/.test(h) ||
+    ['jarvis', 'arvise', 'jarvi', 'jarlis', 'charvis', 'jarvise'].some((x) =>
+      collapsed.includes(x),
+    );
+  const hasActive = /activ|actif/.test(h);
+  const hasToi = /\btoi\b/.test(h) || h.endsWith(' toi');
+  if (hasJarvis && (hasActive || hasToi)) return true;
+  if (h.split(' ').includes('hey') && (collapsed.includes('jarvis') || collapsed.includes('jarlis'))) {
+    return true;
+  }
+  return false;
+}
 
 export interface CaptureResult {
   ok: boolean;
@@ -180,16 +218,24 @@ export async function captureEnrollmentPhrase(
   durationMs = 5_000,
   onProgress?: (index: number, total: number, result: CaptureResult) => void,
 ): Promise<CaptureResult[]> {
-  const results: CaptureResult[] = [];
-  for (let i = 0; i < repetitions; i++) {
+  const good: CaptureResult[] = [];
+  let attempts = 0;
+  const maxAttempts = repetitions * 3;
+  while (good.length < repetitions && attempts < maxAttempts) {
+    attempts += 1;
+    await quietBeforeCapture();
     const r = await captureUtterance(durationMs);
-    results.push(r);
-    onProgress?.(i + 1, repetitions, r);
-    // Respirer entre deux prises : sans pause, la troisième commence pendant
-    // que l'utilisateur finit la deuxième.
-    if (i < repetitions - 1) {
-      await new Promise((r2) => window.setTimeout(r2, 900));
+    if (r.ok && looksLikeAuthChallenge(r.text)) {
+      good.push(r);
+      onProgress?.(good.length, repetitions, r);
+    } else {
+      onProgress?.(good.length + 1, repetitions, {
+        ...r,
+        ok: false,
+        error: r.error || (r.text ? `hors phrase (« ${r.text} »)` : 'rien entendu'),
+      });
     }
+    await new Promise((r2) => window.setTimeout(r2, 700));
   }
-  return results;
+  return good;
 }

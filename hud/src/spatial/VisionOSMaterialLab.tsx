@@ -4,10 +4,7 @@
  * de l’agentic + planche HUD (auth / boot / check / shell / orbe…).
  */
 import React, { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { GlassButton } from './GlassButton/GlassButton';
-import { GlassCard } from './GlassCard/GlassCard';
-import { GlassPanel } from './GlassPanel/GlassPanel';
-import { GlassSurface } from './GlassSurface/GlassSurface';
+import { GlassButton, GlassCard, GlassPanel, GlassSurface } from '../visual/glass';
 import { SpatialWindow } from './SpatialWindow/SpatialWindow';
 import { SpatialBackdrop } from './SpatialBackdrop/SpatialBackdrop';
 import { SpatialThemeProvider, type SpatialMode, useSpatialTheme } from './theme/SpatialTheme';

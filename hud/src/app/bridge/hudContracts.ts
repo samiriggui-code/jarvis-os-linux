@@ -323,6 +323,8 @@ export const DEFAULT_GESTURE_BINDINGS: GestureBinding[] = [
   { id: 'swipe_down', label: 'Balayage bas', action: 'stack_next', enabled: true },
   { id: 'open_hand', label: 'Paume ouverte', action: 'open_launcher', enabled: true },
   { id: 'pinch', label: 'Pincement', action: 'select_or_close', enabled: true },
+  { id: 'fist', label: 'Poing fermé', action: 'mute', enabled: true },
+  { id: 'peace', label: 'Victoire', action: 'ack_done', enabled: true },
   { id: 'point', label: 'Index levé', action: 'activate_voice', enabled: true },
 ];
 

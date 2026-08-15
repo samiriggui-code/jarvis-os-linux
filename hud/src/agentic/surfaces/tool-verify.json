@@ -1,0 +1,40 @@
+{
+  "_comment": "Fixture DEV — ToolCall + VerificationCard. Charger ?surface=tool-verify. Données écrites à la main pour le rendu, pas un mock produit.",
+  "surfaces": {
+    "terminal": {
+      "root": ["tool", "verify"],
+      "components": {
+        "tool": {
+          "name": "ToolCall",
+          "props": {
+            "intent": "system.metrics.sample",
+            "owner": "core",
+            "status": "completed",
+            "duration_ms": 42,
+            "summary": "Fixture visuelle — échantillon métriques (pas une exécution live)."
+          },
+          "state": "completed",
+          "region": "left",
+          "size": "normal",
+          "children": []
+        },
+        "verify": {
+          "name": "VerificationCard",
+          "props": {
+            "proposition": "Redémarrer nginx après sync fronts",
+            "action_requested": "service.restart nginx",
+            "action_executed": "systemctl restart nginx",
+            "result_observed": "active (running)",
+            "result_validated": "health :8080 → 200",
+            "outcome": "verified"
+          },
+          "state": "verified",
+          "region": "center",
+          "size": "wide",
+          "children": []
+        }
+      }
+    }
+  },
+  "data": {}
+}

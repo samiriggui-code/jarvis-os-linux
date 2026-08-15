@@ -110,6 +110,58 @@ def main() -> None:
     apply_seed(reg2)
     check("seed pi present", reg2.get_device("pi-salon") is not None)
 
+    print("\n8. software inventory (host apps, pas catalogue JARVIS)")
+    reg.handle_message(
+        {
+            "type": "device",
+            "action": "register",
+            "device_id": "pc-samir",
+            "device_type": "pc_client",
+            "runtime_kind": "windows_agent",
+            "label": "Portable Samir",
+        }
+    )
+    reg.handle_message(
+        {
+            "type": "device",
+            "action": "capabilities",
+            "device_id": "pc-samir",
+            "capabilities": [
+                {
+                    "capability_id": "app.software.cursor",
+                    "name": "cursor",
+                    "value": True,
+                    "metadata": {
+                        "display_name": "Cursor",
+                        "publisher": "Anysphere",
+                        "launchable": True,
+                        "source": "registry",
+                    },
+                },
+                {
+                    "capability_id": "app.software.chrome",
+                    "name": "chrome",
+                    "value": True,
+                    "metadata": {
+                        "display_name": "Google Chrome",
+                        "publisher": "Google",
+                        "launchable": True,
+                    },
+                },
+            ],
+        }
+    )
+    soft = reg.handle_message({"type": "device", "action": "software"})
+    check("software ok", soft.get("ok") is True and soft.get("type") == "device_software")
+    hosts = soft.get("devices") or []
+    pc_soft = next((h for h in hosts if h.get("device_id") == "pc-samir"), None)
+    names = {a.get("display_name") for a in (pc_soft or {}).get("apps") or []}
+    check("pc in software list", pc_soft is not None)
+    check("cursor + chrome", names == {"Cursor", "Google Chrome"})
+    check("nuc/pi absents (pas d'app.software)", all(h.get("device_id") != nuc.device_id for h in hosts))
+    http_soft = reg.handle_http("GET", "/v1/devices/software", None)
+    check("GET /v1/devices/software", http_soft.get("type") == "device_software")
+
     print("\nOK — device registry phase 0/1")
 
 

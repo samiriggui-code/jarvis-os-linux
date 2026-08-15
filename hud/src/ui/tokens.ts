@@ -94,114 +94,103 @@ export interface GlassSpec {
 const glassFill = (top: number, mid: number, bottom: number) =>
   `linear-gradient(165deg, rgba(${raw.paper100}, ${top}) 0%, rgba(${raw.paper100}, ${mid}) 48%, rgba(${raw.paper100}, ${bottom}) 100%)`;
 
-const blur = (px: number, sat = 210) =>
-  `blur(${px}px) saturate(${sat}%) brightness(1.06)`;
+const blur = (px: number, sat = 160) =>
+  `blur(${px}px) saturate(${sat}%)`;
 
+/**
+ * Ombres §8.19.4 — douce, grande diffusion, faible opacité, léger décalage.
+ * Pas de glow gaming `0 0 20px black`.
+ */
+const softShadow = (mode: 'night' | 'light', elev: 'low' | 'mid' | 'high') => {
+  if (mode === 'night') {
+    if (elev === 'low') return '0 10px 36px -16px rgba(0,0,0,0.32), 0 2px 8px -4px rgba(0,0,0,0.18)';
+    if (elev === 'mid') return '0 18px 52px -22px rgba(0,0,0,0.38), 0 4px 14px -6px rgba(0,0,0,0.2)';
+    return '0 24px 64px -26px rgba(0,0,0,0.42), 0 6px 18px -8px rgba(0,0,0,0.22)';
+  }
+  if (elev === 'low') return '0 12px 40px -18px rgba(40,48,70,0.12), 0 2px 8px -4px rgba(40,48,70,0.06)';
+  if (elev === 'mid') return '0 20px 56px -24px rgba(40,48,70,0.14), 0 4px 14px -6px rgba(40,48,70,0.07)';
+  return '0 28px 72px -28px rgba(40,48,70,0.16), 0 6px 18px -8px rgba(40,48,70,0.08)';
+};
+
+/** Thin / Regular / Thick (§8.19.2) → subtle / regular / strong. floating = elevated regular. */
 const glassLevelNight: Record<GlassLevel, GlassSpec> = {
   subtle: {
-    background: glassFill(0.09, 0.04, 0.015),
-    border: `1px solid rgba(${raw.paper100}, 0.14)`,
-    backdropFilter: blur(28, 195),
-    boxShadow: [
-      '0 4px 20px -6px rgba(0,0,0,0.45)',
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.18)`,
-      `inset 0 0 0 1px rgba(${raw.paper100}, 0.04)`,
-    ].join(', '),
+    background: glassFill(0.055, 0.028, 0.01),
+    border: `0.5px solid rgba(${raw.paper100}, 0.1)`,
+    backdropFilter: blur(22, 135),
+    boxShadow: softShadow('night', 'low'),
     glare: false,
-    sheen: true,
+    sheen: false,
   },
   regular: {
-    background: glassFill(0.12, 0.05, 0.02),
-    border: `1px solid rgba(${raw.paper100}, 0.2)`,
-    backdropFilter: blur(40, 210),
-    boxShadow: [
-      '0 12px 40px -12px rgba(0,0,0,0.55)',
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.26)`,
-      `inset 0 -1px 0 rgba(0,0,0,0.2)`,
-      `inset 0 0 0 1px rgba(${raw.paper100}, 0.05)`,
-    ].join(', '),
+    background: glassFill(0.085, 0.038, 0.014),
+    border: `0.5px solid rgba(${raw.paper100}, 0.14)`,
+    backdropFilter: blur(30, 148),
+    boxShadow: softShadow('night', 'mid'),
     glare: false,
     sheen: true,
   },
   strong: {
-    background: glassFill(0.16, 0.07, 0.03),
-    border: `1px solid rgba(${raw.paper100}, 0.26)`,
-    backdropFilter: blur(52, 220),
-    boxShadow: [
-      '0 20px 56px -16px rgba(0,0,0,0.62)',
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.32)`,
-      `inset 0 -1px 0 rgba(0,0,0,0.22)`,
-      `inset 0 0 0 1px rgba(${raw.paper100}, 0.06)`,
-    ].join(', '),
+    background: glassFill(0.11, 0.05, 0.02),
+    border: `0.5px solid rgba(${raw.paper100}, 0.18)`,
+    backdropFilter: blur(38, 152),
+    boxShadow: softShadow('night', 'high'),
     glare: false,
     sheen: true,
   },
   floating: {
-    background: glassFill(0.14, 0.06, 0.025),
-    border: `1px solid rgba(${raw.paper100}, 0.28)`,
-    backdropFilter: blur(56, 225),
-    boxShadow: [
-      '0 28px 64px -20px rgba(0,0,0,0.7)',
-      `0 0 40px -12px rgba(${raw.blue500}, 0.18)`,
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.34)`,
-      `inset 0 -1px 0 rgba(0,0,0,0.25)`,
-    ].join(', '),
-    glare: true,
+    background: glassFill(0.095, 0.042, 0.016),
+    border: `0.5px solid rgba(${raw.paper100}, 0.16)`,
+    backdropFilter: blur(34, 150),
+    boxShadow: softShadow('night', 'mid'),
+    glare: false,
     sheen: true,
   },
 };
 
-/** Light = frost plus opaque + ombres douces — lisibilité du texte sombre. */
+/** Light = frost translucide — laisse lire le contexte derrière (§8.19.1). */
 const glassLevelLight: Record<GlassLevel, GlassSpec> = {
   subtle: {
-    background: glassFill(0.55, 0.42, 0.32),
-    border: '1px solid rgba(15, 20, 30, 0.12)',
-    backdropFilter: blur(36, 200),
-    boxShadow: [
-      '0 4px 18px -6px rgba(20, 40, 80, 0.18)',
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.7)`,
-      'inset 0 0 0 1px rgba(15, 20, 30, 0.04)',
-    ].join(', '),
+    background: glassFill(0.22, 0.14, 0.09),
+    border: '0.5px solid rgba(255, 255, 255, 0.38)',
+    backdropFilter: blur(26, 140),
+    boxShadow: softShadow('light', 'low'),
     glare: false,
-    sheen: true,
+    sheen: false,
   },
   regular: {
-    background: glassFill(0.62, 0.5, 0.38),
-    border: '1px solid rgba(15, 20, 30, 0.14)',
-    backdropFilter: blur(44, 210),
-    boxShadow: [
-      '0 12px 36px -12px rgba(20, 40, 80, 0.22)',
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.78)`,
-      'inset 0 -1px 0 rgba(15, 20, 30, 0.06)',
-    ].join(', '),
+    background: glassFill(0.28, 0.17, 0.11),
+    border: '0.5px solid rgba(255, 255, 255, 0.42)',
+    backdropFilter: blur(32, 148),
+    boxShadow: softShadow('light', 'mid'),
     glare: false,
     sheen: true,
   },
   strong: {
-    background: glassFill(0.72, 0.58, 0.45),
-    border: '1px solid rgba(15, 20, 30, 0.16)',
-    backdropFilter: blur(52, 215),
-    boxShadow: [
-      '0 18px 48px -14px rgba(20, 40, 80, 0.26)',
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.85)`,
-      'inset 0 -1px 0 rgba(15, 20, 30, 0.08)',
-    ].join(', '),
+    background: glassFill(0.36, 0.24, 0.15),
+    border: '0.5px solid rgba(255, 255, 255, 0.48)',
+    backdropFilter: blur(38, 152),
+    boxShadow: softShadow('light', 'high'),
     glare: false,
     sheen: true,
   },
   floating: {
-    background: glassFill(0.68, 0.54, 0.42),
-    border: '1px solid rgba(15, 20, 30, 0.16)',
-    backdropFilter: blur(56, 220),
-    boxShadow: [
-      '0 24px 56px -18px rgba(20, 40, 80, 0.28)',
-      `0 0 36px -12px rgba(${raw.blue500}, 0.12)`,
-      `inset 0 1px 0 rgba(${raw.paper100}, 0.88)`,
-    ].join(', '),
-    glare: true,
+    background: glassFill(0.3, 0.19, 0.12),
+    border: '0.5px solid rgba(255, 255, 255, 0.44)',
+    backdropFilter: blur(34, 148),
+    boxShadow: softShadow('light', 'mid'),
+    glare: false,
     sheen: true,
   },
 };
+
+/** Vibrancy §8.19.7 — hiérarchie lisible sur Glass, pas blanc plat. */
+export const vibrancy = {
+  primary: 'var(--jv-text, rgba(255, 255, 255, 0.92))',
+  secondary: 'var(--jv-text-muted, rgba(255, 255, 255, 0.55))',
+  tertiary: 'rgba(255, 255, 255, 0.38)',
+  inactive: 'rgba(255, 255, 255, 0.28)',
+} as const;
 
 /** Alias night (rétrocompat). Préférer `glassLevelFor(mode)`. */
 export const glassLevel = glassLevelNight;

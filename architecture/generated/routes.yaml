@@ -20,118 +20,153 @@ routes:
     error_type: null
     handler_existe: true
     source: "core/jarvis_core/ws/routes.py:L60"
+  - message: perception
+    core_handler: handle_perception
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L61"
   - message: gesture
     core_handler: handle_gesture
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L61"
+    source: "core/jarvis_core/ws/routes.py:L62"
   - message: peripheral
     core_handler: handle_peripheral
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L62"
+    source: "core/jarvis_core/ws/routes.py:L63"
   - message: device
     core_handler: handle_device
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L63"
+    source: "core/jarvis_core/ws/routes.py:L64"
   - message: device.execute_result
     core_handler: handle_device_execute_result
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L64"
+    source: "core/jarvis_core/ws/routes.py:L65"
+  - message: device.run.progress
+    core_handler: handle_device_run_progress
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L66"
+  - message: device.run.completed
+    core_handler: handle_device_run_completed
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L67"
+  - message: device.run.failed
+    core_handler: handle_device_run_failed
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L68"
+  - message: device.run.cancel_result
+    core_handler: handle_device_run_cancel_result
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L69"
+  - message: device.run.status_result
+    core_handler: handle_device_run_status_result
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L70"
   - message: preferences
     core_handler: handle_preferences
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L65"
+    source: "core/jarvis_core/ws/routes.py:L71"
   - message: memory
     core_handler: handle_memory
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L66"
+    source: "core/jarvis_core/ws/routes.py:L72"
   - message: voice
     core_handler: handle_voice
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L67"
+    source: "core/jarvis_core/ws/routes.py:L73"
   - message: agent_reach
     core_handler: handle_agent_reach
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L68"
+    source: "core/jarvis_core/ws/routes.py:L74"
   - message: supervisor
     core_handler: handle_supervisor
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L69"
+    source: "core/jarvis_core/ws/routes.py:L75"
   - message: usage
     core_handler: handle_usage
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L70"
+    source: "core/jarvis_core/ws/routes.py:L76"
   - message: providers
     core_handler: handle_providers
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L71"
+    source: "core/jarvis_core/ws/routes.py:L77"
   - message: hermes_status
     core_handler: handle_hermes
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L72"
+    source: "core/jarvis_core/ws/routes.py:L78"
   - message: voicebox
     core_handler: handle_voicebox
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L73"
+    source: "core/jarvis_core/ws/routes.py:L79"
   - message: boot
     core_handler: handle_boot
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L74"
+    source: "core/jarvis_core/ws/routes.py:L80"
   - message: surface
     core_handler: handle_surface
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L75"
+    source: "core/jarvis_core/ws/routes.py:L81"
   - message: terminal
     core_handler: handle_terminal
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L76"
+    source: "core/jarvis_core/ws/routes.py:L82"
   - message: user_event
     core_handler: handle_chat
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L77"
+    source: "core/jarvis_core/ws/routes.py:L83"
   - message: stop_run
     core_handler: handle_stop_run
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L78"
+    source: "core/jarvis_core/ws/routes.py:L84"
   - message: tool_timeline
     core_handler: handle_tool_timeline
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L79"
+    source: "core/jarvis_core/ws/routes.py:L85"
   - message: mission_dev
     core_handler: handle_mission_dev
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L80"
+    source: "core/jarvis_core/ws/routes.py:L86"
+  - message: mission_board
+    core_handler: handle_mission_board
+    error_type: null
+    handler_existe: true
+    source: "core/jarvis_core/ws/routes.py:L87"
   - message: save_hud_preferences
     core_handler: handle_preferences
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L81"
+    source: "core/jarvis_core/ws/routes.py:L88"
   - message: save_gesture_profile
     core_handler: handle_preferences
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L91"
+    source: "core/jarvis_core/ws/routes.py:L98"
   - message: holomat_calibrate_start
     core_handler: handle_holomat
     error_type: null
     handler_existe: true
-    source: "core/jarvis_core/ws/routes.py:L101"
+    source: "core/jarvis_core/ws/routes.py:L108"

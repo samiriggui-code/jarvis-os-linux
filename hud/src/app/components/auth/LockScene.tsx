@@ -22,7 +22,7 @@ import { useMicOrbAnalyser } from './useMicOrbAnalyser';
 import { OrbSpatial } from './OrbSpatial';
 import { GlassButton, GlassPanel } from '../../../components/glass';
 import { tokens } from '../../../ui/tokens';
-import { Background } from '../Background';
+import { AuthCinematicBackdrop } from './AuthCinematicBackdrop';
 import { ThemeModeToggle } from '../ThemeModeToggle';
 import { visionTitle, visionCaption, visionBody } from '../visionChrome';
 
@@ -226,12 +226,12 @@ export function LockScene({ onUnlock }: Props) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <Background />
+      <AuthCinematicBackdrop />
       <div className="absolute top-3 right-3 z-20">
         <ThemeModeToggle compact />
       </div>
 
-      <GlassPanel level="regular" radius="lg" padding="lg" className="relative z-10 flex flex-col items-center gap-5 w-full max-w-md">
+      <GlassPanel level="regular" radius="lg" padding="lg" className="relative z-10 flex flex-col items-center gap-5 w-full max-w-md" style={{ borderRadius: 32 }}>
         <div className="flex items-center gap-2">
           {permanentDeny ? (
             <ShieldAlert className="w-4 h-4" style={{ color: tokens.color.danger }} />
@@ -246,21 +246,8 @@ export function LockScene({ onUnlock }: Props) {
         <div className="relative flex items-center justify-center" style={{ width: 200, height: 200 }}>
           <OrbSpatial
             size={168}
-            veille={!unlockedVisual && !scanning}
-            analyser={unlockedVisual ? null : micAnalyser}
-            sensitivity={1}
-            state={
-              unlockedVisual
-                ? 'responding'
-                : scanning
-                  ? 'listening'
-                  : 'idle'
-            }
-            volume={
-              scanning
-                ? Math.max(0.08, Math.min(0.45, micLevel * 0.85 + 0.06))
-                : 0.08
-            }
+            state={unlockedVisual ? 'responding' : 'idle'}
+            volume={0.08}
             playbackVolume={0}
           />
         </div>

@@ -81,7 +81,7 @@ apps:
     risque: info
     intention: web.search
     execute_par: hermes
-    declencheurs: [internet, agent-reach, agent reach, recherche web, cherche, trouve, propose, recherche, nouvelles, actualité, actualites, actualités, cherche sur internet, cherche sur le web, cherche sur youtube, cherche sur github, github, youtube, reddit, rss, openclaw]
+    declencheurs: [internet, agent-reach, agent reach, recherche web, cherche, trouve, propose, recherche, nouvelles, actualité, actualites, actualités, cherche sur internet, cherche sur le web, cherche sur youtube, cherche sur github, github, reddit, rss, openclaw]
   - id: docker
     nom: Docker
     statut: soon
@@ -102,7 +102,7 @@ apps:
     risque: admin
     intention: data.analyze
     execute_par: hermes
-    declencheurs: [analyse, stats, données]
+    declencheurs: [stats, données]
   - id: storage
     nom: Stockage
     statut: soon
@@ -242,7 +242,14 @@ apps:
     risque: home
     intention: home.control
     execute_par: core
-    declencheurs: [maison, domotique, lumière, lumières, lampe, home assistant, home, ouvre home, affiche home, affiche-moi home, mission control home, mission contrôle home, mission controle home, ouvre la maison, affiche la maison, allume, éteint, eteint, allume le salon, éteint le salon]
+    declencheurs: [lumière, lumières, lampe, home assistant, ouvre home, affiche home, affiche-moi home, mission control home, mission contrôle home, mission controle home, ouvre la maison, affiche la maison, allume, éteint, eteint, allume le salon, éteint le salon]
+  - id: salon-camera
+    nom: Caméra salon
+    statut: surface
+    risque: info
+    intention: home.camera_view
+    execute_par: core
+    declencheurs: [caméra du salon, caméra salon, affiche la caméra, affiche la caméra du salon, montre la caméra, montre-moi le salon, regarde ce qui se passe au salon, regarde le salon]
   - id: music
     nom: Musique
     statut: surface
@@ -256,7 +263,7 @@ apps:
     risque: media
     intention: media.video
     execute_par: core
-    declencheurs: [vidéo, video, film, plex, série, serie, épisode, episode, regarde, mets, lance]
+    declencheurs: [vidéo, video, film, plex, série, serie, épisode, episode, mets, lance, play]
   - id: mail
     nom: Courrier
     statut: soon
@@ -272,3 +279,5 @@ apps:
     execute_par: null
     declencheurs: []
 declencheurs_ambigus:
+  - mot: montre la caméra
+    revendique_par: [vision, salon-camera]

@@ -28,9 +28,9 @@ export default function SystemSettings() {
         </Card>
         <Card>
           <CardTitle>Auth / Session</CardTitle>
-          <Row name="Facteurs login" meta="face + PIN (voix MFA off)" status="LIVE" />
-          <Row name="Unlock session" meta="présence → face · PIN backup" status="LIVE" />
-          <Row name="Wake word" meta="hey Jarvis · micro idle" status="ON" />
+          <Row name="Facteurs login" meta="phrase vocale (DECISIONS 2026-08-07) · Dashboard gate encore visage" status="À MIGRER" statusColor="#FFC857" />
+          <Row name="Unlock session" meta="HUD : AuthVoiceWave · pas de fenêtre caméra d’accès" status="HUD" />
+          <Row name="Wake word" meta="hey Jarvis · écrit, non branché" status="OFF" statusColor="#FFC857" />
           <Row name="Caméra idle" meta="éteinte hors auth/gestes" status="ENFORCED" />
           <Row name="Recovery PIN" meta="niveau 0 · docs/RECOVERY.md" status="READY" />
         </Card>

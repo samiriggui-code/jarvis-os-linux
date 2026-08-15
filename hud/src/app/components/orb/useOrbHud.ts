@@ -14,7 +14,7 @@ import {
 export const ORB_LABELS: Record<OrbState, { label: string; color: string; sub: string }> = {
   idle: { label: 'VEILLE', color: '#0A84FF', sub: 'DIS « JARVIS … » POUR COMMANDER' },
   listening: { label: 'ÉCOUTE', color: '#22c55e', sub: 'COMMANDES = JARVIS + …' },
-  thinking: { label: 'RÉFLEXION', color: '#f59e0b', sub: 'MICRO EN PAUSE' },
+  thinking: { label: 'RÉFLEXION', color: '#FF3B30', sub: 'MICRO EN PAUSE' },
   speaking: { label: 'PAROLE', color: '#0A84FF', sub: 'PUIS RETOUR VEILLE' },
 };
 
@@ -47,7 +47,6 @@ export function useOrbHud() {
   const [playbackVolume, setPlaybackVolume] = useState(0);
   const [micOk, setMicOk] = useState(false);
 
-  // Micro toujours actif pour pulse + wake word
   useEffect(() => {
     let alive = true;
     void startAudioBus().then(ok => {
@@ -65,7 +64,7 @@ export function useOrbHud() {
 
   useEffect(() => {
     return subscribeWakeWord(() => {
-      if (micTestActive) return; // test micro = niveau seul
+      if (micTestActive) return;
       if (aiState === 'idle' || aiState === 'responding') {
         setAiState('listening');
         addNotification({
@@ -77,7 +76,6 @@ export function useOrbHud() {
     });
   }, [aiState, setAiState, addNotification, micTestActive]);
 
-  // Niveaux orbe depuis micro / état
   useEffect(() => {
     const unsub = subscribeAudioLevel(micLevel => {
       const t = Date.now() / 1000;
@@ -91,13 +89,11 @@ export function useOrbHud() {
         setVolume(0.12 + 0.18 * Math.abs(Math.sin(t * 2.2)));
         setPlaybackVolume(0.08);
       } else {
-        // veille : respiration + réaction voix ambiante
         const breath = 0.05 + 0.04 * Math.abs(Math.sin(t * 0.85));
         setVolume(Math.min(0.85, breath + micLevel * 0.9));
         setPlaybackVolume(0);
       }
     });
-    // kick si pas encore de frame audio
     const id = setInterval(() => {
       if (orbState === 'speaking') {
         const t = Date.now() / 1000;
@@ -133,6 +129,5 @@ export function useOrbHud() {
     return () => stopDev();
   }, [aiState, messages]);
 
-  // Pas de clic orbe : écoute = wake « Jarvis » uniquement (§6.5.1 — souris = recovery)
   return { orbState, meta, volume, playbackVolume, micOk };
 }

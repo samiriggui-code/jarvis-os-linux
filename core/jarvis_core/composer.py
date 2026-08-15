@@ -275,7 +275,9 @@ class SurfaceComposer:
         prompt = build_prompt(
             question, self.catalog, permissions=permissions, binding_sources=binding_sources
         )
-        raw = await self.providers.complete(prompt)
+        from .personality import LLMCallMode
+
+        raw = await self.providers.complete(prompt, call_mode=LLMCallMode.COMPOSER)
 
         proposal = parse_proposal(raw)
         check_confidence(proposal, floor)

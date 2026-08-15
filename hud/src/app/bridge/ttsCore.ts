@@ -2,29 +2,68 @@
  * Lecture TTS pilotée par le Core (§3.4).
  *
  * Le Core envoie :
- *   tts_audio     WAV base64 synthétisé par voicebox → on le joue ici
+ *   tts_audio     WAV base64 synthétisé (cache / voicebox) → filtre à la lecture
  *   tts_fallback  voicebox indisponible → texte HUD seul (pas de voix OS)
  *   tts_skipped   rien à dire (TTS coupé, phrase vide, barge-in)
  *
+ * Filtre produit actif : **hologramme** (`voiceFilter.ts`) — WAV restent bruts.
+ *
  * On rend compte au Core avec `voice/playback` : c'est ce retour qui fait
  * repasser l'orbe en `idle` sur la *vraie* fin du son, au lieu d'un délai fixe.
- *
- * Le son sort d'ici et pas de la machine voicebox : barge-in, périphérique de
- * sortie et synchro de l'orbe restent côté client, et le comportement est
- * identique en dev (Windows) et sur le NUC.
  */
 import { stopDev, unlockAudio } from './ttsDev';
+import {
+  playFilteredAudio,
+  resumeVoiceFilterCtx,
+  setVoiceFilterPreset,
+  setVoiceFilterSink,
+  stopVoiceFilter,
+} from './voiceFilter';
 
 type Send = (payload: Record<string, unknown>) => unknown;
+type SpeakingListener = (speaking: boolean) => void;
 
 export type TtsEventKind = 'tts_audio' | 'tts_fallback' | 'tts_skipped';
 
-let current: HTMLAudioElement | null = null;
-let currentUrl: string | null = null;
 let currentUtterance: string | null = null;
 let outputDeviceId: string | null = null;
 let unlocked = false;
 let pending: (() => void) | null = null;
+let speaking = false;
+let playGen = 0;
+const speakingListeners = new Set<SpeakingListener>();
+
+// Produit : hologramme (candidat validé 2026-08-11).
+setVoiceFilterPreset('hologramme');
+
+function setSpeaking(next: boolean) {
+  if (speaking === next) return;
+  speaking = next;
+  for (const fn of speakingListeners) {
+    try {
+      fn(speaking);
+    } catch {
+      /* */
+    }
+  }
+}
+
+/** Orbe = bouche : true pendant la lecture WAV Core. */
+export function isTtsSpeaking(): boolean {
+  return speaking;
+}
+
+export function subscribeTtsSpeaking(fn: SpeakingListener): () => void {
+  speakingListeners.add(fn);
+  try {
+    fn(speaking);
+  } catch {
+    /* */
+  }
+  return () => {
+    speakingListeners.delete(fn);
+  };
+}
 
 /** Chrome bloque la lecture avant le 1er geste — mêmes règles que ttsDev. */
 function armGestureUnlock() {
@@ -32,6 +71,7 @@ function armGestureUnlock() {
   const once = () => {
     unlocked = true;
     unlockAudio();
+    void resumeVoiceFilterCtx();
     window.removeEventListener('pointerdown', once);
     window.removeEventListener('keydown', once);
     const run = pending;
@@ -51,6 +91,7 @@ export function initTtsCore(): void {
 export function unlockTtsPlayback(): void {
   unlocked = true;
   unlockAudio();
+  void resumeVoiceFilterCtx();
   const run = pending;
   pending = null;
   run?.();
@@ -58,48 +99,32 @@ export function unlockTtsPlayback(): void {
 
 export function setTtsOutputDevice(deviceId: string | null): void {
   outputDeviceId = deviceId;
+  void setVoiceFilterSink(deviceId);
 }
 
 function releaseCurrent() {
-  if (current) {
-    current.onended = null;
-    current.onerror = null;
-    try { current.pause(); } catch { /* */ }
-  }
-  if (currentUrl) {
-    URL.revokeObjectURL(currentUrl);
-    currentUrl = null;
-  }
-  current = null;
+  stopVoiceFilter();
   currentUtterance = null;
+  setSpeaking(false);
 }
 
 /** Barge-in : coupe le son en cours (WAV Core ou SpeechSynthesis). */
 export function stopTtsPlayback(): void {
+  playGen += 1;
   releaseCurrent();
   stopDev();
+  setSpeaking(false);
 }
 
 export function isTtsPlaying(): boolean {
-  return current !== null;
+  return speaking;
 }
 
-function base64ToBlob(b64: string, mime: string): Blob {
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type: mime });
-}
-
-async function applySink(audio: HTMLAudioElement) {
-  if (!outputDeviceId) return;
-  const withSink = audio as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
-  if (typeof withSink.setSinkId !== 'function') return;
-  try {
-    await withSink.setSinkId(outputDeviceId);
-  } catch (err) {
-    console.debug('[tts-core] setSinkId refusé', err);
-  }
+  return bytes.buffer;
 }
 
 async function playWav(payload: Record<string, unknown>, send: Send): Promise<void> {
@@ -108,42 +133,35 @@ async function playWav(payload: Record<string, unknown>, send: Send): Promise<vo
   if (!b64) return;
 
   stopTtsPlayback();
-
-  const url = URL.createObjectURL(base64ToBlob(b64, 'audio/wav'));
-  const audio = new Audio(url);
-  audio.preload = 'auto';
-  current = audio;
-  currentUrl = url;
+  const gen = playGen;
   currentUtterance = utteranceId;
 
-  await applySink(audio);
-
   const finish = () => {
-    // Une phrase plus récente a pris la main : ne pas fermer la sienne.
-    if (current !== audio) return;
+    if (gen !== playGen) return;
     releaseCurrent();
     send({ type: 'voice', action: 'playback', phase: 'end', utterance_id: utteranceId });
   };
 
-  audio.onended = finish;
-  audio.onerror = () => {
-    console.warn('[tts-core] lecture WAV impossible — pas de fallback OS');
-    if (current === audio) releaseCurrent();
-    send({ type: 'voice', action: 'playback', phase: 'end', utterance_id: utteranceId });
-  };
-
-  // Autoplay refusé : rejouer au 1er geste plutôt que basculer sur la voix OS.
   try {
-    await audio.play();
+    await resumeVoiceFilterCtx();
+    await playFilteredAudio(base64ToArrayBuffer(b64), finish, {
+      sinkId: outputDeviceId,
+      preset: 'hologramme',
+    });
+    if (gen !== playGen) return;
+    setSpeaking(true);
     send({ type: 'voice', action: 'playback', phase: 'start', utterance_id: utteranceId });
   } catch (err) {
     if (!unlocked) {
       console.warn('[tts-core] audio verrouillé — lecture au 1er clic');
-      pending = () => { void playWav(payload, send); };
+      pending = () => {
+        void playWav(payload, send);
+      };
       return;
     }
-    console.warn('[tts-core] play() refusé — pas de fallback SpeechSynthesis', err);
-    if (current === audio) releaseCurrent();
+    console.warn('[tts-core] lecture filtrée impossible', err);
+    if (gen === playGen) releaseCurrent();
+    setSpeaking(false);
     send({ type: 'voice', action: 'playback', phase: 'end', utterance_id: utteranceId });
   }
 }
@@ -151,8 +169,6 @@ async function playWav(payload: Record<string, unknown>, send: Send): Promise<vo
 async function speakFallback(payload: Record<string, unknown>, send: Send): Promise<void> {
   const text = String(payload.text || '');
   const utteranceId = payload.utterance_id ? String(payload.utterance_id) : null;
-  // Pas de SpeechSynthesis navigateur : sur Windows/téléphone ça mélange une
-  // voix OS avec le cache voicebox JARVIS. Le texte reste à l'écran via le HUD.
   console.warn(
     '[tts-core] fallback navigateur ignoré (voix OS désactivée) ·',
     text.slice(0, 80),

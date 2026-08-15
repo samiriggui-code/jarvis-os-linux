@@ -119,6 +119,22 @@ function fingerStates(lm: Point[], scale: number): number[] {
   return FINGER_TIPS.map((tip, i) => extension(lm, tip, FINGER_PIPS[i], scale));
 }
 
+/** Index seul levé — geste discret (≠ curseur continu pouce-index). */
+function pointPoseConfidence(lm: Point[], scale: number): number {
+  const [index, middle, ring, pinky] = fingerStates(lm, scale);
+  const othersFolded = Math.min(1 - middle, 1 - ring, 1 - pinky);
+  const thumbAway = ramp(dist(lm[THUMB_TIP], lm[INDEX_TIP]) / scale, 0.55, 0.25);
+  return Math.min(index, othersFolded, thumbAway);
+}
+
+/** V signe : index + majeur tendus, annulaire + auriculaire repliés. */
+function peaceConfidence(lm: Point[], scale: number): number {
+  const [index, middle, ring, pinky] = fingerStates(lm, scale);
+  const pairExtended = Math.min(index, middle);
+  const pairFolded = Math.min(1 - ring, 1 - pinky);
+  return Math.min(pairExtended, pairFolded);
+}
+
 /** Position du curseur : milieu pouce-index, comme `handtracking_mouse.py`. */
 function cursorPoint(lm: Point[]): { x: number; y: number } {
   return {
@@ -226,7 +242,9 @@ function frameToCore(lm: Point[], hand: string, now: number): void {
     // « stop » de la main et un « quatre doigts collés » sont confondus.
     open: Math.min(extended, thumbOut),
     fist: 1 - Math.max(extended, thumbOut),
-    point: cursorPoint(lm),
+    peace: peaceConfidence(lm, scale),
+    point_pose: pointPoseConfidence(lm, scale),
+    cursor: cursorPoint(lm),
   };
 
   const swipe = swipeOf(hand, lm[MIDDLE_MCP], now);

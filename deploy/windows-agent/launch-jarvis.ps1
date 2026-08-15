@@ -1,4 +1,4 @@
-# Lance JARVIS : agent machine + HUD dans le navigateur.
+﻿# Lance JARVIS : agent machine + HUD dans le navigateur.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $InstallDir = Join-Path $env:ProgramData "JARVIS\agent"

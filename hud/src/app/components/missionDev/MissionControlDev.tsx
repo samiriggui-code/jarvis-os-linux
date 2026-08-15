@@ -1,7 +1,6 @@
 /**
- * Mission Control DEV — surface agentique (jalons + ResultPanel).
- * Plus de monologue : le Core avance les steps ; l’UI les affiche.
- * Une phrase audio courte par jalon terminé (côté Core).
+ * Mission Control DEV — surface agentique (kanban voix-first).
+ * Jalons mission_dev affichés seulement pendant un run actif.
  */
 import React, { useCallback, useState } from 'react';
 import { Code2, Square } from 'lucide-react';
@@ -39,14 +38,9 @@ function StepRow({ step }: { step: MissionDevStep }) {
         border: `1px solid ${color}33`,
       }}
     >
-      <span
-        className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ background: color }}
-      />
+      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
       <span style={{ ...bodyFont, color: tokens.color.text, fontSize: 14, flex: 1 }}>{step.label}</span>
-      <span style={{ ...monoFont, color, fontSize: 9, letterSpacing: '0.02em' }}>
-        {statusLabel}
-      </span>
+      <span style={{ ...monoFont, color, fontSize: 9, letterSpacing: '0.02em' }}>{statusLabel}</span>
     </div>
   );
 }
@@ -59,9 +53,10 @@ export function MissionControlDev() {
     closeMissionControlDev,
     launchApp,
   } = useApp();
-  const { open, title, subtitle, projectName, steps, scenario } = missionControlDev;
+  const { open, title, projectName, steps, scenario } = missionControlDev;
   const pct = missionDevProgressPct(steps);
   const [aborting, setAborting] = useState(false);
+  const missionRunning = open && steps.some(s => s.status === 'running' || s.status === 'done');
 
   const onHandoffToCursor = useCallback(() => {
     closeMissionControlDev();
@@ -98,66 +93,77 @@ export function MissionControlDev() {
           <p style={{ ...orbFont, color: ACCENT, fontSize: 12, letterSpacing: '-0.01em', margin: 0 }}>
             Mission Control · Dev
           </p>
-          <p style={{ ...bodyFont, color: tokens.color.text, fontSize: 18, margin: '4px 0 0' }}>
-            {title || 'Orchestration'}
-          </p>
-          <p style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 10, marginTop: 4 }}>
-            {projectName} · {scenario || 'cursor'} · {Math.round(pct)}%
-          </p>
-          {liveLabel ? (
-            <p style={{ ...monoFont, color: ACCENT, fontSize: 10, marginTop: 6 }}>{liveLabel}</p>
-          ) : null}
+          {missionRunning ? (
+            <>
+              <p style={{ ...bodyFont, color: tokens.color.text, fontSize: 16, margin: '4px 0 0' }}>
+                {title || 'Orchestration'}
+              </p>
+              <p style={{ ...monoFont, color: tokens.color.textMuted, fontSize: 10, marginTop: 4 }}>
+                {projectName} · {scenario || 'cursor'} · {Math.round(pct)}%
+              </p>
+              {liveLabel ? (
+                <p style={{ ...monoFont, color: ACCENT, fontSize: 10, marginTop: 6 }}>{liveLabel}</p>
+              ) : null}
+            </>
+          ) : (
+            <p style={{ ...bodyFont, color: tokens.color.textMuted, fontSize: 13, margin: '6px 0 0' }}>
+              Parlez — le board se met à jour.
+            </p>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={abort}
-          disabled={aborting}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer"
-          style={{
-            ...monoFont,
-            fontSize: 9,
-            color: DANGER,
-            border: `1px solid rgba(255,59,48,0.4)`,
-            background: tokens.color.surfaceRaised,
-          }}
-        >
-          <Square className="w-3 h-3" /> Abandonner
-        </button>
+        {missionRunning ? (
+          <button
+            type="button"
+            onClick={abort}
+            disabled={aborting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer"
+            style={{
+              ...monoFont,
+              fontSize: 9,
+              color: DANGER,
+              border: '1px solid rgba(255,59,48,0.4)',
+              background: tokens.color.surfaceRaised,
+            }}
+          >
+            <Square className="w-3 h-3" /> Abandonner
+          </button>
+        ) : null}
       </div>
 
-      <div className="px-4 pb-2">
-        <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-          <div
-            className="h-full transition-all duration-500"
-            style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${ACCENT}, ${SUCCESS})` }}
-          />
-        </div>
-      </div>
-
-      <div className="px-4 flex flex-col gap-2 pb-3 flex-1 min-h-0 overflow-auto">
-        {steps.map(s => <StepRow key={s.id} step={s} />)}
-        <div className="mt-2 min-h-[120px] relative flex-1">
-          <AgentSurface
-            surfaceId="mission-control-dev"
-            composeQuestion={
-              `Compose une surface Mission Control DEV pour le projet « ${projectName} » : `
-              + 'ResultPanel avec le résumé des jalons (mémoire, Hermès, agent, cursor, git, prêt).'
-            }
-            fallback={
+      {missionRunning && (
+        <>
+          <div className="px-4 pb-2">
+            <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
               <div
-                className="h-full flex items-center justify-center p-4 rounded-xl"
-                style={{
-                  border: `1px dashed ${tokens.color.borderActive}`,
-                  ...monoFont,
-                  color: tokens.color.textMuted,
-                  fontSize: 11,
-                }}
-              >
-                Jalons ci-dessus · Composer pour enrichir
-              </div>
-            }
-          />
-        </div>
+                className="h-full transition-all duration-500"
+                style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${ACCENT}, ${SUCCESS})` }}
+              />
+            </div>
+          </div>
+          <div className="px-4 flex flex-col gap-2 pb-2 max-h-[28%] overflow-auto">
+            {steps.map(s => <StepRow key={s.id} step={s} />)}
+          </div>
+        </>
+      )}
+
+      <div className="px-4 flex-1 min-h-0 pb-4">
+        <AgentSurface
+          surfaceId="mission-control-dev"
+          fallback={
+            <div
+              className="h-full flex items-center justify-center p-4 rounded-xl"
+              style={{
+                border: `1px dashed ${tokens.color.borderActive}`,
+                ...monoFont,
+                color: tokens.color.textMuted,
+                fontSize: 11,
+                textAlign: 'center',
+              }}
+            >
+              Dites « mission control dev » pour charger le board.
+            </div>
+          }
+        />
       </div>
 
       {allDone && (

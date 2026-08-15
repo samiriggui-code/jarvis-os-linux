@@ -416,8 +416,57 @@
       }
     },
     {
+      "name": "ImageViewer",
+      "description": "Affiche une image ou un flux MJPEG depuis une URL fournie par le Core (snapshot caméra, flux salon). Contrairement à CameraPreview, la source vient explicitement du Core — ce composant n'ouvre jamais getUserMedia lui-même.",
+      "category": "media",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 70,
+      "tags": [
+        "image",
+        "caméra",
+        "salon",
+        "snapshot",
+        "flux",
+        "surveillance"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "src": {
+            "default": "",
+            "description": "URL image ou flux MJPEG",
+            "type": "string"
+          },
+          "alt": {
+            "default": "",
+            "description": "Texte alternatif",
+            "type": "string"
+          },
+          "caption": {
+            "default": "",
+            "description": "Légende sous l'image",
+            "type": "string"
+          }
+        },
+        "required": [
+          "src",
+          "alt",
+          "caption"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "SectionHeader",
-      "description": "Titre de section + sous-titre. Structure une surface sans carte lourde.",
+      "description": "Titre + sous-titre en typo seule (pas de carte glass). Largeur au contenu.",
       "category": "layout",
       "states": [
         "idle"
@@ -426,7 +475,7 @@
       "requiredContext": [],
       "supportedActions": {},
       "preferredRegion": "top",
-      "preferredSize": "wide",
+      "preferredSize": "compact",
       "priority": 90,
       "tags": [
         "section",
@@ -1029,6 +1078,2158 @@
           "title",
           "subtitle",
           "services"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ToolCall",
+      "description": "Appel d’outil unique : nom/intent, propriétaire, statut started|completed|failed, durée optionnelle, résumé. À utiliser pour moniteur d’exécution d’outils, jamais pour inventer un résultat.",
+      "category": "feedback",
+      "states": [
+        "started",
+        "completed",
+        "failed"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "normal",
+      "priority": 70,
+      "tags": [
+        "outil",
+        "tool",
+        "exécution",
+        "trace"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "intent": {
+            "default": "",
+            "type": "string"
+          },
+          "owner": {
+            "default": "",
+            "type": "string"
+          },
+          "status": {
+            "default": "started",
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "number"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "owner",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "VerificationCard",
+      "description": "Pipeline de vérification §7 : proposition → action demandée → exécutée → résultat observé → validé. Branche surface_result.verification.",
+      "category": "feedback",
+      "states": [
+        "pending",
+        "verified",
+        "disputed"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 80,
+      "tags": [
+        "vérification",
+        "preuve",
+        "pipeline",
+        "disputed"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "proposition": {
+            "type": "string"
+          },
+          "action_requested": {
+            "type": "string"
+          },
+          "action_executed": {
+            "type": "string"
+          },
+          "result_observed": {
+            "type": "string"
+          },
+          "result_validated": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "Gauge",
+      "description": "Jauge circulaire (0-100%) pour une seule valeur — charge, progression, score.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "right",
+      "preferredSize": "compact",
+      "priority": 55,
+      "tags": [
+        "jauge",
+        "gauge",
+        "pourcentage",
+        "progression"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "default": 0,
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "tone": {
+            "default": "cyan",
+            "type": "string",
+            "enum": [
+              "cyan",
+              "violet",
+              "amber",
+              "green",
+              "danger"
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "tone"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "MetricCard",
+      "description": "Carte métrique riche : valeur, unité, icône, tendance, champs secondaires optionnels. Pour un indicateur unique mis en avant.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "compact",
+      "priority": 60,
+      "tags": [
+        "métrique",
+        "kpi",
+        "valeur",
+        "carte",
+        "tendance"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "tone": {
+            "default": "cyan",
+            "type": "string",
+            "enum": [
+              "cyan",
+              "violet",
+              "amber",
+              "green"
+            ]
+          },
+          "trend": {
+            "type": "object",
+            "properties": {
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down",
+                  "flat"
+                ]
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "direction",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "fields": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "label",
+          "value",
+          "tone",
+          "fields"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "MetricGrid",
+      "description": "Grille de plusieurs MetricCard côte à côte — CPU/RAM/réseau en un seul panneau.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 60,
+      "tags": [
+        "métriques",
+        "grille",
+        "kpi",
+        "tableau de bord"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "icon": {
+                  "type": "string"
+                },
+                "tone": {
+                  "default": "cyan",
+                  "type": "string",
+                  "enum": [
+                    "cyan",
+                    "violet",
+                    "amber",
+                    "green"
+                  ]
+                }
+              },
+              "required": [
+                "label",
+                "value",
+                "tone"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "columns": {
+            "default": 3,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          }
+        },
+        "required": [
+          "items",
+          "columns"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "Progress",
+      "description": "Barre de progression linéaire avec pourcentage — tâche longue, téléchargement, avancement.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "bottom",
+      "preferredSize": "normal",
+      "priority": 45,
+      "tags": [
+        "progression",
+        "barre",
+        "avancement",
+        "chargement"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "default": 0,
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "tone": {
+            "default": "cyan",
+            "type": "string",
+            "enum": [
+              "cyan",
+              "violet",
+              "amber",
+              "green",
+              "danger"
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "tone"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "StatList",
+      "description": "Liste compacte label + statut (pastille) — vue synthétique de plusieurs sous-systèmes.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "normal",
+      "priority": 55,
+      "tags": [
+        "liste",
+        "statuts",
+        "synthèse",
+        "état"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ChartCard",
+      "description": "Graphique d'une série numérique — ligne, aire, barres ou donut selon `type`. Un seul renderer pour les quatre formes.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 65,
+      "tags": [
+        "graphique",
+        "courbe",
+        "chart",
+        "ligne",
+        "aire",
+        "barres",
+        "donut",
+        "série"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "type": {
+            "default": "line",
+            "type": "string",
+            "enum": [
+              "line",
+              "area",
+              "bar",
+              "donut"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "data": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "y": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "x",
+                "y"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "tone": {
+            "default": "cyan",
+            "type": "string",
+            "enum": [
+              "cyan",
+              "violet",
+              "amber",
+              "green"
+            ]
+          },
+          "aspectRatio": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "data",
+          "tone"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "TimelineChart",
+      "description": "Frise chronologique d'événements horizontale — succession d'incidents, de jalons.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 55,
+      "tags": [
+        "frise",
+        "chronologie",
+        "timeline",
+        "événements"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string"
+                },
+                "tone": {
+                  "default": "neutral",
+                  "type": "string",
+                  "enum": [
+                    "accent",
+                    "success",
+                    "warning",
+                    "danger",
+                    "neutral"
+                  ]
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "timestamp",
+                "tone"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "DataList",
+      "description": "Liste icône + label + valeur + statut optionnel — inventaire simple, options, capacités.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "normal",
+      "priority": 50,
+      "tags": [
+        "liste",
+        "données",
+        "inventaire"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "icon": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "EventList",
+      "description": "Liste chronologique verticale d'événements horodatés — journal d'activité récente.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "right",
+      "preferredSize": "normal",
+      "priority": 55,
+      "tags": [
+        "événements",
+        "journal",
+        "activité",
+        "historique"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string"
+                },
+                "tone": {
+                  "default": "neutral",
+                  "type": "string",
+                  "enum": [
+                    "accent",
+                    "success",
+                    "warning",
+                    "danger",
+                    "neutral"
+                  ]
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "timestamp",
+                "tone"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "LogViewer",
+      "description": "Journal de lignes horodatées avec niveau (info/warn/error/debug) — sortie de log, pas un shell.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 55,
+      "tags": [
+        "logs",
+        "journal",
+        "debug",
+        "trace"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "lines": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "default": "info",
+                  "type": "string",
+                  "enum": [
+                    "info",
+                    "warn",
+                    "error",
+                    "debug"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "level",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "lines"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "TreeView",
+      "description": "Arborescence pliable/dépliable — fichiers, structure, hiérarchie.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "normal",
+      "priority": 45,
+      "tags": [
+        "arbre",
+        "arborescence",
+        "hiérarchie",
+        "fichiers"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "nodes": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            }
+          }
+        },
+        "required": [
+          "nodes"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "name": "DeviceCard",
+      "description": "Carte d'un appareil unique : icône, nom, statut, détail. Pour un appareil du foyer ou du réseau JARVIS.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "compact",
+      "priority": 55,
+      "tags": [
+        "appareil",
+        "device",
+        "statut",
+        "matériel"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "DeviceGrid",
+      "description": "Grille de plusieurs DeviceCard — vue flotte des appareils JARVIS (NUC, Pi, postes).",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 55,
+      "tags": [
+        "appareils",
+        "flotte",
+        "grille",
+        "inventaire"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "icon": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "columns": {
+            "default": 2,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "items",
+          "columns"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ProcessList",
+      "description": "Table de processus : nom, CPU, mémoire. Pour diagnostiquer une charge machine en détail.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 50,
+      "tags": [
+        "processus",
+        "process",
+        "cpu",
+        "mémoire",
+        "diagnostic"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "rows": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "cpu",
+                "memory"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "Terminal",
+      "description": "Pane de sortie texte façon terminal — affichage seul, aucune exécution ni saisie. Ne pas confondre avec l'app Terminal SSH réelle.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 50,
+      "tags": [
+        "terminal",
+        "sortie",
+        "log",
+        "console"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "lines": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cursor": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lines",
+          "cursor"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "HealthOverview",
+      "description": "Vue de santé composite : trio uptime/CPU/mémoire en tuiles compactes + liste de services. Pour un état système en un coup d'œil.",
+      "category": "system",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 60,
+      "tags": [
+        "santé",
+        "health",
+        "uptime",
+        "services",
+        "synthèse"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "services": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "uptime": {
+            "type": "string"
+          },
+          "cpu": {
+            "type": "number"
+          },
+          "memory": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "services"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "Breadcrumb",
+      "description": "Fil d'ariane texte — chemin de navigation ou de contexte.",
+      "category": "layout",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "top",
+      "preferredSize": "compact",
+      "priority": 40,
+      "tags": [
+        "fil d’ariane",
+        "navigation",
+        "chemin"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "CommandBar",
+      "description": "Barre de raccourcis affichés (icône + label + indice clavier). Décorative — ne déclenche aucune commande.",
+      "category": "layout",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "top",
+      "preferredSize": "wide",
+      "priority": 35,
+      "tags": [
+        "commandes",
+        "raccourcis",
+        "barre"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "icon": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "hint": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "FilterBar",
+      "description": "Chips de filtres activables. Émet une intention par bascule — le Core décide ce que ça filtre.",
+      "category": "layout",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {
+        "filter.toggle": "info"
+      },
+      "preferredRegion": "top",
+      "preferredSize": "wide",
+      "priority": 40,
+      "tags": [
+        "filtre",
+        "chips",
+        "filtrage"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "chips": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "activeIds": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "chips",
+          "activeIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "SearchBar",
+      "description": "Champ de recherche visuel. Émet l'intention `search.change` à chaque frappe — n'exécute aucune recherche tant que le Core n'y répond pas.",
+      "category": "layout",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {
+        "search.change": "info"
+      },
+      "preferredRegion": "top",
+      "preferredSize": "normal",
+      "priority": 35,
+      "tags": [
+        "recherche",
+        "search",
+        "filtre"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "placeholder": {
+            "default": "Rechercher…",
+            "type": "string"
+          },
+          "value": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeholder",
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "TabBar",
+      "description": "Sélecteur d'onglets — variante `underline` (onglets classiques) ou `segmented` (pilule). Émet `tab.select`.",
+      "category": "layout",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {
+        "tab.select": "info"
+      },
+      "preferredRegion": "top",
+      "preferredSize": "normal",
+      "priority": 40,
+      "tags": [
+        "onglets",
+        "tabs",
+        "navigation",
+        "segmenté"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tabs": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "activeId": {
+            "default": "",
+            "type": "string"
+          },
+          "variant": {
+            "default": "underline",
+            "type": "string",
+            "enum": [
+              "underline",
+              "segmented"
+            ]
+          }
+        },
+        "required": [
+          "tabs",
+          "activeId",
+          "variant"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "CodeBlock",
+      "description": "Bloc de code monospace avec langage optionnel affiché.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 55,
+      "tags": [
+        "code",
+        "source",
+        "monospace"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "MarkdownBlock",
+      "description": "Texte Markdown (titres, gras/italique, code, listes, liens) — sous-ensemble volontairement minimal, pas CommonMark complet.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 60,
+      "tags": [
+        "markdown",
+        "texte",
+        "formaté"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "source": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "MessageCard",
+      "description": "Bulle de message avec auteur et horodatage — pour afficher UN message isolé (pas la conversation, qui reste CommandConsole).",
+      "category": "identity",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 45,
+      "tags": [
+        "message",
+        "bulle",
+        "auteur"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "identity": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "author",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "QuoteBlock",
+      "description": "Citation mise en exergue avec source optionnelle.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 40,
+      "tags": [
+        "citation",
+        "quote"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "cite": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "TextBlock",
+      "description": "Paragraphe de texte simple avec titre optionnel — la brique texte générique.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 40,
+      "tags": [
+        "texte",
+        "paragraphe"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "Screenshot",
+      "description": "Image affichée dans un cadre façon fenêtre (barre de titre) — capture d'écran, aperçu d'application. Distinct d'ImageViewer par le cadre, pas par la source.",
+      "category": "media",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 55,
+      "tags": [
+        "capture",
+        "screenshot",
+        "image",
+        "fenêtre"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "src": {
+            "default": "",
+            "type": "string"
+          },
+          "alt": {
+            "default": "",
+            "type": "string"
+          },
+          "caption": {
+            "default": "",
+            "type": "string"
+          },
+          "windowTitle": {
+            "default": "Capture",
+            "type": "string"
+          }
+        },
+        "required": [
+          "src",
+          "alt",
+          "caption",
+          "windowTitle"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "DevIssueBoard",
+      "description": "Kanban Mission DEV — colonnes backlog→done, inbox bloqué/review. Affichage seul ; actions via voix Core.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "fill",
+      "priority": 88,
+      "tags": [
+        "kanban",
+        "mission",
+        "dev",
+        "board",
+        "tickets"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "Mission DEV · Board",
+            "type": "string"
+          },
+          "columns": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "issues": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "assignee_agent": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "blocked_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "inbox_count": {
+            "default": 0,
+            "type": "number"
+          },
+          "inbox_blocked": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "blocked_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "inbox_review": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "voice_hint": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "columns",
+          "issues",
+          "inbox_count",
+          "inbox_blocked",
+          "inbox_review",
+          "voice_hint"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ExecutionStatus",
+      "description": "Pastille compacte d'état d'exécution (pending/running/done/failed) avec icône animée. Pour un statut en ligne, pas une carte pleine.",
+      "category": "feedback",
+      "states": [
+        "pending",
+        "running",
+        "done",
+        "failed"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "top",
+      "preferredSize": "compact",
+      "priority": 65,
+      "tags": [
+        "exécution",
+        "statut",
+        "progression",
+        "outil"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "stage": {
+            "default": "pending",
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "stage"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "StatusCard",
+      "description": "Carte de statut avec ton sémantique (succès/avertissement/danger/info/neutre) — remplace ErrorCard/WarningCard/SuccessCard via `tone`.",
+      "category": "feedback",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "normal",
+      "priority": 60,
+      "tags": [
+        "statut",
+        "alerte",
+        "succès",
+        "erreur",
+        "avertissement"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "tone": {
+            "default": "neutral",
+            "type": "string",
+            "enum": [
+              "success",
+              "warning",
+              "danger",
+              "info",
+              "neutral"
+            ]
+          },
+          "icon": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "tone"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ToolResult",
+      "description": "Résultat brut d'UN appel d'outil : nom, statut, sortie. Distinct de ResultPanel (réponse composée) et de ToolCall (en cours).",
+      "category": "feedback",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "system.read"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "left",
+      "preferredSize": "normal",
+      "priority": 60,
+      "tags": [
+        "outil",
+        "résultat",
+        "sortie",
+        "exécution"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "Graph3D",
+      "description": "Graphe spatial 3D générique : volume, nœuds sémantiques, arêtes, focus. Pas l’orbe identité du HUD. Un adapter (architecture, repo, HA, agents) fournit le Graph3DModel.",
+      "category": "data",
+      "states": [
+        "idle"
+      ],
+      "permissions": [],
+      "requiredContext": [],
+      "supportedActions": {
+        "focus": "info"
+      },
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 90,
+      "tags": [
+        "graphe",
+        "3d",
+        "orbe",
+        "nœuds",
+        "architecture",
+        "réseau"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "layout": {
+            "default": "orb",
+            "type": "string",
+            "enum": [
+              "orb",
+              "cube",
+              "layered",
+              "network"
+            ]
+          },
+          "level": {
+            "default": "global",
+            "type": "string",
+            "enum": [
+              "global",
+              "cluster",
+              "component",
+              "detail"
+            ]
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "particleCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20000
+          },
+          "showEdges": {
+            "default": true,
+            "type": "boolean"
+          },
+          "showDecorativeLinks": {
+            "default": true,
+            "type": "boolean"
+          },
+          "showLabels": {
+            "default": true,
+            "type": "boolean"
+          },
+          "projectionBase": {
+            "default": true,
+            "type": "boolean"
+          },
+          "model": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "nodes": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "cluster": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "importance": {
+                      "type": "number"
+                    },
+                    "caption": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "edges": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "strength": {
+                      "type": "number"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "target"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "clusters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "nodeIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "nodeIds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "nodes",
+              "edges"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "layout",
+          "level",
+          "showEdges",
+          "showDecorativeLinks",
+          "showLabels",
+          "projectionBase"
         ],
         "additionalProperties": false
       }

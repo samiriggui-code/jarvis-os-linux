@@ -57,31 +57,21 @@ return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
 const VERTEX_SHADER = NOISE_GLSL + `
 attribute float aRnd;
 uniform float uNoiseT,uEnv,uBass,uMid,uTreble,uOverall,uPx;
+uniform float uLight; // 0 = night, 1 = light HUD
 uniform vec3 uWDir[3];
 uniform float uWPos[3];
 uniform float uWStr[3];
 varying vec3 vColor;varying float vAlpha;
 
-// Arrêts échantillonnés sur assets/orb/1373.jpg, secteur par secteur autour
-// du centre. Le dégradé de référence n'est PAS un arc-en-ciel pastel : la
-// masse de la sphère est un indigo profond très désaturé, et la saturation
-// n'apparaît que sur le limbe, chaude vers le bas.
-//
-// Mesures (dominantes par secteur) :
-//   haut  #23276B #533B9C   flancs #3B1E57 #521D56   bas #68143E #841E3B
-//   cœur  #3C2553 #521C42   accents les plus saturés #FA5154 #E23C51
-//
-// La version précédente partait de #9EE6FF et restait claire partout : le
-// facteur lum du vertex shader la relevait encore, d'ou une bille pastel
-// uniforme au lieu d'une sphere sombre percee d'eclats.
+// Dégradé vertical : cyan haut → violet → magenta → orange bas — saturé / dense.
 vec3 stopMix(float d){
-  vec3 c0=vec3(0.50,0.83,0.96); // limbe haut — cyan, seul éclat froid
-  vec3 c1=vec3(0.23,0.24,0.58); // #3A3C93 dôme indigo
-  vec3 c2=vec3(0.33,0.23,0.61); // #533B9C violet
-  vec3 c3=vec3(0.48,0.16,0.42); // #7A2A6B flanc prune
-  vec3 c4=vec3(0.66,0.15,0.36); // #A8265C magenta profond
-  vec3 c5=vec3(0.89,0.24,0.32); // #E23C51 rouge du bas
-  vec3 c6=vec3(0.98,0.55,0.24); // #FA8B3C ambre, dernier degré
+  vec3 c0=vec3(0.35,0.92,1.00);
+  vec3 c1=vec3(0.22,0.38,0.95);
+  vec3 c2=vec3(0.48,0.18,0.92);
+  vec3 c3=vec3(0.72,0.12,0.62);
+  vec3 c4=vec3(0.95,0.14,0.42);
+  vec3 c5=vec3(1.00,0.28,0.22);
+  vec3 c6=vec3(1.00,0.58,0.12);
   float s=d*6.0;
   if(s<1.0)return mix(c0,c1,s);
   if(s<2.0)return mix(c1,c2,s-1.0);
@@ -97,17 +87,20 @@ void main(){
   vec3 N=normalize(normalMatrix*p);
   vec3 V=normalize(-mv0.xyz);
   float facing=abs(dot(N,V));
-  float edge=pow(1.0-facing,2.2);
+  float edge=pow(1.0-facing,2.05);
 
   vec2 scr=mv0.xy;
   float dTop=clamp(0.5-scr.y*0.42,0.0,1.0);
   float radial=clamp(length(scr)*0.95,0.0,1.0);
   float band=dTop<0.33?uTreble:(dTop<0.66?uMid:uBass);
+  // Face caméra = corps rempli ; edge = couronne
+  float body=pow(1.0-edge,1.35);
 
   float n1=snoise(p*2.1+vec3(uNoiseT));
   float n2=snoise(p*4.6-vec3(uNoiseT*0.7))*0.55;
   float n3=snoise(p*9.0+vec3(uNoiseT*1.4))*0.30;
   float n=n1+n2*(0.6+uMid*0.8)+n3*(0.4+uTreble*1.6);
+  float crease=smoothstep(-1.0,0.55,n);
 
   float wSum=0.0;
   vec3 lateral=vec3(0.0);
@@ -123,55 +116,60 @@ void main(){
   }
 
   float ampSurf=(0.012+uEnv*0.055)+uBass*0.02;
-  float ampEdge=edge*(0.02+uEnv*0.10+uTreble*0.16);
+  float ampEdge=edge*(0.03+uEnv*0.14+uTreble*0.20);
   float disp=n*(ampSurf+ampEdge)+wSum;
 
-  // Dispersion du limbe. La base passe de 0.012 a 0.030 : dans la reference,
-  // des particules se detachent de la sphere et forment une corona diffuse
-  // MEME AU REPOS. A 0.012 la dispersion n'existait qu'en reaction au son, et
-  // la silhouette restait un cercle net et bossele.
+  // Éjection solaire : particules qui partent DU limbe vers l'extérieur (légères, pas un mur dense)
+  float eject=edge*edge*(0.055+band*0.18+uEnv*0.10)*aRnd;
   vec3 scat=vec3(
     snoise(p*3.7+vec3(7.1+uNoiseT*0.5)),
     snoise(p*3.7+vec3(13.7-uNoiseT*0.4)),
-    snoise(p*3.7+vec3(29.3+uNoiseT*0.6)))*edge*(0.030+band*0.10)*aRnd;
-  vec3 np=p*(1.0+disp)+lateral+scat;
+    snoise(p*3.7+vec3(29.3+uNoiseT*0.6)))*eject;
+  // Poussée radiale nette = spray plasma
+  vec3 np=p*(1.0+disp+eject*0.85)+lateral+scat*0.55;
 
   vec4 mv=modelViewMatrix*vec4(np,1.0);
   gl_Position=projectionMatrix*mv;
 
-  float hueJit=(aRnd-0.5)*0.06;
+  float hueJit=(aRnd-0.5)*0.05;
   vec3 grad=stopMix(clamp(dTop+hueJit,0.0,1.0));
-
-  float crease=smoothstep(-1.3,0.5,n);
   float waveLight=wLight*(9.0+uTreble*12.0);
-  // Cœur bleu-nuit (#12263F dans la référence), mais PAS plus sombre que la
-  // valeur d'origine : l'avoir descendu à (0.10,0.17,0.36) a rendu la trame
-  // intérieure invisible, et l'orbe s'est lue comme un disque noir à bord
-  // lumineux. Ce qu'il fallait corriger, c'était la teinte (un bleu roi trop
-  // clair), pas la luminosité.
-  float centerBlue=(1.0-radial)*(1.0-dTop*0.6);
-  vec3 col=mix(grad,vec3(0.16,0.26,0.46),centerBlue*0.55);
+  float e2=smoothstep(0.08,0.68,edge);
+  // Frange externe (éjection) vs anneau coloré
+  float fringe=smoothstep(0.45,0.92,edge);
 
-  // Plancher de luminosite relevé (0.24 -> 0.52) : c'est LA correction. La
-  // trame interieure existe depuis le debut (buildGeometry produit un maillage
-  // lat/lon regulier, comme le trame de la reference) mais elle tombait sous
-  // le seuil de visibilite. Seuls les sparkles passaient, d'ou une bille noire
-  // constellee d'etoiles au lieu d'une sphere.
-  // Le poids de crease monte aussi (0.38 -> 0.52) : ce sont les ondulations,
-  // et elles doivent se lire sur la surface, pas seulement sur le limbe.
-  float lum=(0.52+0.52*crease+waveLight*0.55)*(0.8+aRnd*0.4);
-  lum=mix(lum,1.15+n*0.25+waveLight*0.25,smoothstep(0.12,0.7,edge));
+  // CORPS = dégradé dense (pas assombri) ; limbe encore plus saturé
+  vec3 bodyCol=grad*mix(0.78,1.05,crease);
+  vec3 rimCol=grad*(1.18+n*0.18);
+  vec3 col=mix(bodyCol,rimCol,e2*0.9);
+
+  // Luminosité : corps dense ; limbe brillant ; frange externe douce
+  float lumBody=(0.78+0.42*crease+waveLight*0.45)*(0.88+aRnd*0.28);
+  float lumRim=1.22+n*0.25+waveLight*0.32+band*0.15;
+  float lum=mix(lumBody,lumRim,e2);
+  lum*=mix(1.0,1.0-fringe*0.40,1.0);
+  lum*=mix(1.0,mix(1.08,1.22,e2),uLight);
   vColor=col*lum;
+  if(uLight>0.5){
+    vColor=mix(vColor,grad*1.15,0.22+body*0.14);
+  }
 
-  // Sparkles plus rares et TEINTES : a 0.65% et en blanc pur ils dominaient
-  // l'image. La reference n'a qu'une poignee d'eclats blancs, au sommet et
-  // sous le pole ; ailleurs les points brillants restent colores.
-  bool sparkle=aRnd>0.9975;
-  if(sparkle){vColor=mix(col*1.4,vec3(0.95,0.97,1.0),0.55);}
-  float e2=smoothstep(0.12,0.7,edge);
-  vAlpha=sparkle?0.92:clamp(0.42+crease*0.30+waveLight*0.22+e2*0.45+band*0.08,0.0,1.0);
+  bool sparkle=aRnd>0.9968;
+  if(sparkle){vColor=mix(col*1.4,vec3(0.95,0.97,1.0),0.4);}
 
-  float sz=(0.46+crease*0.12+waveLight*0.16+e2*(0.85+band*0.75))*(0.75+aRnd*0.5)*(sparkle?1.7:1.0);
+  // Alpha : CENTRE REMPLI dense ; limbe coloré ; frange éjection LÉGÈRE
+  float aBody=0.58+crease*0.28+waveLight*0.18+(1.0-radial)*0.14;
+  float aRim=0.62+band*0.10+waveLight*0.16;
+  float aFringe=0.16+aRnd*0.24;
+  float aBase=mix(aBody,aRim,e2);
+  aBase=mix(aBase,aFringe,fringe*0.85);
+  aBase*=mix(1.0,mix(1.12,0.95,fringe),uLight);
+  vAlpha=sparkle?0.94:clamp(aBase,0.0,1.0);
+
+  // Points : corps bien visibles ; frange plus petits / légers
+  float sz=(0.58+crease*0.16+waveLight*0.14+e2*0.38)*(0.78+aRnd*0.48)*(sparkle?1.6:1.0);
+  sz*=mix(1.0,0.52+aRnd*0.35,fringe);
+  sz*=mix(1.0,1.08,uLight*body);
   gl_PointSize=max(sz*uPx*(3.2/-mv.z)*60.0*0.028,1.0);
 }`;
 
@@ -181,7 +179,7 @@ void main(){
   vec2 uv=gl_PointCoord-0.5;
   float d=length(uv);
   if(d>0.5)discard;
-  float a=smoothstep(0.5,0.26,d)*vAlpha;
+  float a=(1.0-smoothstep(0.18,0.48,d))*vAlpha;
   gl_FragColor=vec4(vColor,a);
 }`;
 
@@ -211,13 +209,16 @@ export default function OrbView({
   sensitivity = 1,
   size = null, // ex: 400 -> force 400x400 px; sinon remplit le parent
   background = "#060b18", // couleur CSS ("#060b18", "black"...) ou "transparent"
+  /** 0 = night HUD, 1 = light — contraste limbe / creux sur fond pastel */
+  lightMode = 0,
 }) {
   const mountRef = useRef(null);
-  const paramsRef = useRef({ analyser, tempo, sensitivity, background });
+  const paramsRef = useRef({ analyser, tempo, sensitivity, background, lightMode });
   paramsRef.current.analyser = analyser;
   paramsRef.current.tempo = tempo;
   paramsRef.current.sensitivity = sensitivity;
   paramsRef.current.background = background;
+  paramsRef.current.lightMode = lightMode;
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -258,6 +259,7 @@ export default function OrbView({
       uTreble: { value: 0 },
       uOverall: { value: 0 },
       uPx: { value: Math.min(window.devicePixelRatio, 2) },
+      uLight: { value: paramsRef.current.lightMode ? 1 : 0 },
     };
     const mat = new THREE.ShaderMaterial({
       transparent: true,
@@ -266,7 +268,8 @@ export default function OrbView({
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
     });
-    const cloud = new THREE.Points(buildGeometry(230, 380), mat);
+    // Un peu plus dense sur le limbe (steps ∝ ringR) pour la trame pixel
+    const cloud = new THREE.Points(buildGeometry(280, 480), mat);
     cloud.rotation.x = 0.32;
     scene.add(cloud);
 
@@ -394,6 +397,7 @@ export default function OrbView({
       uniforms.uMid.value = L.mid;
       uniforms.uTreble.value = L.treble;
       uniforms.uOverall.value = L.overall;
+      uniforms.uLight.value = P.lightMode ? 1 : 0;
       // rotation : quasi nulle au silence, portée par la voix
       cloud.rotation.y += (0.0003 + L.env * 0.004) * P.tempo;
       // les graves gonflent légèrement le corps entier

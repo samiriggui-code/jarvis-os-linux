@@ -19,7 +19,7 @@ export function dashboardPublicUrl(): string {
 export function dashboardUrl(): string {
   const fromEnv = import.meta.env.VITE_DASHBOARD_URL as string | undefined;
   if (fromEnv) return fromEnv.endsWith('/') ? fromEnv : `${fromEnv}/`;
-  if (import.meta.env.DEV) return 'http://127.0.0.1:5174/';
+  if (import.meta.env.DEV) return 'http://127.0.0.1:5174/?skipAuth=1';
   if (typeof window !== 'undefined') {
     return `${window.location.origin}/dashboard/`;
   }

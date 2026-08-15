@@ -1,13 +1,14 @@
 /**
- * AgentSurface — le contenu composé d'une fenêtre d'app.
+ * AgentSurface — contenu composé d’une surface agentique.
  *
- * ⚠ **Elle ne se superpose JAMAIS au HUD.** Les volets gauche et droite, la
- * barre haute et la scène centrale sont le produit : ils ne bougent pas et on
- * n'écrit pas dessus. Une composition vit à l'intérieur d'une `AppWindow`
- * d'`AppStage` — le système de fenêtres déjà prévu pour chaque app.
+ * Deux conteneurs réels (ne pas confondre) :
+ *   1. Fenêtre `AppWindow` / `AppStage` — surface dans une app ouverte ;
+ *   2. Plein écran via `App.tsx` (`hudMode === 'surface'`) — `MockAppContent`
+ *      monte `AgentSurface` sur tout l’écran (orbe réduite en MiniOrb).
  *
- * Le composant remplit son conteneur et ne décide ni de sa position, ni de sa
- * taille, ni de son cadre : `AppWindow` s'en charge.
+ * Dans les deux cas : le composant remplit son conteneur et ne décide ni de
+ * sa position, ni de sa taille, ni de son cadre. Il n’écrit pas sur les volets
+ * Moniteur/Console du mode veille.
  *
  * Périmètre P1 :
  *   - `SURFACE_SNAPSHOT` — état complet ;
@@ -22,9 +23,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getCoreClient } from '../app/bridge/coreClient';
+import { useVerification } from '../app/bridge/verificationStore';
 import { GlassButton } from '../components/glass/GlassButton';
 import { tokens } from '../ui/tokens';
-import { place } from './composer';
+import { place, surfaceCanvasStyle } from './composer';
+import { VerificationCard } from './library/VerificationCard';
 import { applyPatch } from './protocol/jsonPatch';
 import {
   emptyDocument,
@@ -58,6 +61,52 @@ export interface AgentSurfaceProps {
    */
   composeQuestion?: string;
 }
+
+const VerificationOverlay = ({
+  verification,
+}: {
+  verification: ReturnType<typeof useVerification>;
+}) => {
+  if (!verification) return null;
+  const hasSteps = Boolean(
+    verification.proposition
+    || verification.action_requested
+    || verification.action_executed
+    || verification.result_observed
+    || verification.result_validated,
+  );
+  if (!hasSteps && verification.outcome === 'pending') return null;
+  return (
+    <div
+      data-verification-overlay=""
+      style={{
+        position: 'absolute',
+        left: 12,
+        bottom: 12,
+        width: 'min(420px, calc(100% - 24px))',
+        maxHeight: '46%',
+        zIndex: 3,
+        overflow: 'auto',
+      }}
+    >
+      <VerificationCard
+        id="live-verification"
+        props={{
+          proposition: verification.proposition,
+          action_requested: verification.action_requested,
+          action_executed: verification.action_executed,
+          result_observed: verification.result_observed,
+          result_validated: verification.result_validated,
+          outcome: verification.outcome,
+        }}
+        state={verification.outcome || 'pending'}
+        emit={() => undefined}
+      >
+        {null}
+      </VerificationCard>
+    </div>
+  );
+};
 
 /**
  * L'offre de composer, posée sur le contenu produit.
@@ -194,6 +243,7 @@ export const AgentSurface = ({
    */
   const [composing, setComposing] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const verification = useVerification();
 
   const compose = useCallback(() => {
     if (!composeQuestion) return;
@@ -330,6 +380,7 @@ export const AgentSurface = ({
     return (
       <div style={{ position: 'relative', height: '100%' }}>
         {fallback}
+        <VerificationOverlay verification={verification} />
         {composeQuestion && (
           <ComposeAffordance
             composing={composing}
@@ -352,12 +403,9 @@ export const AgentSurface = ({
       style={{
         position: 'relative',
         height: '100%',
-        overflowY: 'auto',
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignContent: 'flex-start',
-        gap: 12,
-        padding: 8,
+        minHeight: 0,
+        overflow: 'hidden',
+        ...surfaceCanvasStyle(),
       }}
     >
       {placed.map(({ id, node, style }) => (
@@ -365,6 +413,7 @@ export const AgentSurface = ({
           <Node id={id} node={node} surfaceId={surfaceId} />
         </div>
       ))}
+      <VerificationOverlay verification={verification} />
     </div>
   );
 };

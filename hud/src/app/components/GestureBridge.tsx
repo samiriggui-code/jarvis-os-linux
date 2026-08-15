@@ -10,8 +10,19 @@ import { getCoreClient } from '../bridge/coreClient';
 import { gesturesPolicyEnabled, getDevicePolicy } from '../../ui/core/devicePolicy';
 import { startGestureBridge, stopGestureBridge } from '../bridge/gestureLive';
 import { clickAtCursor, disposeCursor, moveCursor } from '../bridge/gestureCursor';
+import { pauseWakeWord } from '../bridge/audioBus';
 
 const RIGHT_PANELS = ['console', 'search'] as const;
+const LS_PREFS = 'jarvis.hud_preferences';
+
+function patchMicMuted(muted: boolean) {
+  try {
+    const raw = localStorage.getItem(LS_PREFS);
+    const prefs = raw ? JSON.parse(raw) : {};
+    const kill = { ...(prefs.killSwitch || {}), micMuted: muted };
+    localStorage.setItem(LS_PREFS, JSON.stringify({ ...prefs, killSwitch: kill }));
+  } catch { /* */ }
+}
 
 export function GestureBridge() {
   const {
@@ -75,6 +86,17 @@ export function GestureBridge() {
           focusApp(cycle(ids, current, action === 'stack_next' ? 1 : -1));
           break;
         }
+        case 'mute':
+          patchMicMuted(true);
+          pauseWakeWord();
+          addNotification({ type: 'info', title: 'Gestes', message: 'Micro coupé.' });
+          break;
+        case 'activate_voice':
+          window.dispatchEvent(new CustomEvent('jarvis:activate-voice'));
+          break;
+        case 'ack_done':
+          addNotification({ type: 'success', title: 'Gestes', message: 'OK.' });
+          break;
         default:
           console.debug('[gesture] action sans effet :', action);
       }

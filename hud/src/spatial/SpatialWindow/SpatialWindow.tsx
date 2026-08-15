@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
-import { GlassSurface, type GlassSurfaceProps } from '../GlassSurface/GlassSurface';
-import { spatialTokens, type SpatialElevation } from '../tokens/materials';
+import { GlassSurface, type GlassSurfaceProps, type SpatialElevation } from '../../visual/glass';
+import { spatialMotionTokens } from '../tokens/spatial';
 import { appearVariants } from '../motion/springs';
 import { useSpatialTheme } from '../theme/SpatialTheme';
 
@@ -33,7 +33,7 @@ export function SpatialWindow({
       const r = wrapRef.current.getBoundingClientRect();
       const nx = (e.clientX - r.left) / r.width - 0.5;
       const ny = (e.clientY - r.top) / r.height - 0.5;
-      const { maxTranslatePx } = spatialTokens.parallax;
+      const { maxTranslatePx } = spatialMotionTokens.parallax;
       setShift({
         x: nx * maxTranslatePx,
         y: ny * maxTranslatePx,
@@ -53,8 +53,8 @@ export function SpatialWindow({
       onMouseLeave={onLeave}
       style={{
         position: 'relative',
-        padding: spatialTokens.parallax.maxTranslatePx + 4,
-        margin: -(spatialTokens.parallax.maxTranslatePx + 4),
+        padding: spatialMotionTokens.parallax.maxTranslatePx + 4,
+        margin: -(spatialMotionTokens.parallax.maxTranslatePx + 4),
       }}
     >
       <motion.div

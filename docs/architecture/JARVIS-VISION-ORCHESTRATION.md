@@ -164,6 +164,19 @@ Ops verify (hygiène) : après seed conscience —
 Implémentation runtime = évolution Hermes + couche Mission Core — hors scope tant
 que Device Router / Mission loop ne sont pas ouverts.
 
+## Control plane agents (idée Control Room)
+
+Amont [shannhk/hermes-agent-control-room](https://github.com/shannhk/hermes-agent-control-room) — **patterns only**.  
+Détail : [`JARVIS-Agent-Control-Plane.md`](JARVIS-Agent-Control-Plane.md).
+
+| Prendre | Refuser |
+|---------|---------|
+| Fiches inventory / runbook / env-map / backup par agent | Multi-conteneurs Hermes comme produit |
+| Manuel prouvé → puis automate (Mission / cron) | Task bus dossiers `/srv/agent-bus` |
+| Checklist ports / secrets / scope clés | `hermes-orchestrator` à la place du Core |
+| Registry agents documenté (futur Agent Registry) | Control Room = front door conversation |
+| Docs/deploy ≠ data runtime | Bootstrap Hetzner vs topo foyer |
+
 ## Écart vs code actuel (2026-08-09)
 
 | Vision | Repo aujourd’hui |

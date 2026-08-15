@@ -52,7 +52,9 @@ def main() -> int:
         decide_surface_id(tool="read_file") == "files",
     )
     doc = decide_document(intent="core.mission_dev", summary="Kanban prêt")
-    check("decide_document mission_dev", doc is not None and doc[0] == "mission-control-dev")
+    # Mission DEV Board : le document live est publié par l'exécutant lui-même,
+    # plus par un ResultPanel générique — `decide_document` doit donc rendre None.
+    check("decide_document mission_dev (Board publie son propre document)", doc is None)
 
     async def _kanban_mock() -> None:
         bridge = MagicMock()

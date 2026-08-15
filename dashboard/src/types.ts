@@ -4,6 +4,7 @@ export type Page =
   | 'hud'
   | 'dashboard'
   | 'command'
+  | 'mission-board'
   | 'hermes'
   | 'voice'
   | 'holomat'
@@ -24,6 +25,7 @@ export const PAGE_TITLES: Record<Page, string> = {
   hud: 'HUD · Surface kiosk',
   dashboard: 'Dashboard · Tokens & stats',
   command: 'Command Center',
+  'mission-board': 'Mission DEV · Board',
   hermes: 'Hermes Core',
   voice: 'Voice Manager',
   holomat: 'Holomat Vision',
@@ -31,7 +33,7 @@ export const PAGE_TITLES: Record<Page, string> = {
   agents: 'Agents',
   tools: 'Tools',
   reach: 'Agent-Reach · Internet',
-  apps: 'Applications',
+  apps: 'Applications hôtes',
   docker: 'Docker',
   terminal: 'Terminal · NUC / VPS / Pi',
   deploy: 'Déploiements',
@@ -49,12 +51,12 @@ export function pageFromHash(): Page | null {
   return (PAGE_IDS as string[]).includes(raw) ? (raw as Page) : null
 }
 
-/** Contexte host — Dashboard servi en public via VPS ; Core/Hermes = NUC. */
+/** Contexte host — en DEV = Core local ; en prod = VPS → NUC. */
 export const HOST = {
-  role: 'VPS→NUC',
-  label: 'jarvis (proxy VPS)',
-  path: '/opt/jarvis',
-  coreHost: 'NUC',
-  dockerUi: 'https://vps.example:9443', // Portainer optionnel VPS — à configurer
+  role: import.meta.env.DEV ? 'PC DEV → Core local' : 'VPS→NUC',
+  label: import.meta.env.DEV ? '127.0.0.1:8765' : 'jarvis (proxy VPS)',
+  path: import.meta.env.DEV ? 'c:/laragon/www/jarvis-os-linux' : '/opt/jarvis',
+  coreHost: import.meta.env.DEV ? 'local' : 'NUC',
+  dockerUi: 'https://vps.example:9443',
   ssh: 'via tunnel / Tailscale',
 } as const

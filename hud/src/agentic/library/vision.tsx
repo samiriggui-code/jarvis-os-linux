@@ -3,10 +3,8 @@
  * Fonctionne hors lab grâce au défaut night de SpatialThemeContext.
  */
 import React, { type ReactNode } from 'react';
-import { GlassSurface } from '../../spatial/GlassSurface/GlassSurface';
-import { GlassButton } from '../../spatial/GlassButton/GlassButton';
+import { GlassSurface, GlassButton, type GlassMaterial } from '../../visual/glass';
 import { useSpatialTheme } from '../../spatial/theme/SpatialTheme';
-import type { GlassMaterial } from '../../spatial/tokens/materials';
 
 export { GlassButton as VisionButton };
 
@@ -64,7 +62,7 @@ export function VisionPane({
       elevation="elevated"
       radius="lg"
       padding={padding}
-      style={{ height: '100%', boxSizing: 'border-box', ...style }}
+      style={{ height: 'auto', boxSizing: 'border-box', ...style }}
     >
       {children}
     </GlassSurface>

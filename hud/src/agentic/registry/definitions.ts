@@ -301,10 +301,30 @@ export const definitions: Record<string, ComponentDefinition> = {
     ],
   },
 
+  ImageViewer: {
+    name: 'ImageViewer',
+    description:
+      "Affiche une image ou un flux MJPEG depuis une URL fournie par le Core (snapshot caméra, flux salon). Contrairement à CameraPreview, la source vient explicitement du Core — ce composant n'ouvre jamais getUserMedia lui-même.",
+    category: 'media',
+    props: z.object({
+      src: z.string().default('').describe('URL image ou flux MJPEG'),
+      alt: z.string().default('').describe('Texte alternatif'),
+      caption: z.string().default('').describe('Légende sous l\'image'),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 70,
+    tags: ['image', 'caméra', 'salon', 'snapshot', 'flux', 'surveillance'],
+  },
+
   // —— Vague catalogue riche (stats / table / chart / hub / dialog) ————
   SectionHeader: {
     name: 'SectionHeader',
-    description: 'Titre de section + sous-titre. Structure une surface sans carte lourde.',
+    description: 'Titre + sous-titre en typo seule (pas de carte glass). Largeur au contenu.',
     category: 'layout',
     props: z.object({
       title: z.string().default('SECTION'),
@@ -315,7 +335,7 @@ export const definitions: Record<string, ComponentDefinition> = {
     requiredContext: [],
     supportedActions: {},
     preferredRegion: 'top',
-    preferredSize: 'wide',
+    preferredSize: 'compact',
     priority: 90,
     tags: ['section', 'titre', 'layout', 'hub'],
   },
@@ -528,7 +548,788 @@ export const definitions: Record<string, ComponentDefinition> = {
     priority: 75,
     tags: ['hub', 'services', 'statut', 'nuc', 'vps', 'superviseur'],
   },
+  ToolCall: {
+    name: 'ToolCall',
+    description:
+      'Appel d’outil unique : nom/intent, propriétaire, statut started|completed|failed, durée optionnelle, résumé. À utiliser pour moniteur d’exécution d’outils, jamais pour inventer un résultat.',
+    category: 'feedback',
+    props: z.object({
+      intent: z.string().default(''),
+      owner: z.string().default(''),
+      status: z.string().default('started'),
+      duration_ms: z.number().optional(),
+      summary: z.string().optional(),
+    }),
+    states: ['started', 'completed', 'failed'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'left',
+    preferredSize: 'normal',
+    priority: 70,
+    tags: ['outil', 'tool', 'exécution', 'trace'],
+  },
+  VerificationCard: {
+    name: 'VerificationCard',
+    description:
+      'Pipeline de vérification §7 : proposition → action demandée → exécutée → résultat observé → validé. Branche surface_result.verification.',
+    category: 'feedback',
+    props: z.object({
+      proposition: z.string().optional(),
+      action_requested: z.string().optional(),
+      action_executed: z.string().optional(),
+      result_observed: z.string().optional(),
+      result_validated: z.string().optional(),
+      outcome: z.string().optional(),
+    }),
+    states: ['pending', 'verified', 'disputed'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 80,
+    tags: ['vérification', 'preuve', 'pipeline', 'disputed'],
+  },
+
+  // —— Catalogue Agentic UI production (agentic/components/*) ——————————
+  //
+  // Adapté depuis Metronic Developer, converti en produit JARVIS. C'est LE
+  // catalogue Agentic UI — pas une collection à choisir plus tard. Chaque
+  // entrée ci-dessous a un renderer réel dans `agentic/components/*`, pas de
+  // réimplémentation ici.
+  //
+  // Volontairement absents (déjà couverts par `library/*`/adaptateurs
+  // existants au-dessus, cf. règle P3 : ne pas dupliquer) :
+  //   agent/ActionRequest, agent/ApprovalCard, agent/ToolCall,
+  //   agent/VerificationCard, agent/ConfirmationCard (= DialogCard),
+  //   agent/ErrorCard|WarningCard|SuccessCard (= StatusCard, prop `tone`),
+  //   agent/DiagnosticCard|DiagnosticResult (= StatusCard/ToolResult, presets),
+  //   charts/LineChart|AreaChart|BarChart|DonutChart (= ChartCard, prop `type`),
+  //   charts/GaugeChart (= metrics/Gauge, alias), charts/Sparkline (= MetricChart),
+  //   data/DataTable, data/KeyValueList, metrics/KPI (= MetricCard, alias),
+  //   metrics/StatusIndicator (= StatusBadge), navigation/SectionHeader,
+  //   navigation/SegmentedControl (= TabBar, prop `variant`),
+  //   system/SystemMonitor (= app/components/SystemMonitor, réexport direct),
+  //   system/ServiceList (= ServiceHub), system/CPUCard|MemoryCard|DiskCard|
+  //   NetworkCard (= MetricCard, presets), system/MicrophoneStatus|CameraStatus|
+  //   AudioStatus|GPUStatus|StorageStatus (= DeviceCard, presets),
+  //   system/ServerStatus|ServiceStatus|RuntimeHealth|SystemHealth|UptimeCard
+  //   (= presets ServiceList/StatusIndicator/StatusCard/MetricCard),
+  //   text/SummaryCard (= ResultPanel), media/ImageViewer (déjà au catalogue).
+  //
+  // Structurellement hors registre pour l'instant (props = ReactNode enfants,
+  // incompatible avec un document Core JSON à plat — le protocole de surface
+  // n'a pas de résolution d'enfants par référence) : `containers/*`
+  // (Workspace/Dashboard/Flex/Panel/Section/SplitView — scaffolding du
+  // Layout Engine V1, utilisées uniquement par `sim/AgenticDemoStage`),
+  // `media/MediaFrame` (base interne), `media/MediaGallery` (items en
+  // ReactNode), `agent/RecoveryCard`+`RecoveryActions` (`actions` en
+  // ReactNode). Étendre le protocole (enfants par référence) serait une vraie
+  // décision d'architecture, pas une connexion — non fait ici.
+  //
+  // Volontairement non catalogués : `media/CameraPreview` et
+  // `media/VideoPreview` sont des presets DÉCORATIFS de `MediaFrame` (aucun
+  // flux réel — la vraie caméra est déjà au catalogue via `CameraPreview`
+  // racine, et la vidéo réelle est `media.video`/Plex côté Core). Les
+  // enregistrer sous ces noms tromperait l'agent sur ce qu'ils font.
+  // `media/ObjectDetectionOverlay` reste un import direct de
+  // `VisionLiveSurface` (overlay sur un flux vivant, pas composable seul).
+
+  Gauge: {
+    name: 'Gauge',
+    description: 'Jauge circulaire (0-100%) pour une seule valeur — charge, progression, score.',
+    category: 'data',
+    props: z.object({
+      label: z.string().optional(),
+      value: z.number().min(0).max(100).default(0),
+      tone: z.enum(['cyan', 'violet', 'amber', 'green', 'danger']).default('cyan'),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'right',
+    preferredSize: 'compact',
+    priority: 55,
+    tags: ['jauge', 'gauge', 'pourcentage', 'progression'],
+  },
+
+  MetricCard: {
+    name: 'MetricCard',
+    description: 'Carte métrique riche : valeur, unité, icône, tendance, champs secondaires optionnels. Pour un indicateur unique mis en avant.',
+    category: 'data',
+    props: z.object({
+      label: z.string(),
+      value: z.string(),
+      unit: z.string().optional(),
+      hint: z.string().optional(),
+      icon: z.string().optional(),
+      tone: z.enum(['cyan', 'violet', 'amber', 'green']).default('cyan'),
+      trend: z.object({ direction: z.enum(['up', 'down', 'flat']), label: z.string() }).optional(),
+      fields: z.array(z.object({ label: z.string(), value: z.string() })).default([]),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'left',
+    preferredSize: 'compact',
+    priority: 60,
+    tags: ['métrique', 'kpi', 'valeur', 'carte', 'tendance'],
+  },
+
+  MetricGrid: {
+    name: 'MetricGrid',
+    description: 'Grille de plusieurs MetricCard côte à côte — CPU/RAM/réseau en un seul panneau.',
+    category: 'data',
+    props: z.object({
+      items: z.array(z.object({
+        label: z.string(),
+        value: z.string(),
+        unit: z.string().optional(),
+        icon: z.string().optional(),
+        tone: z.enum(['cyan', 'violet', 'amber', 'green']).default('cyan'),
+      })).default([]),
+      columns: z.number().int().min(1).max(6).default(3),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 60,
+    tags: ['métriques', 'grille', 'kpi', 'tableau de bord'],
+  },
+
+  Progress: {
+    name: 'Progress',
+    description: 'Barre de progression linéaire avec pourcentage — tâche longue, téléchargement, avancement.',
+    category: 'data',
+    props: z.object({
+      label: z.string().optional(),
+      value: z.number().min(0).max(100).default(0),
+      tone: z.enum(['cyan', 'violet', 'amber', 'green', 'danger']).default('cyan'),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'bottom',
+    preferredSize: 'normal',
+    priority: 45,
+    tags: ['progression', 'barre', 'avancement', 'chargement'],
+  },
+
+  StatList: {
+    name: 'StatList',
+    description: 'Liste compacte label + statut (pastille) — vue synthétique de plusieurs sous-systèmes.',
+    category: 'data',
+    props: z.object({
+      title: z.string().optional(),
+      items: z.array(z.object({ label: z.string(), status: z.string() })).default([]),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'left',
+    preferredSize: 'normal',
+    priority: 55,
+    tags: ['liste', 'statuts', 'synthèse', 'état'],
+  },
+
+  ChartCard: {
+    name: 'ChartCard',
+    description: "Graphique d'une série numérique — ligne, aire, barres ou donut selon `type`. Un seul renderer pour les quatre formes.",
+    category: 'data',
+    props: z.object({
+      type: z.enum(['line', 'area', 'bar', 'donut']).default('line'),
+      label: z.string().optional(),
+      data: z.array(z.object({ x: z.union([z.string(), z.number()]), y: z.number() })).default([]),
+      tone: z.enum(['cyan', 'violet', 'amber', 'green']).default('cyan'),
+      aspectRatio: z.number().optional(),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 65,
+    tags: ['graphique', 'courbe', 'chart', 'ligne', 'aire', 'barres', 'donut', 'série'],
+  },
+
+  TimelineChart: {
+    name: 'TimelineChart',
+    description: "Frise chronologique d'événements horizontale — succession d'incidents, de jalons.",
+    category: 'data',
+    props: z.object({
+      label: z.string().optional(),
+      items: z.array(z.object({
+        id: z.string(),
+        label: z.string(),
+        timestamp: z.string(),
+        tone: z.enum(['accent', 'success', 'warning', 'danger', 'neutral']).default('neutral'),
+        detail: z.string().optional(),
+      })).default([]),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 55,
+    tags: ['frise', 'chronologie', 'timeline', 'événements'],
+  },
+
+  DataList: {
+    name: 'DataList',
+    description: 'Liste icône + label + valeur + statut optionnel — inventaire simple, options, capacités.',
+    category: 'data',
+    props: z.object({
+      title: z.string().optional(),
+      items: z.array(z.object({
+        icon: z.string().optional(),
+        label: z.string(),
+        value: z.string().optional(),
+        status: z.string().optional(),
+      })).default([]),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'left',
+    preferredSize: 'normal',
+    priority: 50,
+    tags: ['liste', 'données', 'inventaire'],
+  },
+
+  EventList: {
+    name: 'EventList',
+    description: "Liste chronologique verticale d'événements horodatés — journal d'activité récente.",
+    category: 'data',
+    props: z.object({
+      title: z.string().optional(),
+      items: z.array(z.object({
+        id: z.string(),
+        label: z.string(),
+        timestamp: z.string(),
+        tone: z.enum(['accent', 'success', 'warning', 'danger', 'neutral']).default('neutral'),
+        detail: z.string().optional(),
+      })).default([]),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'right',
+    preferredSize: 'normal',
+    priority: 55,
+    tags: ['événements', 'journal', 'activité', 'historique'],
+  },
+
+  LogViewer: {
+    name: 'LogViewer',
+    description: 'Journal de lignes horodatées avec niveau (info/warn/error/debug) — sortie de log, pas un shell.',
+    category: 'data',
+    props: z.object({
+      title: z.string().optional(),
+      lines: z.array(z.object({
+        level: z.enum(['info', 'warn', 'error', 'debug']).default('info'),
+        text: z.string(),
+      })).default([]),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 55,
+    tags: ['logs', 'journal', 'debug', 'trace'],
+  },
+
+  TreeView: {
+    name: 'TreeView',
+    description: 'Arborescence pliable/dépliable — fichiers, structure, hiérarchie.',
+    category: 'data',
+    props: z.object({
+      title: z.string().optional(),
+      nodes: z.array(z.lazy(() => TreeNodeSchema)).default([]),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'left',
+    preferredSize: 'normal',
+    priority: 45,
+    tags: ['arbre', 'arborescence', 'hiérarchie', 'fichiers'],
+  },
+
+  DeviceCard: {
+    name: 'DeviceCard',
+    description: "Carte d'un appareil unique : icône, nom, statut, détail. Pour un appareil du foyer ou du réseau JARVIS.",
+    category: 'system',
+    props: z.object({
+      icon: z.string().optional(),
+      name: z.string(),
+      status: z.string(),
+      detail: z.string().optional(),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'left',
+    preferredSize: 'compact',
+    priority: 55,
+    tags: ['appareil', 'device', 'statut', 'matériel'],
+  },
+
+  DeviceGrid: {
+    name: 'DeviceGrid',
+    description: 'Grille de plusieurs DeviceCard — vue flotte des appareils JARVIS (NUC, Pi, postes).',
+    category: 'system',
+    props: z.object({
+      items: z.array(z.object({
+        icon: z.string().optional(),
+        name: z.string(),
+        status: z.string(),
+        detail: z.string().optional(),
+      })).default([]),
+      columns: z.number().int().min(1).max(4).default(2),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 55,
+    tags: ['appareils', 'flotte', 'grille', 'inventaire'],
+  },
+
+  ProcessList: {
+    name: 'ProcessList',
+    description: 'Table de processus : nom, CPU, mémoire. Pour diagnostiquer une charge machine en détail.',
+    category: 'system',
+    props: z.object({
+      title: z.string().optional(),
+      rows: z.array(z.object({ name: z.string(), cpu: z.string(), memory: z.string() })).default([]),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'normal',
+    priority: 50,
+    tags: ['processus', 'process', 'cpu', 'mémoire', 'diagnostic'],
+  },
+
+  Terminal: {
+    name: 'Terminal',
+    description: "Pane de sortie texte façon terminal — affichage seul, aucune exécution ni saisie. Ne pas confondre avec l'app Terminal SSH réelle.",
+    category: 'system',
+    props: z.object({
+      title: z.string().optional(),
+      lines: z.array(z.string()).default([]),
+      cursor: z.boolean().default(true),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 50,
+    tags: ['terminal', 'sortie', 'log', 'console'],
+  },
+
+  HealthOverview: {
+    name: 'HealthOverview',
+    description: "Vue de santé composite : trio uptime/CPU/mémoire en tuiles compactes + liste de services. Pour un état système en un coup d'œil.",
+    category: 'system',
+    props: z.object({
+      services: z.array(z.object({ label: z.string(), status: z.string() })).default([]),
+      uptime: z.string().optional(),
+      cpu: z.number().optional(),
+      memory: z.number().optional(),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 60,
+    tags: ['santé', 'health', 'uptime', 'services', 'synthèse'],
+  },
+
+  Breadcrumb: {
+    name: 'Breadcrumb',
+    description: "Fil d'ariane texte — chemin de navigation ou de contexte.",
+    category: 'layout',
+    props: z.object({ items: z.array(z.string()).default([]) }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'top',
+    preferredSize: 'compact',
+    priority: 40,
+    tags: ['fil d’ariane', 'navigation', 'chemin'],
+  },
+
+  CommandBar: {
+    name: 'CommandBar',
+    description: 'Barre de raccourcis affichés (icône + label + indice clavier). Décorative — ne déclenche aucune commande.',
+    category: 'layout',
+    props: z.object({
+      items: z.array(z.object({ icon: z.string().optional(), label: z.string(), hint: z.string().optional() })).default([]),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'top',
+    preferredSize: 'wide',
+    priority: 35,
+    tags: ['commandes', 'raccourcis', 'barre'],
+  },
+
+  FilterBar: {
+    name: 'FilterBar',
+    description: 'Chips de filtres activables. Émet une intention par bascule — le Core décide ce que ça filtre.',
+    category: 'layout',
+    props: z.object({
+      chips: z.array(z.object({ id: z.string(), label: z.string() })).default([]),
+      activeIds: z.array(z.string()).default([]),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: { 'filter.toggle': 'info' },
+    preferredRegion: 'top',
+    preferredSize: 'wide',
+    priority: 40,
+    tags: ['filtre', 'chips', 'filtrage'],
+  },
+
+  SearchBar: {
+    name: 'SearchBar',
+    description: "Champ de recherche visuel. Émet l'intention `search.change` à chaque frappe — n'exécute aucune recherche tant que le Core n'y répond pas.",
+    category: 'layout',
+    props: z.object({
+      placeholder: z.string().default('Rechercher…'),
+      value: z.string().default(''),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: { 'search.change': 'info' },
+    preferredRegion: 'top',
+    preferredSize: 'normal',
+    priority: 35,
+    tags: ['recherche', 'search', 'filtre'],
+  },
+
+  TabBar: {
+    name: 'TabBar',
+    description: "Sélecteur d'onglets — variante `underline` (onglets classiques) ou `segmented` (pilule). Émet `tab.select`.",
+    category: 'layout',
+    props: z.object({
+      tabs: z.array(z.object({ id: z.string(), label: z.string() })).default([]),
+      activeId: z.string().default(''),
+      variant: z.enum(['underline', 'segmented']).default('underline'),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: { 'tab.select': 'info' },
+    preferredRegion: 'top',
+    preferredSize: 'normal',
+    priority: 40,
+    tags: ['onglets', 'tabs', 'navigation', 'segmenté'],
+  },
+
+  CodeBlock: {
+    name: 'CodeBlock',
+    description: 'Bloc de code monospace avec langage optionnel affiché.',
+    category: 'data',
+    props: z.object({ code: z.string(), language: z.string().optional() }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 55,
+    tags: ['code', 'source', 'monospace'],
+  },
+
+  MarkdownBlock: {
+    name: 'MarkdownBlock',
+    description: 'Texte Markdown (titres, gras/italique, code, listes, liens) — sous-ensemble volontairement minimal, pas CommonMark complet.',
+    category: 'data',
+    props: z.object({ source: z.string().default('') }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 60,
+    tags: ['markdown', 'texte', 'formaté'],
+  },
+
+  MessageCard: {
+    name: 'MessageCard',
+    description: 'Bulle de message avec auteur et horodatage — pour afficher UN message isolé (pas la conversation, qui reste CommandConsole).',
+    category: 'identity',
+    props: z.object({
+      author: z.string(),
+      identity: z.string().optional(),
+      text: z.string(),
+      timestamp: z.string().optional(),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'normal',
+    priority: 45,
+    tags: ['message', 'bulle', 'auteur'],
+  },
+
+  QuoteBlock: {
+    name: 'QuoteBlock',
+    description: 'Citation mise en exergue avec source optionnelle.',
+    category: 'data',
+    props: z.object({ text: z.string(), cite: z.string().optional() }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'normal',
+    priority: 40,
+    tags: ['citation', 'quote'],
+  },
+
+  TextBlock: {
+    name: 'TextBlock',
+    description: 'Paragraphe de texte simple avec titre optionnel — la brique texte générique.',
+    category: 'data',
+    props: z.object({ title: z.string().optional(), text: z.string() }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'normal',
+    priority: 40,
+    tags: ['texte', 'paragraphe'],
+  },
+
+  Screenshot: {
+    name: 'Screenshot',
+    description: "Image affichée dans un cadre façon fenêtre (barre de titre) — capture d'écran, aperçu d'application. Distinct d'ImageViewer par le cadre, pas par la source.",
+    category: 'media',
+    props: z.object({
+      src: z.string().default(''),
+      alt: z.string().default(''),
+      caption: z.string().default(''),
+      windowTitle: z.string().default('Capture'),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 55,
+    tags: ['capture', 'screenshot', 'image', 'fenêtre'],
+  },
+
+  DevIssueBoard: {
+    name: 'DevIssueBoard',
+    description: 'Kanban Mission DEV — colonnes backlog→done, inbox bloqué/review. Affichage seul ; actions via voix Core.',
+    category: 'data',
+    props: z.object({
+      title: z.string().default('Mission DEV · Board'),
+      columns: z.array(z.string()).default([]),
+      issues: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        column: z.string().optional(),
+        status: z.string().optional(),
+        assignee_agent: z.string().nullable().optional(),
+        blocked_reason: z.string().nullable().optional(),
+        run_id: z.string().nullable().optional(),
+      })).default([]),
+      inbox_count: z.number().default(0),
+      inbox_blocked: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        status: z.string().optional(),
+        blocked_reason: z.string().nullable().optional(),
+      })).default([]),
+      inbox_review: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        status: z.string().optional(),
+      })).default([]),
+      voice_hint: z.string().default(''),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'fill',
+    priority: 88,
+    tags: ['kanban', 'mission', 'dev', 'board', 'tickets'],
+  },
+
+  ExecutionStatus: {
+    name: 'ExecutionStatus',
+    description: "Pastille compacte d'état d'exécution (pending/running/done/failed) avec icône animée. Pour un statut en ligne, pas une carte pleine.",
+    category: 'feedback',
+    props: z.object({
+      label: z.string(),
+      stage: z.enum(['pending', 'running', 'done', 'failed']).default('pending'),
+    }),
+    states: ['pending', 'running', 'done', 'failed'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'top',
+    preferredSize: 'compact',
+    priority: 65,
+    tags: ['exécution', 'statut', 'progression', 'outil'],
+  },
+
+  StatusCard: {
+    name: 'StatusCard',
+    description: 'Carte de statut avec ton sémantique (succès/avertissement/danger/info/neutre) — remplace ErrorCard/WarningCard/SuccessCard via `tone`.',
+    category: 'feedback',
+    props: z.object({
+      title: z.string(),
+      body: z.string().optional(),
+      tone: z.enum(['success', 'warning', 'danger', 'info', 'neutral']).default('neutral'),
+      icon: z.string().optional(),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'normal',
+    priority: 60,
+    tags: ['statut', 'alerte', 'succès', 'erreur', 'avertissement'],
+  },
+
+  ToolResult: {
+    name: 'ToolResult',
+    description: "Résultat brut d'UN appel d'outil : nom, statut, sortie. Distinct de ResultPanel (réponse composée) et de ToolCall (en cours).",
+    category: 'feedback',
+    props: z.object({
+      tool: z.string(),
+      status: z.string(),
+      output: z.string().optional(),
+    }),
+    states: ['idle'],
+    permissions: ['system.read'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'left',
+    preferredSize: 'normal',
+    priority: 60,
+    tags: ['outil', 'résultat', 'sortie', 'exécution'],
+  },
+
+  Graph3D: {
+    name: 'Graph3D',
+    description:
+      'Graphe spatial 3D générique : volume, nœuds sémantiques, arêtes, focus. Pas l’orbe identité du HUD. Un adapter (architecture, repo, HA, agents) fournit le Graph3DModel.',
+    category: 'data',
+    props: z.object({
+      layout: z.enum(['orb', 'cube', 'layered', 'network']).default('orb'),
+      level: z.enum(['global', 'cluster', 'component', 'detail']).default('global'),
+      focus: z.string().nullable().optional(),
+      particleCount: z.number().int().min(0).max(20000).optional(),
+      showEdges: z.boolean().default(true),
+      showDecorativeLinks: z.boolean().default(true),
+      showLabels: z.boolean().default(true),
+      projectionBase: z.boolean().default(true),
+      model: z
+        .object({
+          id: z.string().optional(),
+          title: z.string().optional(),
+          nodes: z
+            .array(
+              z.object({
+                id: z.string(),
+                label: z.string(),
+                type: z.string(),
+                group: z.string().optional(),
+                cluster: z.string().optional(),
+                status: z.string().optional(),
+                importance: z.number().optional(),
+                caption: z.string().optional(),
+                summary: z.string().optional(),
+                facts: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
+              }),
+            )
+            .default([]),
+          edges: z
+            .array(
+              z.object({
+                id: z.string().optional(),
+                source: z.string(),
+                target: z.string(),
+                type: z.string().optional(),
+                strength: z.number().optional(),
+                active: z.boolean().optional(),
+              }),
+            )
+            .default([]),
+          clusters: z
+            .array(
+              z.object({
+                id: z.string(),
+                label: z.string(),
+                nodeIds: z.array(z.string()),
+              }),
+            )
+            .optional(),
+        })
+        .optional(),
+    }),
+    states: ['idle'],
+    permissions: [],
+    requiredContext: [],
+    supportedActions: { focus: 'info' },
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 90,
+    tags: ['graphe', '3d', 'orbe', 'nœuds', 'architecture', 'réseau'],
+  },
 };
+
+/** Récursif — `TreeView.nodes`. Séparé du bloc `z.object` pour que `z.lazy` puisse s'y référer. */
+const TreeNodeSchema: z.ZodType<{ id: string; label: string; children?: unknown[] }> = z.object({
+  id: z.string(),
+  label: z.string(),
+  children: z.array(z.lazy(() => TreeNodeSchema)).optional(),
+});
 
 /** Noms enregistrés — utilisé par le contrôle de correspondance à la compilation. */
 export type RegisteredName = keyof typeof definitions;
