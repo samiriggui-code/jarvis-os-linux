@@ -307,6 +307,23 @@ CAPABILITIES: dict[str, Capability] = {
             "tes skills hermes", "lis tes skills",
         ),
     ),
+    # Recherche web — outil hébergé Anthropic (`web_search_20260209`), pas de
+    # Hermes derrière. Retiré avec Hermes le 2026-08-17 sans remplaçant ; JARVIS
+    # répondait honnêtement « pas d'outil de recherche » — vrai, mais un vrai
+    # manque produit. `chat_research_route.looks_like_web_search()` sert de
+    # filet plus large (regex) entre les triggers exacts ci-dessous et le
+    # routage sémantique — voir l'ordre Gateway dans `ws/handlers/chat.py`.
+    "web-search": Capability(
+        app_id="reach", intent="web.search", owner=Owner.CORE,
+        risk=RiskLevel.INFO, permission="web.read", display=Display.GENERATED,
+        note="Recherche web réelle via l'outil hébergé Anthropic — jamais Hermes/ddgs maison.",
+        triggers=(
+            "cherche sur internet", "cherche sur le web", "recherche web",
+            "cherche sur google", "sur google", "google search",
+            "cherche moi", "va chercher", "recherche sur",
+            "search for", "look up", "lookup",
+        ),
+    ),
     # Architecture Awareness — joignable depuis le chat (triggers).
     # Pas de tuile HUD, pas de TTS : chat_reply uniquement.
     "architecture-explain": Capability(

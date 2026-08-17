@@ -144,7 +144,7 @@ async def main() -> int:
 
     # Clés dict != app_id quand plusieurs intentions partagent une tuile HUD.
     KEY_APP_MISMATCH_OK = frozenset({
-        "capabilities", "introspect", "media-pause", "media-streaming",
+        "capabilities", "introspect", "web-search", "media-pause", "media-streaming",
         "software", "device-launch", "hud-close-app", "hud-toggle-app", "vision-analyze",
         "pc-health",
         "dev-board-create", "dev-board-assign", "dev-board-start-run",

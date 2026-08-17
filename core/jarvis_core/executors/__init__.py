@@ -11,6 +11,7 @@ from .mission_board import MissionBoardExecutorsMixin
 from .surfaces import SurfaceExecutorsMixin
 from .system import SystemExecutorsMixin
 from .vision import VisionExecutorsMixin
+from .web import WebExecutorsMixin
 
 
 class IntentExecutorsMixin(
@@ -24,7 +25,8 @@ class IntentExecutorsMixin(
     SurfaceExecutorsMixin,
     SystemExecutorsMixin,
     VisionExecutorsMixin,
+    WebExecutorsMixin,
 ):
-    """Exécutants Core — architecture / camera / device / home / media / memory / surfaces / system."""
+    """Exécutants Core — architecture / camera / device / home / media / memory / surfaces / system / web."""
 
 __all__ = ["IntentExecutorsMixin"]

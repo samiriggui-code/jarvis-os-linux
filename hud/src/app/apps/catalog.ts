@@ -167,7 +167,12 @@ export const HUD_APPS: HudApp[] = [
     id: 'reach', name: 'Internet', icon: Globe, color: C.cyan, cat: 'Agent',
     status: 'surface', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Recherche et extraction web',
-    voice: [],
+    voice: [
+      'cherche sur internet', 'cherche sur le web', 'recherche web',
+      'cherche sur google', 'sur google', 'google search',
+      'cherche moi', 'va chercher', 'recherche sur',
+      'search for', 'look up', 'lookup',
+    ],
     intent: 'web.search',
   },
   // Aucun toolset docker/stockage chez Hermes : ces deux-là passeraient par

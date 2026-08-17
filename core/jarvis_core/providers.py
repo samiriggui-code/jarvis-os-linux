@@ -192,6 +192,66 @@ _STRUCTURED_INSTRUCTIONS = (
 )
 
 
+# Modèles supportant le filtrage dynamique (`web_search_20260209`) — vérifié
+# contre la doc Anthropic (2026) : Opus 5/4.8/4.7/4.6, Sonnet 5, Sonnet 4.6,
+# Fable 5, Mythos 5. Tout le reste (Sonnet 4.5 et antérieur) n'a que la
+# variante basique `web_search_20250305`. Ne JAMAIS hardcoder la variante
+# récente sans vérifier le modèle réellement configuré (consigne Samir
+# 2026-08-17, après confusion sur le modèle du benchmark).
+_WEB_SEARCH_DYNAMIC_TAGS = (
+    "opus-5", "opus-4-8", "opus-4-7", "opus-4-6",
+    "sonnet-5", "sonnet-4-6", "fable-5", "mythos-5",
+)
+
+
+_VOICE_MD = re.compile(r"[*_`#]+")
+_VOICE_BULLET_LINE = re.compile(r"^\s*[-•·]\s*", re.M)
+_VOICE_URL = re.compile(r"https?://\S+")
+_VOICE_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
+
+def _voice_ready(text: str, *, max_sentences: int = 3) -> str:
+    """Nettoyage regex — PAS un second appel LLM (consigne Samir explicite).
+
+    Filet de sécurité derrière la consigne système : même si le modèle
+    ignore « pas de markdown/puces/URL », ce n'est jamais ce que ElevenLabs
+    reçoit. Coupe aussi à N phrases si le modèle a quand même été bavard
+    (ex. observé sur « actus NVIDIA » — liste à puces malgré la consigne).
+    """
+    t = _VOICE_URL.sub("", text or "")
+    t = _VOICE_BULLET_LINE.sub("", t)
+    t = _VOICE_MD.sub("", t)
+    t = re.sub(r"\s*\n+\s*", " ", t).strip()
+    t = re.sub(r"\s{2,}", " ", t)
+    sentences = [s for s in _VOICE_SENTENCE_SPLIT.split(t) if s.strip()]
+    if len(sentences) > max_sentences:
+        t = " ".join(sentences[:max_sentences]).strip()
+    return t or "(pas de résultat exploitable)"
+
+
+# Renforcé 2026-08-17 (feu vert Samir) après observation : « actus NVIDIA »
+# a produit une liste à puces multi-paragraphes malgré une consigne plus
+# faible. La richesse va au HUD (`results`/`sources`), jamais à la voix.
+_WEB_SEARCH_VOICE_SYSTEM_PROMPT = (
+    "Tu réponds en français, en 1 à 3 phrases MAXIMUM, pour être lues à voix "
+    "haute par un synthétiseur vocal — jamais de markdown, jamais de puces, "
+    "jamais d'URL. Donne la réponse principale et l'information essentielle "
+    "seulement. Si plusieurs éléments existent, dis que le détail et les "
+    "sources sont affichés à l'écran plutôt que de tout énumérer. N'invente "
+    "jamais un fait absent des résultats de recherche."
+)
+
+
+def _anthropic_web_search_tool(model: str) -> dict:
+    normalized = model.lower()
+    variant = (
+        "web_search_20260209"
+        if any(tag in normalized for tag in _WEB_SEARCH_DYNAMIC_TAGS)
+        else "web_search_20250305"
+    )
+    return {"type": variant, "name": "web_search", "max_uses": 2}
+
+
 async def verify_image_url(url: str, *, timeout: float = 4.0) -> bool:
     """HEAD réel — jamais confiance dans une URL générée par le LLM.
 
@@ -548,3 +608,306 @@ class AIProviderManager:
             text[:80].replace("\n", " "),
         )
         return text
+
+    async def web_search(self, query: str) -> dict[str, Any]:
+        """`web.search` FAST V1 — 1 recherche, 1 appel LLM, budget dur 10 s.
+
+        Politique (feu vert Samir 2026-08-17, après benchmark réel sur le
+        NUC — OpenRouter+plugin ≈ 4,95 s, Anthropic direct ≈ 5,18 s, DDGS
+        recherche seule ≈ 4,16 s **sans synthèse**) :
+
+          1. OpenRouter + ``plugins:[{"id":"web"}]`` sur le modèle déjà
+             configuré (passthrough natif Anthropic si c'est un modèle
+             Claude — c'est le cas en prod). Recherche + synthèse en UN
+             aller-retour réseau.
+          2. Anthropic direct + outil web hébergé, **seulement si** le
+             budget global restant permet raisonnablement un aller-retour
+             complet (≥ ``_MIN_BUDGET_FOR_FALLBACK_S``) — jamais lancé à
+             l'aveugle après un timeout qui a déjà consommé tout le budget.
+          3. DDGS — dernier recours si les deux payants ont échoué. Pas de
+             synthèse LLM séparée derrière : les snippets bruts sont
+             retournés tels quels, sinon FAST redeviendrait une attente de
+             8-10 s supplémentaires pour gagner un habillage plus propre.
+
+        Ne construit JAMAIS de boucle recherche→réflexion→recherche : une
+        seule tentative par backend, le budget global (pas la somme des
+        timeouts) est l'unique garde-fou contre une attente incontrôlée.
+        """
+        import time as _time
+
+        budget_s = 10.0
+        t_start = _time.monotonic()
+
+        def _remaining() -> float:
+            return budget_s - (_time.monotonic() - t_start)
+
+        result: dict[str, Any] | None = None
+        provider_used = ""
+        fallback_used = False
+
+        if os.environ.get("OPENROUTER_API_KEY") and _remaining() > 0:
+            t0 = _time.monotonic()
+            try:
+                result = await self._openrouter_web_search(query, timeout=min(8.0, _remaining()))
+                provider_used = "openrouter"
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "web.search · OpenRouter échec en %.1fs (%s) — %.1fs restantes",
+                    _time.monotonic() - t0, exc, _remaining(),
+                )
+
+        if result is None and os.environ.get("ANTHROPIC_API_KEY") and _remaining() >= self._MIN_BUDGET_FOR_FALLBACK_S:
+            fallback_used = True
+            t0 = _time.monotonic()
+            try:
+                result = await self._anthropic_web_search(query, timeout=min(8.0, _remaining()))
+                provider_used = "anthropic"
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "web.search · Anthropic direct échec en %.1fs (%s) — %.1fs restantes",
+                    _time.monotonic() - t0, exc, _remaining(),
+                )
+
+        if result is None and _remaining() >= self._MIN_BUDGET_FOR_DDGS_S:
+            import asyncio
+
+            fallback_used = True
+            try:
+                result = await asyncio.wait_for(self._ddgs_web_search(query), timeout=_remaining())
+                provider_used = "ddgs"
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("web.search · DDGS échec/budget dépassé (%s)", exc)
+        elif result is None:
+            logger.warning(
+                "web.search · DDGS SAUTÉ — %.1fs restantes < %.1fs requis (budget prioritaire sur la réponse)",
+                _remaining(), self._MIN_BUDGET_FOR_DDGS_S,
+            )
+
+        latency_ms = int((_time.monotonic() - t_start) * 1000)
+
+        if result is None:
+            return {
+                "query": query, "provider": "none", "mode": "fast", "type": "web",
+                "speech": "Je n'ai pas réussi à faire la recherche, désolé.",
+                "results": [], "sources": [],
+                "metadata": {
+                    "searches_used": 0, "latency_ms": latency_ms,
+                    "cost_estimate_usd": 0.0, "success": False, "fallback_used": fallback_used,
+                },
+            }
+
+        result["metadata"]["latency_ms"] = latency_ms
+        result["metadata"]["success"] = True
+        result["metadata"]["fallback_used"] = fallback_used
+        logger.info(
+            "web.search · provider=%s fallback=%s · %dms · %d source(s) · %.4f$",
+            provider_used, fallback_used, latency_ms,
+            len(result.get("sources") or []), result["metadata"].get("cost_estimate_usd") or 0.0,
+        )
+        return result
+
+    _MIN_BUDGET_FOR_FALLBACK_S = 3.0
+    """En dessous de ça, un deuxième aller-retour LLM (≈5s mesurés) n'a
+    statistiquement pas le temps d'aboutir dans le budget — sauter direct à
+    DDGS plutôt que de lancer un appel voué à l'échec."""
+
+    _MIN_BUDGET_FOR_DDGS_S = 2.0
+    """DDGS seul (sans synthèse LLM) prend ≈4,2s mesurés — sous ce seuil, le
+    budget global prime sur l'obtention à tout prix d'une réponse (consigne
+    Samir explicite) : on retourne l'échec propre plutôt que de dépasser le
+    budget FAST. Le call est aussi borné par ``asyncio.wait_for`` sur le
+    temps réellement restant, jamais sur un délai fixe."""
+
+    async def _openrouter_web_search(self, query: str, *, timeout: float) -> dict[str, Any]:
+        import asyncio
+
+        from .usage import record_event
+
+        api_key = os.environ["OPENROUTER_API_KEY"]
+        model = os.environ.get("JARVIS_OPENROUTER_MODEL", "qwen/qwen3.5-flash-02-23")
+        base = os.environ.get("JARVIS_OPENROUTER_BASE", "https://openrouter.ai/api/v1").rstrip("/")
+        system = _WEB_SEARCH_VOICE_SYSTEM_PROMPT
+
+        def _call() -> dict:
+            body = json.dumps(
+                {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": query},
+                    ],
+                    "max_tokens": 220,
+                    "plugins": [{"id": "web"}],
+                    "reasoning": {"enabled": False},
+                }
+            ).encode("utf-8")
+            req = request.Request(
+                f"{base}/chat/completions",
+                data=body,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://jarvis-os.local",
+                    "X-Title": "JARVIS OS Core",
+                },
+            )
+            with request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        try:
+            data = await asyncio.to_thread(_call)
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:300]
+            raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
+
+        msg = (data.get("choices") or [{}])[0].get("message") or {}
+        speech = _voice_ready(strip_reasoning(str(msg.get("content") or "")).strip())
+        annotations = msg.get("annotations") or []
+        results = []
+        sources = []
+        for ann in annotations[:5]:
+            uc = ann.get("url_citation") if isinstance(ann, dict) else None
+            if not isinstance(uc, dict):
+                continue
+            url = str(uc.get("url") or "")
+            if not url:
+                continue
+            results.append({
+                "title": str(uc.get("title") or "")[:120],
+                "url": url,
+                "snippet": str(uc.get("content") or "")[:280],
+            })
+            sources.append(url)
+
+        usage = data.get("usage") if isinstance(data, dict) else {}
+        cost = 0.0
+        if isinstance(usage, dict):
+            try:
+                cost = float(usage.get("cost") or 0)
+            except (TypeError, ValueError):
+                cost = 0.0
+        record_event(
+            provider="openrouter-web-search",
+            model=str(data.get("model") or model),
+            tokens_in=int((usage or {}).get("prompt_tokens") or 0),
+            tokens_out=int((usage or {}).get("completion_tokens") or 0),
+            cost_usd=cost,
+            meta={"id": data.get("id"), "sources": len(sources)},
+        )
+        return {
+            "query": query, "provider": "openrouter", "mode": "fast", "type": "web",
+            "speech": speech, "results": results, "sources": sources,
+            "metadata": {"searches_used": 1, "cost_estimate_usd": cost},
+        }
+
+    async def _anthropic_web_search(self, query: str, *, timeout: float) -> dict[str, Any]:
+        import asyncio
+
+        from .usage import record_event
+
+        api_key = os.environ["ANTHROPIC_API_KEY"]
+        model = os.environ.get("JARVIS_ANTHROPIC_MODEL", "claude-sonnet-5")
+        system = _WEB_SEARCH_VOICE_SYSTEM_PROMPT
+
+        def _call() -> dict:
+            body = json.dumps(
+                {
+                    "model": model,
+                    "max_tokens": 220,
+                    "system": system,
+                    "messages": [{"role": "user", "content": query}],
+                    "tools": [_anthropic_web_search_tool(model)],
+                }
+            ).encode("utf-8")
+            req = request.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=body,
+                method="POST",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+            )
+            with request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        try:
+            data = await asyncio.to_thread(_call)
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:300]
+            raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
+
+        blocks = data.get("content") or []
+        speech = "".join(
+            str(b.get("text") or "") for b in blocks if isinstance(b, dict) and b.get("type") == "text"
+        ).strip()
+        speech = _voice_ready(strip_reasoning(speech)) if speech else "(pas de résultat exploitable)"
+
+        results = []
+        sources = []
+        searches_used = 0
+        for b in blocks:
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "server_tool_use" and b.get("name") == "web_search":
+                searches_used += 1
+            if b.get("type") == "web_search_tool_result":
+                items = b.get("content")
+                if isinstance(items, list):
+                    for item in items[:5]:
+                        if not isinstance(item, dict) or item.get("type") != "web_search_result":
+                            continue
+                        url = str(item.get("url") or "")
+                        if not url:
+                            continue
+                        results.append({"title": str(item.get("title") or "")[:120], "url": url, "snippet": ""})
+                        sources.append(url)
+
+        usage = data.get("usage") if isinstance(data, dict) else {}
+        tin = int((usage or {}).get("input_tokens") or 0)
+        tout = int((usage or {}).get("output_tokens") or 0)
+        cost = round(searches_used * 0.01 + tin / 1_000_000 * 3 + tout / 1_000_000 * 15, 5)
+        record_event(
+            provider="anthropic-web-search",
+            model=str(data.get("model") or model),
+            tokens_in=tin,
+            tokens_out=tout,
+            cost_usd=cost,
+            meta={"id": data.get("id"), "searches": searches_used},
+        )
+        return {
+            "query": query, "provider": "anthropic", "mode": "fast", "type": "web",
+            "speech": speech, "results": results, "sources": sources,
+            "metadata": {"searches_used": searches_used or 1, "cost_estimate_usd": cost},
+        }
+
+    async def _ddgs_web_search(self, query: str) -> dict[str, Any]:
+        """Dernier recours — gratuit, mais PAS rapide (~4s mesurés pour la
+        recherche seule). Pas de synthèse LLM séparée : les snippets bruts
+        sont la réponse, sinon FAST redevient une attente de 8-10s de plus.
+        """
+        import asyncio
+
+        def _call() -> list[dict]:
+            from ddgs import DDGS
+
+            return list(DDGS().text(query, max_results=5))
+
+        raw = await asyncio.to_thread(_call)
+        results = [
+            {"title": str(r.get("title") or "")[:120], "url": str(r.get("href") or r.get("url") or ""), "snippet": str(r.get("body") or "")[:280]}
+            for r in raw if r.get("href") or r.get("url")
+        ]
+        sources = [r["url"] for r in results]
+        top = results[0] if results else None
+        speech = (
+            f"Je n'ai pas pu passer par les moteurs habituels. Voici ce que j'ai trouvé : {top['title']}."
+            if top else "Je n'ai rien trouvé, désolé."
+        )
+        return {
+            "query": query, "provider": "ddgs", "mode": "fast", "type": "web",
+            "speech": speech, "results": results, "sources": sources,
+            "metadata": {"searches_used": 1, "cost_estimate_usd": 0.0},
+        }

@@ -260,6 +260,9 @@ evenements_emis:
   - type: voicebox_result
     sources: [core/jarvis_core/ws/handlers/system.py]
     ecoute_par_le_hud: false
+  - type: web
+    sources: [core/jarvis_core/providers.py]
+    ecoute_par_le_hud: false
 commandes_emises:
   - command: boot
     sources: [core/jarvis_core/__init__.py]

@@ -81,7 +81,7 @@ apps:
     risque: info
     intention: web.search
     execute_par: core
-    declencheurs: []
+    declencheurs: [cherche sur internet, cherche sur le web, recherche web, cherche sur google, sur google, google search, cherche moi, va chercher, recherche sur, search for, look up, lookup]
   - id: docker
     nom: Docker
     statut: soon

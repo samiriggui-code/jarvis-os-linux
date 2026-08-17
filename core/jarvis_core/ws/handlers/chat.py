@@ -131,8 +131,22 @@ class ChatHandlerMixin:
             await self._open_intent(ws, cap, text)
             return
 
+        # Filet déterministe recherche — entre triggers exacts et sémantique
+        # (LLM). Attrape les formulations larges (« cherche la météo »,
+        # « recherche sur github ») qu'une liste de triggers exacts rate.
+        from ...chat_research_route import looks_like_web_search
+
+        if looks_like_web_search(text):
+            from ...capabilities import for_intent
+
+            if (web_cap := for_intent("web.search")) is not None:
+                logger.info("phrase ROUTÉE (filet recherche) · « %s » → web.search", text[:48])
+                await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
+                await self._open_intent(ws, web_cap, text)
+                return
+
         # ── Chat libre ───────────────────────────────────────────────────────
-        # Ordre Gateway : triggers → sémantique → Provider Manager.
+        # Ordre Gateway : triggers → recherche → sémantique → Provider Manager.
         from ...gateway import semantic_routing_enabled
 
         if semantic_routing_enabled():

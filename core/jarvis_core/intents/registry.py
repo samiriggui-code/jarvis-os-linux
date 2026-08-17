@@ -75,6 +75,7 @@ def register_capabilities(orch: Any) -> None:
         "memory.search": orch._execute_memory_search,
         "memory.recall": orch._execute_memory_recall,
         "memory.store_note": orch._execute_memory_store_note,
+        "web.search": orch._execute_web_search,
     }
 
     for cap in CAPABILITIES.values():

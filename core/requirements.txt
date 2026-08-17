@@ -26,3 +26,7 @@ agent-reach @ git+https://github.com/Panniantong/agent-reach@c1eecd61bf42646cf7b
 # Sous Linux, sounddevice réclame portaudio : apt install portaudio19-dev
 openwakeword>=0.6.0
 sounddevice>=0.4.6
+
+# web.search — dernier recours FAST V1 (OpenRouter/Anthropic indisponibles).
+# Gratuit, aucune clé — voir providers.py::_ddgs_web_search.
+ddgs>=9.15.0
