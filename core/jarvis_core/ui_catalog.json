@@ -422,7 +422,9 @@
       "states": [
         "idle"
       ],
-      "permissions": [],
+      "permissions": [
+        "camera.read.satellite"
+      ],
       "requiredContext": [],
       "supportedActions": {},
       "preferredRegion": "center",
@@ -460,6 +462,63 @@
           "src",
           "alt",
           "caption"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "LiveStream",
+      "description": "Lecteur vidéo+audio en direct depuis une URL fournie par le Core (caméra salon Pi). Contrairement à CameraPreview, n'ouvre jamais getUserMedia — le flux vient du satellite.",
+      "category": "media",
+      "states": [
+        "idle"
+      ],
+      "permissions": [
+        "camera.read.satellite"
+      ],
+      "requiredContext": [],
+      "supportedActions": {},
+      "preferredRegion": "center",
+      "preferredSize": "wide",
+      "priority": 72,
+      "tags": [
+        "caméra",
+        "salon",
+        "live",
+        "vidéo",
+        "audio",
+        "surveillance"
+      ],
+      "props": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "src": {
+            "default": "",
+            "description": "URL du flux A/V (fMP4 /live.mp4)",
+            "type": "string"
+          },
+          "caption": {
+            "default": "",
+            "description": "Légende sous le lecteur",
+            "type": "string"
+          },
+          "titlebar": {
+            "default": "",
+            "description": "Barre de titre — nom de la source, fourni par le Core (une brique catalogue ne connaît pas la pièce)",
+            "type": "string"
+          },
+          "muted": {
+            "default": false,
+            "description": "Démarre muet (politique autoplay navigateur)",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "src",
+          "caption",
+          "titlebar",
+          "muted"
         ],
         "additionalProperties": false
       }

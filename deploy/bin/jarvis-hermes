@@ -19,6 +19,9 @@ for f in "${JARVIS_CONFIG_DIR}/secrets.env" "${JARVIS_CONFIG_DIR}/hermes.env" "$
   fi
 done
 
+# agent-reach vit dans le venv Core ; Hermes skills peuvent l'invoquer.
+export PATH="/opt/jarvis/core/.venv/bin:${PATH}"
+
 mkdir -p "$HERMES_HOME"
 
 HERMES_BIN="${HERMES_BIN:-}"

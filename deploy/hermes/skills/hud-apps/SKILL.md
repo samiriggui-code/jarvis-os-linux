@@ -1,21 +1,20 @@
 ---
 name: hud-apps
 description: >-
-  Catalogue apps HUD JARVIS : Hermes commande chaque app/outil, Dashboard ADMIN
-  seul, VPS allowlist (pas root libre). Charger pour ouvrir une app, ajouter un
-  tool, ou exécuter docker/shell distant. CE N’EST PAS UN MOCK.
+  TRIGGER — ouvrir une app HUD, tuile admin, docker/shell VPS allowlist. Charger
+  si « ouvre mission control », « terminal », « docker » explicite. Ne PAS charger
+  pour chat casual, salutation, recherche web, domotique (→ Core/HA).
 ---
 
 # Skill — Apps HUD + outils Hermes + VPS limité
 
 ## Principe
 
-1. Le **lanceur HUD** émet une **intention** (`intent`), jamais un nom d’outil.
-2. Le **Core** résout l’intention : `core/jarvis_core/capabilities.py` dit qui exécute
-   et avec quel **toolset**. C’est la seule source de vérité.
+1. Le **lanceur HUD** émet une **intention** (`intent`), jamais un nom d'outil.
+2. La **couche JARVIS** (`core/`) résout via `capabilities.py` + Policy. Domotique/TV = **HA NUC**, pas toolset HA Hermes.
 3. **Policy Engine** tranche AVANT tout appel (surtout `risk: vps|admin|home`).
-4. Le Core te tend alors le toolset autorisé pour CETTE session — tu ne le réclames pas.
-5. Ajout d’outils = nœud **Outils** — pas d’app inventée hors catalogue sans enrollment.
+4. Hermes reçoit les toolsets autorisés (web, skills, vision…) — pas la maison.
+5. Spec : `docs/architecture/JARVIS-Gateway-Hermes-HA.md`
 
 ⚠ Le champ `hermesTool` n’existe plus. Il nommait des outils (`home_assistant`,
 `node_cerveau`, `agent_reach`) dont aucun n’existait chez toi. Il est remplacé par
@@ -31,8 +30,8 @@ Résolution intention → toolset : `core/jarvis_core/capabilities.py`.
 | settings, jarvis, monitor, vision | info/live | HUD local |
 | hub | admin | `requestDashboard` — ADMIN seul |
 | terminal, docker, code, storage | **vps** | allowlist uniquement |
-| home | home | Home Assistant |
-| music, video | media | média |
+| home | home | HA NUC via couche JARVIS (`home.control`) |
+| music, video | media | HA `media_player` + Plex |
 | outils, skills | info | **ajouter tools ici** |
 | reach | info | Agent-Reach Internet — Dashboard `#/reach` pour param |
 | mail, calendar | soon | pas encore |

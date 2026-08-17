@@ -22,6 +22,7 @@ DEFAULT_PORT = int(os.environ.get("JARVIS_CAM_PORT", "8768"))
 DEFAULT_DEVICE = os.environ.get("JARVIS_CAM_DEVICE", "/dev/video0")
 DEFAULT_SIZE = os.environ.get("JARVIS_CAM_SIZE", "1280x720")
 DEFAULT_FPS = os.environ.get("JARVIS_CAM_FPS", "15")
+DEFAULT_MIC = os.environ.get("JARVIS_CAM_MIC", "plughw:CARD=Camera,DEV=0")
 
 PAGE = """<!DOCTYPE html>
 <html lang="fr"><head>
@@ -78,6 +79,20 @@ class CamBroker:
             )
             self._reader = threading.Thread(target=self._pump, daemon=True)
             self._reader.start()
+
+    def release_device(self) -> None:
+        """Libère /dev/video0 pour le live A/V (un seul ffmpeg à la fois)."""
+        with self._lock:
+            proc = self._proc
+            self._proc = None
+            self._clients.clear()
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            try:
+                proc.wait(timeout=3)
+            except Exception:
+                pass
+        logger.info("ffmpeg MJPEG relâché pour live A/V")
 
     def _pump(self) -> None:
         assert self._proc and self._proc.stdout
@@ -143,6 +158,106 @@ class CamBroker:
 
 
 BROKER: CamBroker | None = None
+AV_DEVICE = DEFAULT_DEVICE
+AV_SIZE = DEFAULT_SIZE
+AV_FPS = DEFAULT_FPS
+AV_MIC = DEFAULT_MIC
+
+
+def _ffmpeg_av(with_audio: bool) -> list[str]:
+    """fMP4 fragmenté — Chrome <video> natif, image + son."""
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "v4l2",
+        "-input_format",
+        "yuyv422",
+        "-video_size",
+        AV_SIZE,
+        "-framerate",
+        AV_FPS,
+        "-i",
+        AV_DEVICE,
+    ]
+    if with_audio and AV_MIC:
+        cmd.extend(["-f", "alsa", "-thread_queue_size", "512", "-i", AV_MIC])
+    cmd.extend(
+        [
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-tune",
+            "zerolatency",
+            "-pix_fmt",
+            "yuv420p",
+            "-g",
+            str(max(int(AV_FPS or "15"), 1)),
+        ]
+    )
+    if with_audio and AV_MIC:
+        cmd.extend(["-c:a", "aac", "-b:a", "64k", "-ac", "1", "-ar", "16000"])
+    cmd.extend(
+        [
+            "-f",
+            "mp4",
+            "-movflags",
+            "frag_keyframe+empty_moov+default_base_moof",
+            "-",
+        ]
+    )
+    return cmd
+
+
+def _pause_ear(pause: bool) -> None:
+    """Le micro USB est exclusif : jarvis-ear le tient. Pendant le live HUD on le libère."""
+    action = "stop" if pause else "start"
+    try:
+        subprocess.run(
+            ["systemctl", action, "jarvis-ear"],
+            check=False,
+            timeout=8,
+            capture_output=True,
+        )
+        logger.info("jarvis-ear %s pour live A/V", action)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("jarvis-ear %s impossible · %s", action, exc)
+
+
+def _pipe_av(wfile, with_audio: bool) -> bool:
+    cmd = _ffmpeg_av(with_audio)
+    logger.info("ffmpeg live %s", " ".join(cmd))
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert proc.stdout is not None
+    wrote = False
+    try:
+        while proc.poll() is None:
+            chunk = proc.stdout.read(8192)
+            if not chunk:
+                break
+            wfile.write(chunk)
+            wfile.flush()
+            wrote = True
+    except (BrokenPipeError, ConnectionResetError):
+        wrote = True
+    finally:
+        err = b""
+        if proc.stderr:
+            try:
+                err = proc.stderr.read(2000)
+            except Exception:
+                pass
+        proc.kill()
+        try:
+            proc.wait(timeout=2)
+        except Exception:
+            pass
+        if err:
+            logger.warning("ffmpeg live stderr: %s", err.decode("utf-8", errors="replace")[:500])
+    return wrote
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -179,6 +294,54 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache, no-store")
             self.end_headers()
             self.wfile.write(frame)
+            return
+
+        if path in ("/live.mp4", "/live"):
+            assert BROKER is not None
+            BROKER.release_device()
+            _pause_ear(True)
+            import time as _time
+            _time.sleep(0.5)
+            cmd = _ffmpeg_av(True)
+            logger.info("ffmpeg live %s", " ".join(cmd))
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert proc.stdout is not None
+            first = proc.stdout.read(8192)
+            if not first:
+                err = (proc.stderr.read(2000) if proc.stderr else b"")
+                logger.warning(
+                    "live A/V vide · %s",
+                    err.decode("utf-8", errors="replace")[:500],
+                )
+                proc.kill()
+                _pause_ear(False)
+                BROKER.ensure()
+                self.send_error(503, "live A/V indisponible")
+                return
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "video/mp4")
+                self.send_header("Cache-Control", "no-cache, no-store")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(first)
+                self.wfile.flush()
+                while proc.poll() is None:
+                    chunk = proc.stdout.read(8192)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            finally:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except Exception:
+                    pass
+                _pause_ear(False)
+                BROKER.ensure()
             return
 
         if path not in ("/stream.mjpg", "/stream.mjpeg"):
@@ -222,12 +385,21 @@ def main() -> None:
     parser.add_argument("--device", default=DEFAULT_DEVICE)
     parser.add_argument("--size", default=DEFAULT_SIZE)
     parser.add_argument("--fps", default=DEFAULT_FPS)
+    parser.add_argument("--mic", default=DEFAULT_MIC)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
+    global AV_DEVICE, AV_SIZE, AV_FPS, AV_MIC
+    AV_DEVICE = args.device
+    AV_SIZE = args.size
+    AV_FPS = args.fps
+    AV_MIC = args.mic
     BROKER = CamBroker(args.device, args.size, args.fps)
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    logger.info("cam http://%s:%s/ · %s %s@%sfps", args.host, args.port, args.device, args.size, args.fps)
+    logger.info(
+        "cam http://%s:%s/ · %s %s@%sfps · mic=%s",
+        args.host, args.port, args.device, args.size, args.fps, args.mic,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

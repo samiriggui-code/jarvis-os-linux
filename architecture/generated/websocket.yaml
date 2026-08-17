@@ -8,6 +8,9 @@ version: 1
 # (impératifs, via cmd() → {"command": …}). Le HUD les teste
 # séparément. Ne pas les fusionner.
 evenements_emis:
+  - type: "\"line\"|\"area\"|\"bar\"|\"donut\""
+    sources: [core/jarvis_core/providers.py]
+    ecoute_par_le_hud: false
   - type: FACE_FAILED
     sources: [core/jarvis_core/vision/face_engine.py]
     ecoute_par_le_hud: true
@@ -140,9 +143,6 @@ evenements_emis:
   - type: face_reset_user_result
     sources: [core/jarvis_core/ws/handlers/holomat.py]
     ecoute_par_le_hud: false
-  - type: hermes_result
-    sources: [core/jarvis_core/ws/handlers/system.py]
-    ecoute_par_le_hud: false
   - type: holomat_calibrate_result
     sources: [core/jarvis_core/ws/handlers/holomat.py]
     ecoute_par_le_hud: true
@@ -153,7 +153,7 @@ evenements_emis:
     sources: [core/jarvis_core/ws/handlers/holomat.py]
     ecoute_par_le_hud: true
   - type: hud_command
-    sources: [core/jarvis_core/executors/camera.py, core/jarvis_core/executors/home.py, core/jarvis_core/executors/media.py, core/jarvis_core/executors/mission_board.py, core/jarvis_core/executors/surfaces.py, core/jarvis_core/executors/system.py, core/jarvis_core/intents/executors_hud.py, core/jarvis_core/intents/executors_routing.py, core/jarvis_core/perception_dispatch.py, core/jarvis_core/surfaces/publisher.py]
+    sources: [core/jarvis_core/executors/camera.py, core/jarvis_core/executors/home.py, core/jarvis_core/executors/mission_board.py, core/jarvis_core/executors/surfaces.py, core/jarvis_core/executors/system.py, core/jarvis_core/intents/executors_hud.py, core/jarvis_core/perception_dispatch.py, core/jarvis_core/surfaces/publisher.py]
     ecoute_par_le_hud: false
   - type: locale_resolved
     sources: [core/jarvis_core/ws/handlers/chat.py]

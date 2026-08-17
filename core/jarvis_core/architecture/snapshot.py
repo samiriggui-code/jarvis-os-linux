@@ -1,6 +1,6 @@
 """Architecture Awareness D1 — architecture.snapshot() compilateur read-only.
 
-IN_MEMORY only. Aucun SSH / HA / Ollama / Hermes HTTP synchrone.
+IN_MEMORY only. Aucun SSH / HA / Ollama HTTP synchrone.
 Snapshot = vue compilée, pas un nouveau datastore.
 """
 from __future__ import annotations
@@ -24,33 +24,15 @@ from .schema import (
     redact_tree,
 )
 
-# ── Topology DOC claims (conflit NUC vs VPS — ne pas résoudre) ───────────────
-
-HERMES_HOST_CLAIMS: list[dict[str, Any]] = [
-    {
-        "source": "doc:JARVIS_CONTEXT",
-        "role": "hermes_host",
-        "value": "nuc",
-        "provenance": PROVENANCE_DOC,
-    },
-    {
-        "source": "doc:ecosystem-hosts",
-        "role": "hermes_host",
-        "value": "vps",
-        "provenance": PROVENANCE_DOC,
-    },
-]
-
 DOC_MACHINES: list[dict[str, Any]] = [
-    {"id": "nuc", "role": "core_host", "provenance": PROVENANCE_DOC, "services_expected": ["core", "hermes", "postgres", "nginx"]},
+    {"id": "nuc", "role": "core_host", "provenance": PROVENANCE_DOC, "services_expected": ["core", "postgres", "nginx"]},
     {"id": "vps", "role": "edge_host", "provenance": PROVENANCE_DOC, "services_expected": ["voicebox", "ollama"]},
-    {"id": "pi-salon", "role": "satellite", "provenance": PROVENANCE_DOC, "services_expected": ["ear", "cam", "home_assistant"]},
+    {"id": "pi-salon", "role": "satellite", "provenance": PROVENANCE_DOC, "services_expected": ["ear", "cam", "speaker"]},
     {"id": "pc-windows", "role": "agent_host", "provenance": PROVENANCE_DOC, "services_expected": ["windows_agent"]},
     {"id": "proliant", "role": "media_nas", "provenance": PROVENANCE_DOC, "services_expected": ["plex"]},
 ]
 
 DOC_CONNECTIONS: list[dict[str, Any]] = [
-    {"id": "core-to-hermes", "from": "core", "to": "service:hermes", "kind": "http", "provenance": PROVENANCE_CODE, "status": "UNKNOWN"},
     {"id": "core-to-pi", "from": "core", "to": "device:pi-salon", "kind": "ws_or_http", "provenance": PROVENANCE_CODE, "status": "UNKNOWN"},
     {"id": "core-to-windows-agent", "from": "core", "to": "agent:windows_agent", "kind": "ws", "provenance": PROVENANCE_CODE, "status": "UNKNOWN"},
     {"id": "pi-to-freebox-adb", "from": "device:pi-salon", "to": "device:freebox-player", "kind": "adb", "provenance": PROVENANCE_DOC, "status": "UNKNOWN"},
@@ -191,35 +173,7 @@ def _compile_machines() -> list[dict[str, Any]]:
             "conflict": False,
             "resolved_by": None,
         }
-        if m["id"] in ("nuc", "vps"):
-            # Attache le conflit hermes_host sur les deux machines candidates
-            entry["claims"] = list(HERMES_HOST_CLAIMS)
-            entry["conflict"] = True
-            entry["resolved_by"] = None
-            entry["qualifiers"] = ["CONFLICT"]
-            entry["limitations"] = ["doc_conflict:hermes_host"]
         machines.append(entry)
-
-    # Entrée dédiée au conflit (aussi au top-level via machines hermes.host logical)
-    machines.append(
-        {
-            "id": "hermes.host",
-            "role": "service_placement_claim",
-            "status": "UNKNOWN",
-            "qualifiers": ["CONFLICT"],
-            "stale": False,
-            "observed_at": None,
-            "ttl_s": None,
-            "stale_after_s": None,
-            "provenance": PROVENANCE_DOC,
-            "evidence": [],
-            "claims": list(HERMES_HOST_CLAIMS),
-            "conflict": True,
-            "resolved_by": None,
-            "runtime_value": None,
-            "limitations": ["doc_conflict:hermes_host"],
-        }
-    )
     return machines
 
 
@@ -398,7 +352,6 @@ def _compile_services(
 def _env_service_stubs() -> list[dict[str, Any]]:
     """CONFIGURED / UNCONFIGURED from env presence — never AVAILABLE."""
     stubs = [
-        ("hermes", "JARVIS_HERMES_URL", "JARVIS_HERMES_KEY"),
         ("home_assistant", "JARVIS_HASS_URL", "JARVIS_HASS_TOKEN"),
         ("plex", "JARVIS_PLEX_URL", "JARVIS_PLEX_TOKEN"),
         ("voicebox", "JARVIS_VOICEBOX_URL", None),
@@ -492,8 +445,6 @@ def _compile_capabilities() -> list[dict[str, Any]]:
         # Status from wiring class, NOT .available property
         if owner is Owner.CORE:
             status = "CONFIGURED"
-        elif owner is Owner.HERMES:
-            status = "CONFIGURED" if getattr(cap, "toolset", None) else "PLANNED"
         elif owner is Owner.DEVICE:
             status = "CONFIGURED"  # agent path may exist; live = device layer
         else:
@@ -718,7 +669,6 @@ def _coverage_limitations(
         "d1_sync_snapshot_no_network_probes",
         "background_http_probes_not_executed_here",
         "on_demand_audit_not_executed_here",
-        "doc_conflict:hermes_host_unresolved",
         "capability_available_legacy_flag_ignored",
     ]
     if devices_registry is None:

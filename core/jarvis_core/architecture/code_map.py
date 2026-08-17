@@ -10,12 +10,19 @@ V1 — relation `contains` uniquement (process → directory → file). Pas
 d'imports/calls/depends_on : ça viendra dans une passe ultérieure, une
 fois cette hiérarchie filesystem validée.
 
-Mapping des 9 process → repo réel : audité fichier par fichier avec Claude
+Mapping des process → repo réel : audité fichier par fichier avec Claude
 (2026-08-14), 581/581 fichiers attribués, 0 ambigu. Voir la table
 FILE_OVERRIDES / DIR_PREFIXES ci-dessous — c'est la source de vérité du
 mapping, pas les anciens chiffres hardcodés de
 `scripts/audit-neural-tier-budget.py` (désormais STALE — ce script a un
 bug de calcul de ROOT qui le fait renvoyer des comptes à zéro).
+
+2026-08-16/17 — Hermes retiré du runtime (voir
+`docs/architecture/JARVIS-Post-Hermes-Architecture.md`) : process `hermes`
+supprimé de PROCESS_IDS. 2026-08-17 — process `bridge` ajouté pour
+représenter le LLM Bridge (chat/recherche, §4/§5 du même doc), successeur
+fonctionnel direct de Hermes côté chat : `providers.py` +
+`ws/handlers/chat.py` reclassés `bridge` au lieu de `core`.
 """
 from __future__ import annotations
 
@@ -33,6 +40,7 @@ CODE_MAP_SCHEMA_VERSION = "1.0.0"
 ROOT = Path(__file__).resolve().parents[3]
 
 PROD_ROOTS: tuple[str, ...] = ("core/jarvis_core", "hud/src", "dashboard/src", "deploy")
+EXCLUDED_ROOTS: tuple[str, ...] = ("deploy/hermes",)
 SOURCE_EXT = {".py", ".ts", ".tsx", ".yaml", ".yml", ".json", ".css"}
 SKIP_DIRS = {
     ".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build",
@@ -40,11 +48,11 @@ SKIP_DIRS = {
 }
 
 PROCESS_IDS: tuple[str, ...] = (
-    "core", "hermes", "memory", "policy", "hud", "devices", "home", "voice", "vision",
+    "core", "bridge", "memory", "policy", "hud", "devices", "home", "voice", "vision",
 )
 PROCESS_LABELS: dict[str, str] = {
     "core": "CORE",
-    "hermes": "HERMES",
+    "bridge": "BRIDGE",
     "memory": "MEMORY",
     "policy": "POLICY",
     "hud": "HUD",
@@ -74,17 +82,19 @@ FILE_OVERRIDES: dict[str, tuple[str, tuple[str, ...], str | None]] = {
     "core/jarvis_core/camera_access.py": ("vision", ("vision",), None),
     "core/jarvis_core/perception_dispatch.py": (
         "vision",
-        ("vision", "hud", "hermes"),
+        ("vision", "hud"),
         "perception_capture_dispatch",
     ),
     "core/jarvis_core/devices.py": ("devices", ("devices",), None),
     "core/jarvis_core/device_software.py": ("devices", ("devices",), None),
-    "core/jarvis_core/salon_player.py": ("devices", ("devices",), None),
+    "core/jarvis_core/salon_camera.py": ("devices", ("devices",), None),
     "core/jarvis_core/salon_ingest.py": ("devices", ("devices",), None),
     "core/jarvis_core/salon_speaker.py": ("devices", ("devices",), None),
     "core/jarvis_core/homeassistant.py": ("home", ("home",), None),
     "core/jarvis_core/plex.py": ("home", ("home",), None),
     "core/jarvis_core/policy.py": ("policy", ("policy",), None),
+    "core/jarvis_core/providers.py": ("bridge", ("bridge",), None),
+    "core/jarvis_core/ws/handlers/chat.py": ("bridge", ("bridge",), None),
     "core/jarvis_core/db/models.py": ("core", ("core", "memory"), "shared_persistence"),
     "deploy/pi-salon/install_player_apps.py": ("devices", ("devices",), None),
     "deploy/pi-salon/install_player_apps2.py": ("devices", ("devices",), None),
@@ -98,7 +108,6 @@ FILE_OVERRIDES: dict[str, tuple[str, tuple[str, ...], str | None]] = {
 # match gagnant ; l'ordre n'a pas d'importance ici car les préfixes ne se
 # chevauchent pas entre eux.
 DIR_PREFIXES: tuple[tuple[str, str], ...] = (
-    ("core/jarvis_core/hermes/", "hermes"),
     ("core/jarvis_core/memory/", "memory"),
     ("core/jarvis_core/voice/", "voice"),
     ("core/jarvis_core/personality/", "voice"),
@@ -119,7 +128,6 @@ DIR_PREFIXES: tuple[tuple[str, str], ...] = (
     ("core/jarvis_core/executors/", "core"),
     ("hud/src/", "hud"),
     ("dashboard/src/", "hud"),
-    ("deploy/hermes/", "hermes"),
     ("deploy/homeassistant/", "home"),
     ("deploy/vision-worker/", "vision"),
     ("deploy/windows-agent/", "devices"),
@@ -200,8 +208,11 @@ def _scan_files() -> list[str]:
                 if _skip_file(fn):
                     continue
                 p = rp / fn
+                rel = p.relative_to(ROOT).as_posix()
+                if any(rel == root or rel.startswith(f"{root}/") for root in EXCLUDED_ROOTS):
+                    continue
                 if p.suffix.lower() in SOURCE_EXT:
-                    files.append(p.relative_to(ROOT).as_posix())
+                    files.append(rel)
     return sorted(files)
 
 

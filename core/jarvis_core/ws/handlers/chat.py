@@ -81,7 +81,7 @@ class ChatHandlerMixin:
         # deviner en cas d'ambiguïté : dans le doute, la phrase reste une
         # conversation, ce qui est le repli sûr.
 
-        # Écho micro de nos propres phrases de lock/veille (STT pendant TTS).
+        # Écho micro de nos propres phrases de lock/veille / interim (STT pendant TTS).
         _echo = " ".join(text.lower().replace("'", " ").split())
         if any(
             marker in _echo
@@ -97,12 +97,20 @@ class ChatHandlerMixin:
                 "deconnexion effectuee",
                 "à bientôt",
                 "a bientot",
+                # Interim Hermes (2026-08-16) : réentendu → fausse « suite recherche ».
+                "continue de travailler",
+                "prend un peu plus",
+                "temps que prévu",
+                "temps que prevu",
             )
         ) and any(
             w in _echo
-            for w in ("verrouill", "veille", "session", "déconnexion", "deconnexion", "bientôt", "bientot")
+            for w in (
+                "verrouill", "veille", "session", "déconnexion", "deconnexion",
+                "bientôt", "bientot", "travailler", "prévu", "prevu",
+            )
         ):
-            logger.info("phrase IGNORÉE (écho TTS lock/veille) · « %s »", text[:48])
+            logger.info("phrase IGNORÉE (écho TTS lock/veille/interim) · « %s »", text[:48])
             return
 
         # Écho micro générique — le HUD n'a pas d'annulation d'écho acoustique
@@ -123,76 +131,41 @@ class ChatHandlerMixin:
             await self._open_intent(ws, cap, text)
             return
 
-        # Filet : « cherche / trouve / propose / nouvelles… » sans trigger exact
-        # ne doit PAS tomber en chat nu OpenRouter (coquille vide).
-        lowered = " " + " ".join(text.lower().replace("'", " ").split()) + " "
-        research_words = (
-            " cherche ", " trouve ", " propose ", " recherche ",
-            " nouvelles ", " actualité ", " actualites ", " actualités ",
-            " sur internet ", " sur le web ",
-        )
-        if any(w in lowered for w in research_words):
-            from ...capabilities import CAPABILITIES
+        # ── Chat libre ───────────────────────────────────────────────────────
+        # Ordre Gateway : triggers → sémantique → Provider Manager.
+        from ...gateway import semantic_routing_enabled
 
-            cap = CAPABILITIES.get("reach")
-            if cap is not None:
-                logger.info("phrase FORCÉE web.search · « %s »", text[:48])
-                await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
-                await self._open_intent(ws, cap, text)
-                return
+        if semantic_routing_enabled():
+            from ...capability_routing import resolve_semantic_route
 
-        # Chat libre — défaut LLM (Provider Manager). Hermes si JARVIS_CHAT_PROVIDER=hermes.
-        import os
+            routing_context_note = ""
+            role_for_routing = self._session_role(ws)
+            routing = await resolve_semantic_route(text, orch=self, role=role_for_routing)
+            if routing.action == "use_capability" and routing.capability:
+                from ...capabilities import for_intent as _for_intent_routed
 
-        chat_provider = (os.environ.get("JARVIS_CHAT_PROVIDER") or "llm").strip().lower()
-        if chat_provider == "hermes":
-            from ...capabilities import CAPABILITIES
-
-            cap = CAPABILITIES.get("outils")
-            if cap is not None and cap.available:
-                logger.info("chat libre → Hermes (skills) · « %s »", text[:48])
-                await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
-                await self._open_intent(ws, cap, text)
-                return
-
-        # Capability-aware semantic routing — Phase 2 (chantier « Orchestration
-        # conversationnelle V1 »). match_intent() et le filet recherche ont déjà
-        # eu leur chance de reconnaître un trigger exact ; ici on regarde si une
-        # capacité JARVIS réellement disponible MAINTENANT répond quand même à
-        # la phrase, avant de tomber en conversation générique. Borné : le
-        # resolver ne peut choisir que parmi les capacités que la Phase 1 a
-        # jugées disponibles (`capability_routing.build_candidates`), jamais en
-        # inventer une — et la décision retombe dans le pipeline EXISTANT
-        # (`_open_intent` → Policy → executor → Verification), jamais un second
-        # orchestrateur.
-        from ...capability_routing import resolve_semantic_route
-
-        routing_context_note = ""
-        role_for_routing = self._session_role(ws)
-        routing = await resolve_semantic_route(text, orch=self, role=role_for_routing)
-        if routing.action == "use_capability" and routing.capability:
-            from ...capabilities import for_intent as _for_intent_routed
-
-            routed_cap = _for_intent_routed(routing.capability)
-            if routed_cap is not None:
+                routed_cap = _for_intent_routed(routing.capability)
+                if routed_cap is not None:
+                    logger.info(
+                        "phrase ROUTÉE (sémantique) · « %s » → %s · confiance=%.2f",
+                        text[:48], routed_cap.intent, routing.confidence,
+                    )
+                    await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
+                    await self._open_intent(ws, routed_cap, text)
+                    return
+            else:
                 logger.info(
-                    "phrase ROUTÉE (sémantique) · « %s » → %s · confiance=%.2f",
-                    text[:48], routed_cap.intent, routing.confidence,
+                    "phrase NON ROUTÉE (sémantique) · « %s » → chat · %s",
+                    text[:48], routing.reason[:80],
                 )
-                await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
-                await self._open_intent(ws, routed_cap, text)
-                return
+                routing_context_note = (
+                    " [Contexte système : les capacités JARVIS disponibles ont déjà "
+                    "été évaluées pour cette demande ; aucune n'était appropriée. Ne "
+                    "prétends jamais ignorer tes outils — dis simplement que tu n'as "
+                    "pas de fonction dédiée pour ça.]"
+                )
         else:
-            logger.info(
-                "phrase NON ROUTÉE (sémantique) · « %s » → chat · %s",
-                text[:48], routing.reason[:80],
-            )
-            routing_context_note = (
-                " [Contexte système : les capacités JARVIS disponibles ont déjà "
-                "été évaluées pour cette demande ; aucune n'était appropriée. Ne "
-                "prétends jamais ignorer tes outils — dis simplement que tu n'as "
-                "pas de fonction dédiée pour ça.]"
-            )
+            routing_context_note = ""
 
         decision = self.policy.evaluate(action="chat", text=text, risk=RiskLevel.INFO)
         await ws.send(json.dumps(self.cmd("set_orb_state", state="thinking")))
@@ -248,40 +221,94 @@ class ChatHandlerMixin:
                 user_name=bindings.get("user"),
             )
         )
+        # Contexte mémoire foyer — lecture seule (recherche), jamais d'écriture
+        # depuis le chat libre. « Un LLM ne produit jamais » la décision
+        # d'enregistrer (cf. orchestrator_lifecycle.py) : ça reste vrai ici,
+        # cette recherche ne fait QUE lire ce qui existe déjà.
+        memory_context_note = ""
+        try:
+            from ...memory.service import jarvis_memory_search
+
+            mem_result = jarvis_memory_search({
+                "query": text,
+                "user_id": uid,
+                "role": self._session_role(ws) or "user",
+                "limit": 3,
+            })
+            hits = mem_result.get("hits") if mem_result.get("ok") else []
+            if hits:
+                snippets = "; ".join(
+                    f"«{h.get('title') or h.get('snippet') or ''}»" for h in hits if h.get("title") or h.get("snippet")
+                )
+                if snippets:
+                    memory_context_note = (
+                        f" [Mémoire foyer — éléments passés possiblement liés : {snippets}. "
+                        "Utilise-les seulement s'ils sont vraiment pertinents à la demande "
+                        "actuelle ; ne les invente jamais s'ils sont absents ; ne les récite "
+                        "pas mot pour mot, intègre-les naturellement.]"
+                    )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("recherche mémoire ignorée : %s", exc)
+
         prompt = (
-            f"{system_prompt_language(reply_lang)}{routing_context_note} "
+            f"{system_prompt_language(reply_lang)}{routing_context_note}{memory_context_note} "
             f"L'utilisateur dit : {text}"
         )
-        reply = await self.providers.complete(
+        structured = await self.providers.complete_structured(
             prompt,
             call_mode=LLMCallMode.NARRATIVE,
             personality=personality,
         )
+        speech = structured["speech"]
         logger.info(
-            "chat libre · provider=%s · « %s » → %d car.",
+            "chat libre · provider=%s · composant=%s · « %s » → %d car.",
             self.providers.current_mode(),
+            structured["component"],
             text[:48],
-            len(reply or ""),
+            len(speech or ""),
         )
         await ws.send(json.dumps(self.cmd("set_orb_state", state="speaking")))
         await ws.send(
             json.dumps(self.cmd(
                 "display_notification",
-                message=reply,
+                message=speech,
                 duration=5.0,
             ))
         )
         await ws.send(json.dumps({
             "type": "chat_reply",
-            "text": reply,
+            "text": speech,
             "language": reply_lang,
             "voicePreset": lang_res.get("voicePreset"),
         }))
 
+        component = structured["component"]
+        props = structured["props"]
+        if component == "ImageViewer":
+            from ...providers import verify_image_url
+
+            src = str(props.get("src") or "")
+            if not await verify_image_url(src):
+                logger.warning("ImageViewer refusé — URL invalide/injoignable · %s", src[:120])
+                component = "ResultPanel"
+                props = {"title": "Jarvis", "body": speech, "source": "chat", "items": []}
+
+        # Agentic UI — carte visible en plus de la voix, composant choisi par
+        # le LLM (ResultPanel/DataTable/ImageViewer/ChartCard). Réutilise la
+        # tuile `reach` (déjà au catalogue HUD) — pas de tuile "assistant"
+        # dédiée pour l'instant, fast-follow si besoin. `_publish_component_surface`
+        # avale ses propres échecs (catalogue absent, document refusé) :
+        # jamais de risque de casser la voix/le chat_reply au-dessus.
+        await self._publish_component_surface(
+            "reach",
+            component=component,
+            props=props,
+        )
+
         # TTS voicebox. L'orbe repasse en standby sur le vrai `voice/playback
         # end` renvoyé par le HUD — plus de sleep(0.4) à l'aveugle.
         ev = await self.speak(
-            reply,
+            speech,
             user_id=uid,
             language=reply_lang,
             preset=lang_res.get("voicePreset"),

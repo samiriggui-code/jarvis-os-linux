@@ -1,7 +1,7 @@
 """Smoke — capability_routing.py (Phase 1 inventaire + Phase 2 resolver).
 
 Niveau unitaire, sans `Orchestrator` réel : des objets minimalistes tiennent
-lieu de `devices` / `hermes` / `hass`. Voir `_smoke_chat_capability_routing.py`
+lieu de `devices` / `hass`. Voir `_smoke_chat_capability_routing.py`
 pour l'intégration bout en bout dans `ChatHandlerMixin`.
 
     python -m jarvis_core._smoke_capability_routing
@@ -18,11 +18,6 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 
-class _FakeHermes:
-    def __init__(self, configured: bool) -> None:
-        self.configured = configured
-
-
 class _FakeHass:
     def __init__(self, configured: bool) -> None:
         self.configured = configured
@@ -32,11 +27,10 @@ class _FakeOrch:
     """Tient lieu d'Orchestrator pour les fonctions Phase 1 — attributs lus
     en lecture seule (`getattr(orch, ..., None)`), jamais de réseau."""
 
-    def __init__(self, *, devices=None, hermes_configured=False, hass_configured=False) -> None:
+    def __init__(self, *, devices=None, hass_configured=False) -> None:
         from jarvis_core.devices import DeviceRegistry
 
         self.devices = devices if devices is not None else DeviceRegistry()
-        self.hermes = _FakeHermes(hermes_configured)
         self.hass = _FakeHass(hass_configured)
 
 
@@ -59,7 +53,7 @@ def _register_windows_agent(devices, *, with_metrics: bool = True) -> None:
 def test_candidates_exclude_when_nothing_online() -> None:
     from jarvis_core.capability_routing import SEMANTIC_ROUTABLE_INTENTS, build_candidates
 
-    orch = _FakeOrch(hermes_configured=False, hass_configured=False)
+    orch = _FakeOrch(hass_configured=False)
     candidates = build_candidates(orch, role="user")
     intents = {c.intent for c in candidates}
 
@@ -89,13 +83,14 @@ def test_candidates_include_when_available() -> None:
 
     devices = DeviceRegistry()
     _register_windows_agent(devices, with_metrics=True)
-    orch = _FakeOrch(devices=devices, hermes_configured=True, hass_configured=True)
+    orch = _FakeOrch(devices=devices, hass_configured=True)
 
     candidates = build_candidates(orch, role="user")
     intents = {c.intent for c in candidates}
-    for present in ("devices.metrics", "devices.software", "home.control", "web.search"):
+    for present in ("devices.metrics", "devices.software", "home.control"):
         assert present in intents, (present, intents)
-    print("  OK — agent Windows online + HA + Hermes configurés → candidats présents")
+    assert "web.search" not in intents
+    print("  OK — agent Windows online + HA configuré → candidats Core présents")
 
 
 def test_metrics_requires_real_capability_not_just_online_device() -> None:
@@ -114,17 +109,16 @@ def test_metrics_requires_real_capability_not_just_online_device() -> None:
     print("  OK — device online sans system.metrics ≠ devices.metrics disponible")
 
 
-def test_hermes_role_without_toolset_denied() -> None:
-    """`web.search` configuré côté Hermes mais le rôle n'a pas le toolset `web`
-    (ex. guest) → jamais proposé, même si Hermes tourne."""
+def test_removed_web_capability_never_proposed() -> None:
+    """La capacité web supprimée n'est proposée à aucun rôle."""
     from jarvis_core.capability_routing import build_candidates
 
-    orch = _FakeOrch(hermes_configured=True, hass_configured=True)
+    orch = _FakeOrch(hass_configured=True)
     guest_intents = {c.intent for c in build_candidates(orch, role="guest")}
     admin_intents = {c.intent for c in build_candidates(orch, role="admin")}
     assert "web.search" not in guest_intents
-    assert "web.search" in admin_intents
-    print("  OK — toolset non délégué au rôle → capacité Hermes exclue (guest), présente (admin)")
+    assert "web.search" not in admin_intents
+    print("  OK — web.search supprimé → jamais candidat")
 
 
 def test_parse_routing_decision_rejects_invented_capability() -> None:
@@ -274,7 +268,7 @@ def test_general_question_no_candidate_topically_relevant() -> None:
 
     devices = DeviceRegistry()
     _register_windows_agent(devices, with_metrics=True)
-    orch = _FakeOrch(devices=devices, hermes_configured=True, hass_configured=True)
+    orch = _FakeOrch(devices=devices, hass_configured=True)
 
     async def fake_complete(prompt: str) -> str:
         return json.dumps({"action": "chat", "capability": None, "confidence": 0.98, "reason": "hors sujet"})
@@ -307,7 +301,7 @@ def main() -> int:
     test_candidates_include_when_available()
     test_incident_2026_08_15_neural_map_now_a_real_candidate()
     test_metrics_requires_real_capability_not_just_online_device()
-    test_hermes_role_without_toolset_denied()
+    test_removed_web_capability_never_proposed()
     test_parse_routing_decision_rejects_invented_capability()
     test_parse_routing_decision_valid_pick()
     test_parse_routing_decision_malformed_falls_back()

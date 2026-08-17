@@ -1,10 +1,11 @@
 {
   "_regenerate": "cd hud && npm run graph3d:core-l1",
   "schemaVersion": "1.0.0",
+  "generatedAt": "2026-08-17T09:56:03.955577+00:00",
   "processId": "core",
   "processLabel": "CORE",
-  "fileCount": 92,
-  "visualWeightNote": "visualWeight = sqrt(descendantFiles + 1) \u2014 stats r\u00e9elles inchang\u00e9es",
+  "fileCount": 125,
+  "visualWeightNote": "visualWeight = sqrt(descendantFiles + 1) — comptes réels inchangés",
   "nodes": [
     {
       "id": "repo:core/jarvis_core/architecture",
@@ -31,12 +32,20 @@
       "visualWeight": 2.4495
     },
     {
+      "id": "repo:core/jarvis_core/dev_agent",
+      "name": "dev_agent",
+      "path": "core/jarvis_core/dev_agent",
+      "kind": "directory",
+      "descendantFiles": 5,
+      "visualWeight": 2.4495
+    },
+    {
       "id": "repo:core/jarvis_core/executors",
       "name": "executors",
       "path": "core/jarvis_core/executors",
       "kind": "directory",
-      "descendantFiles": 10,
-      "visualWeight": 3.3166
+      "descendantFiles": 11,
+      "visualWeight": 3.4641
     },
     {
       "id": "repo:core/jarvis_core/intents",
@@ -51,8 +60,8 @@
       "name": "mission_dev",
       "path": "core/jarvis_core/mission_dev",
       "kind": "directory",
-      "descendantFiles": 2,
-      "visualWeight": 1.7321
+      "descendantFiles": 7,
+      "visualWeight": 2.8284
     },
     {
       "id": "repo:core/jarvis_core/missions",
@@ -77,6 +86,14 @@
       "kind": "directory",
       "descendantFiles": 3,
       "visualWeight": 2.0
+    },
+    {
+      "id": "repo:core/jarvis_core/workspace",
+      "name": "workspace",
+      "path": "core/jarvis_core/workspace",
+      "kind": "directory",
+      "descendantFiles": 4,
+      "visualWeight": 2.2361
     },
     {
       "id": "repo:core/jarvis_core/ws",
@@ -143,9 +160,49 @@
       "visualWeight": 1.0
     },
     {
+      "id": "repo:core/jarvis_core/capability_routing.py",
+      "name": "capability_routing.py",
+      "path": "core/jarvis_core/capability_routing.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/chat_cancel.py",
+      "name": "chat_cancel.py",
+      "path": "core/jarvis_core/chat_cancel.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/chat_research_route.py",
+      "name": "chat_research_route.py",
+      "path": "core/jarvis_core/chat_research_route.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/chat_search_memory.py",
+      "name": "chat_search_memory.py",
+      "path": "core/jarvis_core/chat_search_memory.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
       "id": "repo:core/jarvis_core/composer.py",
       "name": "composer.py",
       "path": "core/jarvis_core/composer.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/cursor_agents.py",
+      "name": "cursor_agents.py",
+      "path": "core/jarvis_core/cursor_agents.py",
       "kind": "file",
       "descendantFiles": 0,
       "visualWeight": 1.0
@@ -162,6 +219,14 @@
       "id": "repo:core/jarvis_core/eval_matrix.py",
       "name": "eval_matrix.py",
       "path": "core/jarvis_core/eval_matrix.py",
+      "kind": "file",
+      "descendantFiles": 0,
+      "visualWeight": 1.0
+    },
+    {
+      "id": "repo:core/jarvis_core/gateway.py",
+      "name": "gateway.py",
+      "path": "core/jarvis_core/gateway.py",
       "kind": "file",
       "descendantFiles": 0,
       "visualWeight": 1.0
@@ -226,14 +291,6 @@
       "id": "repo:core/jarvis_core/orchestrator_speech.py",
       "name": "orchestrator_speech.py",
       "path": "core/jarvis_core/orchestrator_speech.py",
-      "kind": "file",
-      "descendantFiles": 0,
-      "visualWeight": 1.0
-    },
-    {
-      "id": "repo:core/jarvis_core/providers.py",
-      "name": "providers.py",
-      "path": "core/jarvis_core/providers.py",
       "kind": "file",
       "descendantFiles": 0,
       "visualWeight": 1.0

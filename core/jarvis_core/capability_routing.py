@@ -9,7 +9,7 @@ Ce module ne devient jamais un second orchestrateur :
 
   * **Phase 1** (`build_candidates`) — lecture seule de l'état runtime déjà
     tenu ailleurs (`DeviceRegistry`, `HomeAssistantAdapter.configured`,
-    `HermesBridge.configured`, `Capability.available`, `toolsets_for`).
+    `Capability.available`).
     Aucun nouvel état n'est créé ici, aucun appel réseau (`health()` /
     `toolsets()` restent des coûts par phrase que ce module refuse de payer).
   * **Phase 2** (`resolve_semantic_route`) — un LLM choisit UNIQUEMENT parmi
@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from .capabilities import Capability, Owner, allows, for_intent, toolsets_for
+from .capabilities import Capability, Owner, allows, for_intent
 
 logger = logging.getLogger("jarvis.capability_routing")
 
@@ -56,7 +56,6 @@ SEMANTIC_ROUTABLE_INTENTS: tuple[str, ...] = (
     "devices.topology",
     "system.capabilities",
     "system.introspect",
-    "web.search",
     "architecture.explain",
     "home.control",
     "core.mission_dev",
@@ -133,19 +132,6 @@ def runtime_state(cap: Capability, orch: Any, role: str | None) -> CapabilitySta
     tenu ailleurs (registre en mémoire, flags de config)."""
     if not allows(cap, role):
         return CapabilityState.DENIED
-
-    if cap.owner is Owner.HERMES:
-        if not cap.available:
-            return CapabilityState.UNCONFIGURED
-        if cap.toolset not in toolsets_for(role):
-            # Le rôle n'a pas ce toolset délégable — `HermesBridge.ask()`
-            # refuserait de toute façon (`toolsets_for`). Ne pas proposer une
-            # capacité que Policy/Hermes rejetteraient à coup sûr.
-            return CapabilityState.DENIED
-        hermes = getattr(orch, "hermes", None)
-        if hermes is None or not getattr(hermes, "configured", False):
-            return CapabilityState.UNCONFIGURED
-        return CapabilityState.AVAILABLE
 
     if cap.owner is Owner.DEVICE:
         if not cap.available:

@@ -15,7 +15,7 @@ export const ORB_LABELS: Record<OrbState, { label: string; color: string; sub: s
   idle: { label: 'VEILLE', color: '#0A84FF', sub: 'DIS « JARVIS … » POUR COMMANDER' },
   listening: { label: 'ÉCOUTE', color: '#22c55e', sub: 'COMMANDES = JARVIS + …' },
   thinking: { label: 'RÉFLEXION', color: '#FF3B30', sub: 'MICRO EN PAUSE' },
-  speaking: { label: 'PAROLE', color: '#0A84FF', sub: 'PUIS RETOUR VEILLE' },
+  speaking: { label: 'PAROLE', color: '#0A84FF', sub: 'PUIS RÉÉCOUTE' },
 };
 
 export function mapAiToOrb(ai: 'idle' | 'listening' | 'processing' | 'responding'): OrbState {

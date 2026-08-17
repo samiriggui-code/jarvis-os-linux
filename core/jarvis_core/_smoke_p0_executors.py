@@ -64,10 +64,7 @@ def main() -> int:
         "vps.code available",
         CAPABILITIES.get("code") is not None and CAPABILITIES["code"].available,
     )
-    check(
-        "media.music gated by env",
-        CAPABILITIES.get("music") is not None and not CAPABILITIES["music"].available,
-    )
+    check("media.music absent (Spotify retiré)", CAPABILITIES.get("music") is None)
 
     print("\nALL PASS")
     return 0

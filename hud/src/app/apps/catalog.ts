@@ -36,7 +36,7 @@ export type AppStatus = 'live' | 'surface' | 'soon';
 export type AppCat = 'Système' | 'Agent' | 'Maison' | 'Médias' | 'Outils';
 export type AppRisk = 'info' | 'media' | 'home' | 'admin' | 'vps';
 /** Diagnostic seulement. Le routage se fait côté Core, par `intent`. */
-export type AppOwner = 'core' | 'hermes' | 'device';
+export type AppOwner = 'core' | 'device';
 
 export interface HudApp {
   id: string;
@@ -136,42 +136,38 @@ export const HUD_APPS: HudApp[] = [
   },
 
   // —— Agent (délégué) ——
+  //
+  // Déclencheurs vocaux retirés (2026-08-17) sur les tuiles dont l'`intent`
+  // n'a plus de capacité Core depuis le retrait Hermes — dire le mot ne
+  // routait déjà nulle part, l'incohérence n'était juste pas détectée avant
+  // la régénération de l'index d'architecture. Ouverture manuelle (dock)
+  // inchangée. `intent` conservé comme cible de recâblage future.
   {
     id: 'terminal', name: 'Terminal', icon: Terminal, color: C.cyan, cat: 'Agent',
-    status: 'surface', risk: 'vps', pinned: true, vpsLimited: true, owner: 'hermes',
+    status: 'soon', risk: 'vps', pinned: false, vpsLimited: true, owner: 'core',
     blurb: 'Shell allowlist — pas root libre',
-    voice: ['terminal', 'shell', 'console ssh'],
+    voice: [],
     intent: 'system.shell',
   },
   {
     id: 'files', name: 'Fichiers', icon: FolderOpen, color: C.amber, cat: 'Agent',
-    status: 'surface', risk: 'admin', pinned: true, owner: 'hermes',
+    status: 'surface', risk: 'admin', pinned: true, owner: 'core',
     blurb: 'Fichiers — chemins autorisés',
-    voice: ['fichiers', 'dossier', 'explorer'],
+    voice: [],
     intent: 'files.browse',
   },
   {
     id: 'browser', name: 'Navigateur', icon: Globe, color: C.blue, cat: 'Agent',
-    status: 'surface', risk: 'info', pinned: true, owner: 'hermes',
+    status: 'surface', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Navigation pilotée',
-    voice: ['navigateur', 'browser', 'holoweb'],
+    voice: [],
     intent: 'web.browse',
   },
   {
     id: 'reach', name: 'Internet', icon: Globe, color: C.cyan, cat: 'Agent',
-    status: 'surface', risk: 'info', pinned: true, owner: 'hermes',
+    status: 'surface', risk: 'info', pinned: true, owner: 'core',
     blurb: 'Recherche et extraction web',
-    voice: [
-      'internet', 'agent-reach', 'agent reach', 'recherche web',
-      'cherche', 'trouve', 'propose', 'recherche',
-      'nouvelles', 'actualité', 'actualites', 'actualités',
-      'cherche sur internet', 'cherche sur le web', 'cherche sur youtube',
-      'cherche sur github', 'github', 'reddit', 'rss', 'openclaw',
-      // "youtube" nu retiré (2026-08-15) : appartient déjà à media.streaming
-      // (Core, capabilities.py) — le dupliquer ici induisait une incohérence
-      // Core↔HUD sans changer le routage réel (streaming gagne déjà la
-      // désambiguïsation en cas d'égalité, cf. `_disambiguate_intent`).
-    ],
+    voice: [],
     intent: 'web.search',
   },
   // Aucun toolset docker/stockage chez Hermes : ces deux-là passeraient par
@@ -179,9 +175,9 @@ export const HUD_APPS: HudApp[] = [
   // sans raison. Cf. `capabilities.py`.
   {
     id: 'docker', name: 'Docker', icon: Box, color: C.blue, cat: 'Agent',
-    status: 'soon', risk: 'vps', vpsLimited: true, owner: 'hermes',
+    status: 'soon', risk: 'vps', vpsLimited: true, owner: 'core',
     blurb: 'Conteneurs — pas de toolset Hermes encore',
-    voice: ['docker', 'conteneur', 'containers'],
+    voice: [],
     intent: 'vps.docker',
   },
   {
@@ -193,17 +189,17 @@ export const HUD_APPS: HudApp[] = [
   },
   {
     id: 'analyze', name: 'Analyse', icon: BarChart3, color: C.cyan, cat: 'Agent',
-    status: 'surface', risk: 'admin', owner: 'hermes',
+    status: 'surface', risk: 'admin', owner: 'core',
     blurb: 'Exécution de code — analyse de données',
     // "analyse" seul retiré (2026-08-15, P.3) : cf. capabilities.py, même motif.
-    voice: ['stats', 'données'],
+    voice: [],
     intent: 'data.analyze',
   },
   {
     id: 'storage', name: 'Stockage', icon: HardDrive, color: C.amber, cat: 'Agent',
-    status: 'soon', risk: 'vps', vpsLimited: true, owner: 'hermes',
+    status: 'soon', risk: 'vps', vpsLimited: true, owner: 'core',
     blurb: 'Volumes — pas de toolset encore',
-    voice: ['stockage', 'disque', 'volume'],
+    voice: [],
     intent: 'vps.storage',
   },
 
@@ -229,7 +225,7 @@ export const HUD_APPS: HudApp[] = [
   {
     id: 'skills', name: 'Skills', icon: Sparkles, color: C.violet, cat: 'Agent',
     status: 'surface', risk: 'info', blurb: 'Compétences de l’agent',
-    voice: ['skills', 'compétences'], intent: 'agent.skills', owner: 'hermes',
+    voice: [], intent: 'agent.skills', owner: 'core',
   },
   {
     id: 'connexions', name: 'Connexions', icon: Link2, color: C.blue, cat: 'Agent',
@@ -260,12 +256,12 @@ export const HUD_APPS: HudApp[] = [
   {
     id: 'crons', name: 'Crons', icon: Timer, color: C.slate, cat: 'Agent',
     status: 'surface', risk: 'admin', blurb: 'Planifié',
-    voice: ['cron', 'planifié', 'schedule'], intent: 'agent.cron', owner: 'hermes',
+    voice: [], intent: 'agent.cron', owner: 'core',
   },
   {
     id: 'outils', name: 'Outils', icon: Wrench, color: C.amber, cat: 'Agent',
     status: 'surface', risk: 'admin', blurb: 'Compétences — création et édition',
-    voice: ['outils', 'tools', 'tool manager'], intent: 'agent.tools', owner: 'hermes',
+    voice: [], intent: 'agent.tools', owner: 'core',
   },
 
   // —— Session HUD (voix → Core `hud_*`, pas de tuile dock) ——
@@ -389,11 +385,8 @@ export const HUD_APPS: HudApp[] = [
     intent: 'home.camera_view',
   },
   {
-    id: 'music', name: 'Musique', icon: Music, color: C.green, cat: 'Médias',
-    status: 'surface', risk: 'media', pinned: true, owner: 'hermes',
-    blurb: 'Audio',
-    voice: ['musique', 'spotify', 'plex audio'],
-    intent: 'media.music',
+    id: 'music', name: 'Musique', icon: Music, color: C.slate, cat: 'Médias',
+    status: 'soon', risk: 'media', blurb: 'Bientôt — média via Plex/HA, pas Spotify Hermes',
   },
   {
     id: 'video', name: 'Vidéo', icon: Video, color: C.amber, cat: 'Médias',

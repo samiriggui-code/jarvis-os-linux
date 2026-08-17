@@ -50,7 +50,7 @@ def pick_l2_directory(process_id: str, node: dict) -> bool:
     if process_id == "hud":
         return (path.startswith("hud/src/") or path.startswith("dashboard/src/")) and path.count("/") == 2
 
-    if process_id in ("hermes", "memory", "voice"):
+    if process_id in ("memory", "voice"):
         return path.startswith(f"core/jarvis_core/{process_id}")
 
     if process_id == "vision":

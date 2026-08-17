@@ -46,7 +46,6 @@ d'elle.
 
 from __future__ import annotations
 
-import os
 import unicodedata
 from dataclasses import dataclass
 from enum import Enum
@@ -78,9 +77,6 @@ class Owner(str, Enum):
 
     CORE = "core"
     """Le Core sait faire lui-même — aucun agent n'est consulté."""
-
-    HERMES = "hermes"
-    """Délégué à l'agent, via un toolset explicitement autorisé pour la session."""
 
     DEVICE = "device"
     """Relève d'un agent d'appareil (Windows, TV…). Device Manager absent : rien encore."""
@@ -151,23 +147,10 @@ class Capability:
     def available(self) -> bool:
         """Un exécutant réel existe-t-il ?
 
-        `CORE` est toujours disponible : le code est là, dans ce dépôt. `HERMES` exige
-        un toolset nommé. `DEVICE` n'a aucun exécutant tant que le Device Manager
-        n'existe pas — le déclarer disponible serait mentir.
+        `CORE` est toujours disponible : le code est là, dans ce dépôt.
+        `DEVICE` dépend du Device Manager.
         """
         if self.owner is Owner.CORE:
-            return True
-        if self.owner is Owner.HERMES:
-            if self.toolset is None:
-                return False
-            if self.intent == "media.music":
-                import os
-
-                return os.environ.get("JARVIS_SPOTIFY_ENABLED", "").lower() in (
-                    "1",
-                    "true",
-                    "yes",
-                )
             return True
         if self.owner is Owner.DEVICE:
             import os
@@ -190,11 +173,9 @@ IntentCapability = Capability
 # Une ligne par tuile du volet Applications. L'ordre suit les catégories du HUD pour
 # que les deux fichiers se relisent côte à côte.
 #
-# Les toolsets nommés ici sont ceux que le NUC expose réellement (relevé du
-# 2026-08-05, Hermes 0.20.0) : web, browser, terminal, file, code_execution, vision,
-# video, image_gen, video_gen, bfl, x_search, tts, stt, skills, todo, memory,
-# context_engine, session_search, clarify, delegation, cronjob, homeassistant,
-# spotify, discord, discord_admin, yuanbao, computer_use, a2a.
+# Les toolsets Hermes côté NUC (relevé 2026-08) : web, browser, terminal, file,
+# code_execution, vision, skills, todo, memory, cronjob, …
+# ⚠ ``homeassistant`` n'est PAS un toolset prod — domotique = Core → HA NUC.
 #
 # `operation` n'est explicite que là où elle diffère du défaut `Operation.READ`
 # (dataclass) — la majorité des tuiles consultent plus qu'elles n'agissent, et
@@ -520,10 +501,10 @@ CAPABILITIES: dict[str, Capability] = {
         app_id="video", intent="media.streaming", owner=Owner.CORE,
         risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
         operation=Operation.WRITE,
-        note="Netflix / Disney+ / YouTube / cam salon — Freebox Player ou repli HUD.",
+        note="Netflix / Disney+ / YouTube — Home Assistant NUC (`media_player.play_media`).",
         triggers=(
-            "netflix", "disney", "disney+", "youtube", "prime video", "amazon prime",
-            "regarde sur netflix", "lance netflix", "ouvre disney",
+            "netflix", "disney", "disney+", "youtube", "prime video", "amazon prime", "prime",
+            "regarde sur netflix", "lance netflix", "ouvre disney", "lance prime",
             "montre la cam", "affiche la cam", "caméra salon", "camera salon",
             "flux salon", "voir le salon",
         ),
@@ -603,13 +584,6 @@ CAPABILITIES: dict[str, Capability] = {
         ),
     ),
     # —— Médias ————————————————————————————————————————————————————————————
-    "music": Capability(
-        app_id="music", intent="media.music", owner=Owner.HERMES, toolset="spotify",
-        risk=RiskLevel.MEDIA, permission="media.control", display=Display.GENERATED,
-        operation=Operation.WRITE,
-        note="Toolset spotify — actif si JARVIS_SPOTIFY_ENABLED=1 et Hermes spotify configuré.",
-        triggers=("musique", "spotify", "plex audio"),
-    ),
     # ⚠ CORE depuis le 2026-08-05 — même correction que `home.control`, et pour
     # le même motif écrit noir sur blanc au §11 : « Mode 3, sans LLM : le Core
     # continue (HA, **Plex**, Holomat…) ». Plex y est nommé.
@@ -626,85 +600,6 @@ CAPABILITIES: dict[str, Capability] = {
             "vidéo", "video", "film", "plex", "série", "serie", "épisode", "episode",
             "mets", "lance", "play",
         ),
-    ),
-    # —— Hermes ————————————————————————————————————————————————————————————
-    "reach": Capability(
-        app_id="reach", intent="web.search", owner=Owner.HERMES, toolset="web",
-        risk=RiskLevel.INFO, permission="web.read", display=Display.GENERATED,
-        note="web_search · web_extract.",
-        triggers=(
-            "internet", "agent-reach", "agent reach", "recherche web",
-            "cherche", "trouve", "propose", "recherche",
-            "nouvelles", "actualité", "actualites", "actualités",
-            "cherche sur internet", "cherche sur le web", "cherche sur youtube",
-            "cherche sur github", "github", "reddit", "rss", "openclaw",
-        ),
-    ),
-    "browser": Capability(
-        app_id="browser", intent="web.browse", owner=Owner.HERMES, toolset="browser",
-        risk=RiskLevel.INFO, permission="web.read", display=Display.GENERATED,
-        triggers=("navigateur", "browser", "holoweb"),
-    ),
-    "files": Capability(
-        app_id="files", intent="files.browse", owner=Owner.HERMES, toolset="file",
-        risk=RiskLevel.ADMIN, permission="files.read", display=Display.GENERATED,
-        operation=Operation.WRITE,
-        note="read_file · write_file · patch · search_files.",
-        triggers=("fichiers", "dossier", "explorer"),
-    ),
-    "terminal": Capability(
-        app_id="terminal", intent="system.shell", owner=Owner.HERMES, toolset="terminal",
-        risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
-        operation=Operation.EXECUTE,
-        note="Allowlist appliquée par la Policy, pas par Hermes.",
-        triggers=("terminal", "shell", "console ssh"),
-    ),
-    "analyze": Capability(
-        app_id="analyze", intent="data.analyze", owner=Owner.HERMES, toolset="code_execution",
-        risk=RiskLevel.ADMIN, permission="console.read", display=Display.GENERATED,
-        operation=Operation.EXECUTE,
-        # "analyse" seul retiré (2026-08-15, chantier Orchestration
-        # conversationnelle) : mot générique qui volait toute phrase contenant
-        # « analyse » à `devices.metrics` (« analyse la santé de mon
-        # portable » finissait ici, jamais sur les métriques PC). "stats" /
-        # "données" restent : sans ambiguïté avec le diagnostic machine.
-        triggers=("stats", "données"),
-    ),
-    "skills": Capability(
-        app_id="skills", intent="agent.skills", owner=Owner.HERMES, toolset="skills",
-        risk=RiskLevel.INFO, permission="system.read", display=Display.GENERATED,
-        triggers=("skills", "compétences"),
-    ),
-    "outils": Capability(
-        app_id="outils", intent="agent.tools", owner=Owner.HERMES, toolset="skills",
-        risk=RiskLevel.ADMIN, permission="dashboard.access", display=Display.GENERATED,
-        operation=Operation.EXECUTE,
-        note="skill_manage écrit des compétences — ADMIN.",
-        triggers=("outils", "tools", "tool manager"),
-    ),
-    "crons": Capability(
-        app_id="crons", intent="agent.cron", owner=Owner.HERMES, toolset="cronjob",
-        risk=RiskLevel.ADMIN, permission="dashboard.access", display=Display.GENERATED,
-        operation=Operation.EXECUTE,
-        triggers=("cron", "planifié", "schedule"),
-    ),
-    # —— Déclarées, sans exécutant. Visibles exprès ————————————————————————
-    #
-    # `toolset=None` : l'ouverture échouera en disant pourquoi. Les masquer ferait
-    # croire que le volet est complet.
-    "docker": Capability(
-        app_id="docker", intent="vps.docker", owner=Owner.HERMES, toolset="terminal",
-        risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
-        operation=Operation.EXECUTE,
-        note="Délégation Hermes toolset terminal (docker ps, logs…). Policy VPS allowlist.",
-        triggers=("docker", "conteneur", "containers"),
-    ),
-    "storage": Capability(
-        app_id="storage", intent="vps.storage", owner=Owner.HERMES, toolset="terminal",
-        risk=RiskLevel.VPS, permission="console.read", display=Display.GENERATED,
-        operation=Operation.EXECUTE,
-        note="Délégation Hermes toolset terminal (df, volumes…). Policy VPS allowlist.",
-        triggers=("stockage", "disque", "volume"),
     ),
     "code": Capability(
         app_id="code", intent="vps.code", owner=Owner.CORE,
@@ -841,15 +736,6 @@ CAPABILITIES: dict[str, Capability] = {
 # droit de VOIR, ici ce qu'on a le droit de FAIRE FAIRE. Les deux sont fail-closed —
 # un rôle inconnu n'obtient rien.
 #
-# `admin` n'est pas listé : il reçoit tout toolset qu'une capacité nomme (calculé),
-# pour qu'ajouter une capacité ne verrouille pas le propriétaire de la machine.
-ROLE_TOOLSETS: dict[str, set[str]] = {
-    "user": {"homeassistant", "spotify", "web", "browser", "vision"},
-    "child": {"spotify"},
-    "guest": set(),
-}
-
-
 # Permissions qui n'appartiennent qu'à l'administrateur. Volontairement une liste
 # courte et explicite plutôt qu'un calcul : « ADMIN seul accède au Dashboard » est une
 # loi produit, pas une conséquence d'un tableau.
@@ -970,40 +856,6 @@ def all_toolsets() -> set[str]:
     return {c.toolset for c in CAPABILITIES.values() if c.toolset}
 
 
-_SLIM_DEFAULT = frozenset({"skills"})
-
-
-def _apply_hermes_slim(granted: set[str]) -> set[str]:
-    """Réduit la surface MCP Hermes (pattern agent-swarm scripts-only).
-
-    ``JARVIS_HERMES_SKILLS_ONLY=1`` → intersection avec ``JARVIS_HERMES_SLIM_TOOLSETS``
-    (défaut ``skills``). Sinon, ``JARVIS_HERMES_TOOLSETS`` allowlist optionnelle.
-    """
-    mode = (os.environ.get("JARVIS_HERMES_SKILLS_ONLY") or "").lower()
-    if mode in ("1", "true", "yes"):
-        raw = (os.environ.get("JARVIS_HERMES_SLIM_TOOLSETS") or "skills").strip()
-        names = {x.strip() for x in raw.split(",") if x.strip()} or set(_SLIM_DEFAULT)
-        return granted & names
-    allow = (os.environ.get("JARVIS_HERMES_TOOLSETS") or "").strip()
-    if allow:
-        names = {x.strip() for x in allow.split(",") if x.strip()}
-        return granted & names if names else granted
-    return granted
-
-
 def toolsets_for(role: str | None) -> set[str]:
-    """Les toolsets Hermes délégables par ce rôle.
-
-    C'est **l'unique** grille de filtrage du pont : Hermes ne se voit jamais offrir
-    un toolset absent de cet ensemble. Un rôle inconnu, ou personne d'identifié,
-    ne délègue rien du tout — l'inverse (tout ouvrir avant identification) est la
-    faille classique des assistants domestiques.
-    """
-    if role is None:
-        return set()
-    normalized = str(role).lower()
-    if normalized == "admin":
-        granted = all_toolsets()
-    else:
-        granted = set(ROLE_TOOLSETS.get(normalized, ()))
-    return _apply_hermes_slim(granted)
+    """Compatibilité API : aucun toolset agent n'est exposé par le Core."""
+    return set()

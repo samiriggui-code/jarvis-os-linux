@@ -110,22 +110,7 @@ def main() -> int:
         sr4 = [m for m in ws4.messages if m.get("type") == "surface_result"]
         check("holomat executed", sr4 and sr4[-1].get("executed") is True)
 
-        # 5 Hermes via delegate (mock)
-        cap_reach = CAPABILITIES["reach"]
-        from jarvis_core.hermes.delegate import HermesIntentDelegate
-
-        delegate = HermesIntentDelegate(orch)
-        orch.hermes.ask = AsyncMock(
-            return_value=MagicMock(text="Résultat Hermes mock", toolsets=("web",))
-        )
-        orch._publish_result_surface = AsyncMock()
-        decision = orch.policy.evaluate(action=cap_reach.intent, risk=cap_reach.risk)
-        result = await delegate.execute(
-            cap_reach, {"prompt": "actualité"}, decision=decision
-        )
-        check("hermes delegate text", "Hermes" in result.get("text", ""))
-
-        # 6 unknown → no intent
+        # 5 unknown → no intent
         unknown = match_intent("quelle est la capitale de la lune")
         check("unknown phrase → None", unknown is None)
 

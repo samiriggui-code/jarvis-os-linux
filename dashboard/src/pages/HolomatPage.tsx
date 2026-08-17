@@ -52,7 +52,7 @@ export default function HolomatPage() {
           <Row name="gesture_profile" meta="même dossier — main, sensibilité, bindings" status="USER" />
           <Row name="face_profile" meta="embeddings SFace (auth)" status="USER" />
           <Row name="calibration.json" meta="core/data/holomat/ — machine Charuco" status="HOST" statusColor="#FFC857" />
-          <Row name="Mémoire chat" meta="Hermes / Memory Manager" status="NON" statusColor="rgba(255,100,100,0.8)" />
+          <Row name="Mémoire chat" meta="PostgreSQL / jarvis_memory (lecture chat)" status="CORE" />
         </Card>
 
         <Card>

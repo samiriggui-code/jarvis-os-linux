@@ -1,4 +1,5 @@
 {
+  "_regenerate": "cd hud && npm run graph3d:children",
   "schemaVersion": "1.0.0",
   "childrenByParentId": {
     "core": [
@@ -8,8 +9,8 @@
         "path": "core/jarvis_core",
         "kind": "directory",
         "primaryProcess": "core",
-        "descendantFiles": 42,
-        "visualWeight": 6.5574
+        "descendantFiles": 48,
+        "visualWeight": 7.0
       },
       {
         "id": "repo:core/jarvis_core/architecture",
@@ -39,13 +40,22 @@
         "visualWeight": 2.4495
       },
       {
+        "id": "repo:core/jarvis_core/dev_agent",
+        "name": "dev_agent",
+        "path": "core/jarvis_core/dev_agent",
+        "kind": "directory",
+        "primaryProcess": "core",
+        "descendantFiles": 5,
+        "visualWeight": 2.4495
+      },
+      {
         "id": "repo:core/jarvis_core/executors",
         "name": "executors",
         "path": "core/jarvis_core/executors",
         "kind": "directory",
         "primaryProcess": "core",
-        "descendantFiles": 10,
-        "visualWeight": 3.3166
+        "descendantFiles": 11,
+        "visualWeight": 3.4641
       },
       {
         "id": "repo:core/jarvis_core/intents",
@@ -62,8 +72,8 @@
         "path": "core/jarvis_core/mission_dev",
         "kind": "directory",
         "primaryProcess": "core",
-        "descendantFiles": 2,
-        "visualWeight": 1.7321
+        "descendantFiles": 7,
+        "visualWeight": 2.8284
       },
       {
         "id": "repo:core/jarvis_core/missions",
@@ -93,6 +103,15 @@
         "visualWeight": 2.0
       },
       {
+        "id": "repo:core/jarvis_core/workspace",
+        "name": "workspace",
+        "path": "core/jarvis_core/workspace",
+        "kind": "directory",
+        "primaryProcess": "core",
+        "descendantFiles": 4,
+        "visualWeight": 2.2361
+      },
+      {
         "id": "repo:core/jarvis_core/ws",
         "name": "ws",
         "path": "core/jarvis_core/ws",
@@ -116,8 +135,8 @@
         "path": "deploy/scripts",
         "kind": "directory",
         "primaryProcess": "core",
-        "descendantFiles": 2,
-        "visualWeight": 1.7321
+        "descendantFiles": 16,
+        "visualWeight": 4.1231
       },
       {
         "id": "repo:deploy/traefik",
@@ -134,6 +153,117 @@
         "path": "deploy/twingate",
         "kind": "directory",
         "primaryProcess": "core",
+        "descendantFiles": 1,
+        "visualWeight": 1.4142
+      }
+    ],
+    "memory": [
+      {
+        "id": "repo:core/jarvis_core/memory",
+        "name": "memory",
+        "path": "core/jarvis_core/memory",
+        "kind": "directory",
+        "primaryProcess": "memory",
+        "descendantFiles": 13,
+        "visualWeight": 3.7417
+      }
+    ],
+    "hud": [
+      {
+        "id": "repo:dashboard/src",
+        "name": "src",
+        "path": "dashboard/src",
+        "kind": "directory",
+        "primaryProcess": "hud",
+        "descendantFiles": 46,
+        "visualWeight": 6.8557
+      },
+      {
+        "id": "repo:hud/src",
+        "name": "src",
+        "path": "hud/src",
+        "kind": "directory",
+        "primaryProcess": "hud",
+        "descendantFiles": 405,
+        "visualWeight": 20.1494
+      }
+    ],
+    "devices": [
+      {
+        "id": "repo:deploy/pi-salon",
+        "name": "pi-salon",
+        "path": "deploy/pi-salon",
+        "kind": "directory",
+        "primaryProcess": "devices",
+        "descendantFiles": 5,
+        "visualWeight": 2.4495
+      },
+      {
+        "id": "repo:deploy/windows-agent",
+        "name": "windows-agent",
+        "path": "deploy/windows-agent",
+        "kind": "directory",
+        "primaryProcess": "devices",
+        "descendantFiles": 22,
+        "visualWeight": 4.7958
+      }
+    ],
+    "home": [
+      {
+        "id": "repo:deploy/homeassistant",
+        "name": "homeassistant",
+        "path": "deploy/homeassistant",
+        "kind": "directory",
+        "primaryProcess": "home",
+        "descendantFiles": 4,
+        "visualWeight": 2.2361
+      }
+    ],
+    "voice": [
+      {
+        "id": "repo:core/jarvis_core/personality",
+        "name": "personality",
+        "path": "core/jarvis_core/personality",
+        "kind": "directory",
+        "primaryProcess": "voice",
+        "descendantFiles": 6,
+        "visualWeight": 2.6458
+      },
+      {
+        "id": "repo:core/jarvis_core/voice",
+        "name": "voice",
+        "path": "core/jarvis_core/voice",
+        "kind": "directory",
+        "primaryProcess": "voice",
+        "descendantFiles": 8,
+        "visualWeight": 3.0
+      }
+    ],
+    "vision": [
+      {
+        "id": "repo:core/jarvis_core/holomat",
+        "name": "holomat",
+        "path": "core/jarvis_core/holomat",
+        "kind": "directory",
+        "primaryProcess": "vision",
+        "descendantFiles": 1,
+        "visualWeight": 1.4142
+      },
+      {
+        "id": "repo:core/jarvis_core/vision",
+        "name": "vision",
+        "path": "core/jarvis_core/vision",
+        "kind": "directory",
+        "primaryProcess": "vision",
+        "descendantFiles": 7,
+        "visualWeight": 2.8284
+      },
+      {
+        "id": "repo:deploy/vision-worker",
+        "name": "vision-worker",
+        "path": "deploy/vision-worker",
+        "kind": "directory",
+        "primaryProcess": "vision",
         "descendantFiles": 1,
         "visualWeight": 1.4142
       }
@@ -212,9 +342,54 @@
         "visualWeight": 1.0
       },
       {
+        "id": "repo:core/jarvis_core/capability_routing.py",
+        "name": "capability_routing.py",
+        "path": "core/jarvis_core/capability_routing.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/chat_cancel.py",
+        "name": "chat_cancel.py",
+        "path": "core/jarvis_core/chat_cancel.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/chat_research_route.py",
+        "name": "chat_research_route.py",
+        "path": "core/jarvis_core/chat_research_route.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/chat_search_memory.py",
+        "name": "chat_search_memory.py",
+        "path": "core/jarvis_core/chat_search_memory.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
         "id": "repo:core/jarvis_core/composer.py",
         "name": "composer.py",
         "path": "core/jarvis_core/composer.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/cursor_agents.py",
+        "name": "cursor_agents.py",
+        "path": "core/jarvis_core/cursor_agents.py",
         "kind": "file",
         "primaryProcess": "core",
         "descendantFiles": 0,
@@ -251,6 +426,15 @@
         "id": "repo:core/jarvis_core/eval_matrix.py",
         "name": "eval_matrix.py",
         "path": "core/jarvis_core/eval_matrix.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/gateway.py",
+        "name": "gateway.py",
+        "path": "core/jarvis_core/gateway.py",
         "kind": "file",
         "primaryProcess": "core",
         "descendantFiles": 0,
@@ -378,7 +562,7 @@
         "name": "providers.py",
         "path": "core/jarvis_core/providers.py",
         "kind": "file",
-        "primaryProcess": "core",
+        "primaryProcess": "bridge",
         "descendantFiles": 0,
         "visualWeight": 1.0
       },
@@ -401,18 +585,18 @@
         "visualWeight": 1.0
       },
       {
-        "id": "repo:core/jarvis_core/salon_ingest.py",
-        "name": "salon_ingest.py",
-        "path": "core/jarvis_core/salon_ingest.py",
+        "id": "repo:core/jarvis_core/salon_camera.py",
+        "name": "salon_camera.py",
+        "path": "core/jarvis_core/salon_camera.py",
         "kind": "file",
         "primaryProcess": "devices",
         "descendantFiles": 0,
         "visualWeight": 1.0
       },
       {
-        "id": "repo:core/jarvis_core/salon_player.py",
-        "name": "salon_player.py",
-        "path": "core/jarvis_core/salon_player.py",
+        "id": "repo:core/jarvis_core/salon_ingest.py",
+        "name": "salon_ingest.py",
+        "path": "core/jarvis_core/salon_ingest.py",
         "kind": "file",
         "primaryProcess": "devices",
         "descendantFiles": 0,
@@ -722,6 +906,53 @@
         "visualWeight": 1.0
       }
     ],
+    "repo:core/jarvis_core/dev_agent": [
+      {
+        "id": "repo:core/jarvis_core/dev_agent/__init__.py",
+        "name": "__init__.py",
+        "path": "core/jarvis_core/dev_agent/__init__.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/dev_agent/dispatch.py",
+        "name": "dispatch.py",
+        "path": "core/jarvis_core/dev_agent/dispatch.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/dev_agent/registry.py",
+        "name": "registry.py",
+        "path": "core/jarvis_core/dev_agent/registry.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/dev_agent/types.py",
+        "name": "types.py",
+        "path": "core/jarvis_core/dev_agent/types.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/dev_agent/verification.py",
+        "name": "verification.py",
+        "path": "core/jarvis_core/dev_agent/verification.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      }
+    ],
     "repo:core/jarvis_core/executors": [
       {
         "id": "repo:core/jarvis_core/executors/__init__.py",
@@ -787,6 +1018,15 @@
         "visualWeight": 1.0
       },
       {
+        "id": "repo:core/jarvis_core/executors/mission_board.py",
+        "name": "mission_board.py",
+        "path": "core/jarvis_core/executors/mission_board.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
         "id": "repo:core/jarvis_core/executors/surfaces.py",
         "name": "surfaces.py",
         "path": "core/jarvis_core/executors/surfaces.py",
@@ -812,93 +1052,6 @@
         "primaryProcess": "vision",
         "descendantFiles": 0,
         "visualWeight": 1.0
-      }
-    ],
-    "hermes": [
-      {
-        "id": "repo:core/jarvis_core/hermes",
-        "name": "hermes",
-        "path": "core/jarvis_core/hermes",
-        "kind": "directory",
-        "primaryProcess": "hermes",
-        "descendantFiles": 4,
-        "visualWeight": 2.2361
-      },
-      {
-        "id": "repo:deploy/hermes",
-        "name": "hermes",
-        "path": "deploy/hermes",
-        "kind": "directory",
-        "primaryProcess": "hermes",
-        "descendantFiles": 1,
-        "visualWeight": 1.4142
-      }
-    ],
-    "repo:core/jarvis_core/hermes": [
-      {
-        "id": "repo:core/jarvis_core/hermes/__init__.py",
-        "name": "__init__.py",
-        "path": "core/jarvis_core/hermes/__init__.py",
-        "kind": "file",
-        "primaryProcess": "hermes",
-        "descendantFiles": 0,
-        "visualWeight": 1.0
-      },
-      {
-        "id": "repo:core/jarvis_core/hermes/bridge.py",
-        "name": "bridge.py",
-        "path": "core/jarvis_core/hermes/bridge.py",
-        "kind": "file",
-        "primaryProcess": "hermes",
-        "descendantFiles": 0,
-        "visualWeight": 1.0
-      },
-      {
-        "id": "repo:core/jarvis_core/hermes/delegate.py",
-        "name": "delegate.py",
-        "path": "core/jarvis_core/hermes/delegate.py",
-        "kind": "file",
-        "primaryProcess": "hermes",
-        "descendantFiles": 0,
-        "visualWeight": 1.0
-      },
-      {
-        "id": "repo:core/jarvis_core/hermes/events.py",
-        "name": "events.py",
-        "path": "core/jarvis_core/hermes/events.py",
-        "kind": "file",
-        "primaryProcess": "hermes",
-        "descendantFiles": 0,
-        "visualWeight": 1.0
-      }
-    ],
-    "vision": [
-      {
-        "id": "repo:core/jarvis_core/holomat",
-        "name": "holomat",
-        "path": "core/jarvis_core/holomat",
-        "kind": "directory",
-        "primaryProcess": "vision",
-        "descendantFiles": 1,
-        "visualWeight": 1.4142
-      },
-      {
-        "id": "repo:core/jarvis_core/vision",
-        "name": "vision",
-        "path": "core/jarvis_core/vision",
-        "kind": "directory",
-        "primaryProcess": "vision",
-        "descendantFiles": 7,
-        "visualWeight": 2.8284
-      },
-      {
-        "id": "repo:deploy/vision-worker",
-        "name": "vision-worker",
-        "path": "deploy/vision-worker",
-        "kind": "directory",
-        "primaryProcess": "vision",
-        "descendantFiles": 1,
-        "visualWeight": 1.4142
       }
     ],
     "repo:core/jarvis_core/holomat": [
@@ -966,17 +1119,6 @@
         "primaryProcess": "core",
         "descendantFiles": 0,
         "visualWeight": 1.0
-      }
-    ],
-    "memory": [
-      {
-        "id": "repo:core/jarvis_core/memory",
-        "name": "memory",
-        "path": "core/jarvis_core/memory",
-        "kind": "directory",
-        "primaryProcess": "memory",
-        "descendantFiles": 13,
-        "visualWeight": 3.7417
       }
     ],
     "repo:core/jarvis_core/memory": [
@@ -1111,6 +1253,15 @@
     ],
     "repo:core/jarvis_core/mission_dev": [
       {
+        "id": "repo:core/jarvis_core/mission_dev/board",
+        "name": "board",
+        "path": "core/jarvis_core/mission_dev/board",
+        "kind": "directory",
+        "primaryProcess": "core",
+        "descendantFiles": 5,
+        "visualWeight": 2.4495
+      },
+      {
         "id": "repo:core/jarvis_core/mission_dev/__init__.py",
         "name": "__init__.py",
         "path": "core/jarvis_core/mission_dev/__init__.py",
@@ -1120,9 +1271,56 @@
         "visualWeight": 1.0
       },
       {
-        "id": "repo:core/jarvis_core/mission_dev/kanban.py",
-        "name": "kanban.py",
-        "path": "core/jarvis_core/mission_dev/kanban.py",
+        "id": "repo:core/jarvis_core/mission_dev/backends.py",
+        "name": "backends.py",
+        "path": "core/jarvis_core/mission_dev/backends.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      }
+    ],
+    "repo:core/jarvis_core/mission_dev/board": [
+      {
+        "id": "repo:core/jarvis_core/mission_dev/board/__init__.py",
+        "name": "__init__.py",
+        "path": "core/jarvis_core/mission_dev/board/__init__.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/mission_dev/board/document.py",
+        "name": "document.py",
+        "path": "core/jarvis_core/mission_dev/board/document.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/mission_dev/board/service.py",
+        "name": "service.py",
+        "path": "core/jarvis_core/mission_dev/board/service.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/mission_dev/board/store.py",
+        "name": "store.py",
+        "path": "core/jarvis_core/mission_dev/board/store.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/mission_dev/board/types.py",
+        "name": "types.py",
+        "path": "core/jarvis_core/mission_dev/board/types.py",
         "kind": "file",
         "primaryProcess": "core",
         "descendantFiles": 0,
@@ -1154,6 +1352,62 @@
         "path": "core/jarvis_core/missions/store.py",
         "kind": "file",
         "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      }
+    ],
+    "repo:core/jarvis_core/personality": [
+      {
+        "id": "repo:core/jarvis_core/personality/__init__.py",
+        "name": "__init__.py",
+        "path": "core/jarvis_core/personality/__init__.py",
+        "kind": "file",
+        "primaryProcess": "voice",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/personality/entities.py",
+        "name": "entities.py",
+        "path": "core/jarvis_core/personality/entities.py",
+        "kind": "file",
+        "primaryProcess": "voice",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/personality/principles.py",
+        "name": "principles.py",
+        "path": "core/jarvis_core/personality/principles.py",
+        "kind": "file",
+        "primaryProcess": "voice",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/personality/resolver.py",
+        "name": "resolver.py",
+        "path": "core/jarvis_core/personality/resolver.py",
+        "kind": "file",
+        "primaryProcess": "voice",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/personality/types.py",
+        "name": "types.py",
+        "path": "core/jarvis_core/personality/types.py",
+        "kind": "file",
+        "primaryProcess": "voice",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/personality/voice_map.py",
+        "name": "voice_map.py",
+        "path": "core/jarvis_core/personality/voice_map.py",
+        "kind": "file",
+        "primaryProcess": "voice",
         "descendantFiles": 0,
         "visualWeight": 1.0
       }
@@ -1290,17 +1544,6 @@
         "visualWeight": 1.0
       }
     ],
-    "voice": [
-      {
-        "id": "repo:core/jarvis_core/voice",
-        "name": "voice",
-        "path": "core/jarvis_core/voice",
-        "kind": "directory",
-        "primaryProcess": "voice",
-        "descendantFiles": 7,
-        "visualWeight": 2.8284
-      }
-    ],
     "repo:core/jarvis_core/voice": [
       {
         "id": "repo:core/jarvis_core/voice/__init__.py",
@@ -1348,6 +1591,15 @@
         "visualWeight": 1.0
       },
       {
+        "id": "repo:core/jarvis_core/voice/tts_config.py",
+        "name": "tts_config.py",
+        "path": "core/jarvis_core/voice/tts_config.py",
+        "kind": "file",
+        "primaryProcess": "voice",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
         "id": "repo:core/jarvis_core/voice/voicebox.py",
         "name": "voicebox.py",
         "path": "core/jarvis_core/voice/voicebox.py",
@@ -1362,6 +1614,44 @@
         "path": "core/jarvis_core/voice/wake.py",
         "kind": "file",
         "primaryProcess": "voice",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      }
+    ],
+    "repo:core/jarvis_core/workspace": [
+      {
+        "id": "repo:core/jarvis_core/workspace/__init__.py",
+        "name": "__init__.py",
+        "path": "core/jarvis_core/workspace/__init__.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/workspace/conventions.py",
+        "name": "conventions.py",
+        "path": "core/jarvis_core/workspace/conventions.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/workspace/registry.py",
+        "name": "registry.py",
+        "path": "core/jarvis_core/workspace/registry.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:core/jarvis_core/workspace/types.py",
+        "name": "types.py",
+        "path": "core/jarvis_core/workspace/types.py",
+        "kind": "file",
+        "primaryProcess": "core",
         "descendantFiles": 0,
         "visualWeight": 1.0
       }
@@ -1437,7 +1727,7 @@
         "name": "chat.py",
         "path": "core/jarvis_core/ws/handlers/chat.py",
         "kind": "file",
-        "primaryProcess": "core",
+        "primaryProcess": "bridge",
         "descendantFiles": 0,
         "visualWeight": 1.0
       },
@@ -1494,26 +1784,6 @@
         "primaryProcess": "core",
         "descendantFiles": 0,
         "visualWeight": 1.0
-      }
-    ],
-    "hud": [
-      {
-        "id": "repo:dashboard/src",
-        "name": "src",
-        "path": "dashboard/src",
-        "kind": "directory",
-        "primaryProcess": "hud",
-        "descendantFiles": 46,
-        "visualWeight": 6.8557
-      },
-      {
-        "id": "repo:hud/src",
-        "name": "src",
-        "path": "hud/src",
-        "kind": "directory",
-        "primaryProcess": "hud",
-        "descendantFiles": 396,
-        "visualWeight": 19.9249
       }
     ],
     "repo:dashboard/src": [
@@ -1917,15 +2187,6 @@
         "visualWeight": 1.0
       },
       {
-        "id": "repo:dashboard/src/pages/HermesCore.tsx",
-        "name": "HermesCore.tsx",
-        "path": "dashboard/src/pages/HermesCore.tsx",
-        "kind": "file",
-        "primaryProcess": "hud",
-        "descendantFiles": 0,
-        "visualWeight": 1.0
-      },
-      {
         "id": "repo:dashboard/src/pages/HolomatPage.tsx",
         "name": "HolomatPage.tsx",
         "path": "dashboard/src/pages/HolomatPage.tsx",
@@ -1938,6 +2199,15 @@
         "id": "repo:dashboard/src/pages/HudSurfacePage.tsx",
         "name": "HudSurfacePage.tsx",
         "path": "dashboard/src/pages/HudSurfacePage.tsx",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:dashboard/src/pages/MissionDevBoardPage.tsx",
+        "name": "MissionDevBoardPage.tsx",
+        "path": "dashboard/src/pages/MissionDevBoardPage.tsx",
         "kind": "file",
         "primaryProcess": "hud",
         "descendantFiles": 0,
@@ -2009,28 +2279,6 @@
         "visualWeight": 1.0
       }
     ],
-    "repo:deploy/hermes": [
-      {
-        "id": "repo:deploy/hermes/config.snippet.yaml",
-        "name": "config.snippet.yaml",
-        "path": "deploy/hermes/config.snippet.yaml",
-        "kind": "file",
-        "primaryProcess": "hermes",
-        "descendantFiles": 0,
-        "visualWeight": 1.0
-      }
-    ],
-    "home": [
-      {
-        "id": "repo:deploy/homeassistant",
-        "name": "homeassistant",
-        "path": "deploy/homeassistant",
-        "kind": "directory",
-        "primaryProcess": "home",
-        "descendantFiles": 3,
-        "visualWeight": 2.0
-      }
-    ],
     "repo:deploy/homeassistant": [
       {
         "id": "repo:deploy/homeassistant/dashboards",
@@ -2049,6 +2297,15 @@
         "primaryProcess": "home",
         "descendantFiles": 1,
         "visualWeight": 1.4142
+      },
+      {
+        "id": "repo:deploy/homeassistant/compose.nuc.yaml",
+        "name": "compose.nuc.yaml",
+        "path": "deploy/homeassistant/compose.nuc.yaml",
+        "kind": "file",
+        "primaryProcess": "home",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
       },
       {
         "id": "repo:deploy/homeassistant/configuration.yaml",
@@ -2091,26 +2348,6 @@
         "primaryProcess": "core",
         "descendantFiles": 0,
         "visualWeight": 1.0
-      }
-    ],
-    "devices": [
-      {
-        "id": "repo:deploy/pi-salon",
-        "name": "pi-salon",
-        "path": "deploy/pi-salon",
-        "kind": "directory",
-        "primaryProcess": "devices",
-        "descendantFiles": 5,
-        "visualWeight": 2.4495
-      },
-      {
-        "id": "repo:deploy/windows-agent",
-        "name": "windows-agent",
-        "path": "deploy/windows-agent",
-        "kind": "directory",
-        "primaryProcess": "devices",
-        "descendantFiles": 17,
-        "visualWeight": 4.2426
       }
     ],
     "repo:deploy/pi-salon": [
@@ -2161,6 +2398,132 @@
       }
     ],
     "repo:deploy/scripts": [
+      {
+        "id": "repo:deploy/scripts/_apply_chat_only_env.py",
+        "name": "_apply_chat_only_env.py",
+        "path": "deploy/scripts/_apply_chat_only_env.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_audit_hermes_deps_nuc.py",
+        "name": "_audit_hermes_deps_nuc.py",
+        "path": "deploy/scripts/_audit_hermes_deps_nuc.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_audit_providers_nuc.py",
+        "name": "_audit_providers_nuc.py",
+        "path": "deploy/scripts/_audit_providers_nuc.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_check_openrouter_nuc.py",
+        "name": "_check_openrouter_nuc.py",
+        "path": "deploy/scripts/_check_openrouter_nuc.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_nuc_live_gateway_smoke.py",
+        "name": "_nuc_live_gateway_smoke.py",
+        "path": "deploy/scripts/_nuc_live_gateway_smoke.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_patch_hermes_toolsets.py",
+        "name": "_patch_hermes_toolsets.py",
+        "path": "deploy/scripts/_patch_hermes_toolsets.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_peek_toolsets.py",
+        "name": "_peek_toolsets.py",
+        "path": "deploy/scripts/_peek_toolsets.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_probe_ha_entities_nuc.py",
+        "name": "_probe_ha_entities_nuc.py",
+        "path": "deploy/scripts/_probe_ha_entities_nuc.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_probe_ha_house_status_live.py",
+        "name": "_probe_ha_house_status_live.py",
+        "path": "deploy/scripts/_probe_ha_house_status_live.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_probe_ha_media_features.py",
+        "name": "_probe_ha_media_features.py",
+        "path": "deploy/scripts/_probe_ha_media_features.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_probe_hermes_latency.py",
+        "name": "_probe_hermes_latency.py",
+        "path": "deploy/scripts/_probe_hermes_latency.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_test_hermes_tool_calling.py",
+        "name": "_test_hermes_tool_calling.py",
+        "path": "deploy/scripts/_test_hermes_tool_calling.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_verify_freebox_ha.py",
+        "name": "_verify_freebox_ha.py",
+        "path": "deploy/scripts/_verify_freebox_ha.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/scripts/_verify_ha_migration.py",
+        "name": "_verify_ha_migration.py",
+        "path": "deploy/scripts/_verify_ha_migration.py",
+        "kind": "file",
+        "primaryProcess": "core",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
       {
         "id": "repo:deploy/scripts/fix-voice-phrases.py",
         "name": "fix-voice-phrases.py",
@@ -2215,6 +2578,15 @@
     ],
     "repo:deploy/windows-agent": [
       {
+        "id": "repo:deploy/windows-agent/_live_portable_read_probe.py",
+        "name": "_live_portable_read_probe.py",
+        "path": "deploy/windows-agent/_live_portable_read_probe.py",
+        "kind": "file",
+        "primaryProcess": "devices",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
         "id": "repo:deploy/windows-agent/_prep_orb_icon.py",
         "name": "_prep_orb_icon.py",
         "path": "deploy/windows-agent/_prep_orb_icon.py",
@@ -2227,6 +2599,15 @@
         "id": "repo:deploy/windows-agent/agent_lib.py",
         "name": "agent_lib.py",
         "path": "deploy/windows-agent/agent_lib.py",
+        "kind": "file",
+        "primaryProcess": "devices",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/windows-agent/agent_restart.py",
+        "name": "agent_restart.py",
+        "path": "deploy/windows-agent/agent_restart.py",
         "kind": "file",
         "primaryProcess": "devices",
         "descendantFiles": 0,
@@ -2254,6 +2635,24 @@
         "id": "repo:deploy/windows-agent/config.py",
         "name": "config.py",
         "path": "deploy/windows-agent/config.py",
+        "kind": "file",
+        "primaryProcess": "devices",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/windows-agent/dev_agent_cli.py",
+        "name": "dev_agent_cli.py",
+        "path": "deploy/windows-agent/dev_agent_cli.py",
+        "kind": "file",
+        "primaryProcess": "devices",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/windows-agent/dev_agent_fake.py",
+        "name": "dev_agent_fake.py",
+        "path": "deploy/windows-agent/dev_agent_fake.py",
         "kind": "file",
         "primaryProcess": "devices",
         "descendantFiles": 0,
@@ -2366,6 +2765,15 @@
         "primaryProcess": "devices",
         "descendantFiles": 0,
         "visualWeight": 1.0
+      },
+      {
+        "id": "repo:deploy/windows-agent/workspace_local.py",
+        "name": "workspace_local.py",
+        "path": "deploy/windows-agent/workspace_local.py",
+        "kind": "file",
+        "primaryProcess": "devices",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
       }
     ],
     "repo:hud/src": [
@@ -2375,8 +2783,8 @@
         "path": "hud/src/agentic",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 187,
-        "visualWeight": 13.7113
+        "descendantFiles": 196,
+        "visualWeight": 14.0357
       },
       {
         "id": "repo:hud/src/app",
@@ -2449,8 +2857,8 @@
         "path": "hud/src/agentic/components",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 151,
-        "visualWeight": 12.3288
+        "descendantFiles": 160,
+        "visualWeight": 12.6886
       },
       {
         "id": "repo:hud/src/agentic/graph3d",
@@ -2541,8 +2949,8 @@
         "path": "hud/src/agentic/components/agent",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 11,
-        "visualWeight": 3.4641
+        "descendantFiles": 12,
+        "visualWeight": 3.6056
       },
       {
         "id": "repo:hud/src/agentic/components/charts",
@@ -2577,8 +2985,8 @@
         "path": "hud/src/agentic/components/graph3d",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 70,
-        "visualWeight": 8.4261
+        "descendantFiles": 77,
+        "visualWeight": 8.8318
       },
       {
         "id": "repo:hud/src/agentic/components/media",
@@ -2586,8 +2994,8 @@
         "path": "hud/src/agentic/components/media",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 8,
-        "visualWeight": 3.0
+        "descendantFiles": 9,
+        "visualWeight": 3.1623
       },
       {
         "id": "repo:hud/src/agentic/components/metrics",
@@ -2676,6 +3084,15 @@
         "id": "repo:hud/src/agentic/components/agent/ConfirmationCard.tsx",
         "name": "ConfirmationCard.tsx",
         "path": "hud/src/agentic/components/agent/ConfirmationCard.tsx",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/agent/DevIssueBoard.tsx",
+        "name": "DevIssueBoard.tsx",
+        "path": "hud/src/agentic/components/agent/DevIssueBoard.tsx",
         "kind": "file",
         "primaryProcess": "hud",
         "descendantFiles": 0,
@@ -2983,8 +3400,8 @@
         "path": "hud/src/agentic/components/graph3d/architecture3d",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 45,
-        "visualWeight": 6.7823
+        "descendantFiles": 52,
+        "visualWeight": 7.2801
       },
       {
         "id": "repo:hud/src/agentic/components/graph3d/camera",
@@ -3104,8 +3521,8 @@
         "path": "hud/src/agentic/components/graph3d/architecture3d/data",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 8,
-        "visualWeight": 3.0
+        "descendantFiles": 12,
+        "visualWeight": 3.6056
       },
       {
         "id": "repo:hud/src/agentic/components/graph3d/architecture3d/state",
@@ -3122,8 +3539,8 @@
         "path": "hud/src/agentic/components/graph3d/architecture3d/ui",
         "kind": "directory",
         "primaryProcess": "hud",
-        "descendantFiles": 11,
-        "visualWeight": 3.4641
+        "descendantFiles": 14,
+        "visualWeight": 3.873
       },
       {
         "id": "repo:hud/src/agentic/components/graph3d/architecture3d/Architecture3DView.tsx",
@@ -3344,6 +3761,33 @@
         "visualWeight": 1.0
       },
       {
+        "id": "repo:hud/src/agentic/components/graph3d/architecture3d/data/childrenForNode.ts",
+        "name": "childrenForNode.ts",
+        "path": "hud/src/agentic/components/graph3d/architecture3d/data/childrenForNode.ts",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/graph3d/architecture3d/data/codeMapChildren.json",
+        "name": "codeMapChildren.json",
+        "path": "hud/src/agentic/components/graph3d/architecture3d/data/codeMapChildren.json",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/graph3d/architecture3d/data/codeMapChildren.ts",
+        "name": "codeMapChildren.ts",
+        "path": "hud/src/agentic/components/graph3d/architecture3d/data/codeMapChildren.ts",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
         "id": "repo:hud/src/agentic/components/graph3d/architecture3d/data/codeMapCoreL1.json",
         "name": "codeMapCoreL1.json",
         "path": "hud/src/agentic/components/graph3d/architecture3d/data/codeMapCoreL1.json",
@@ -3392,6 +3836,15 @@
         "id": "repo:hud/src/agentic/components/graph3d/architecture3d/data/processWorldPositions.ts",
         "name": "processWorldPositions.ts",
         "path": "hud/src/agentic/components/graph3d/architecture3d/data/processWorldPositions.ts",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/graph3d/architecture3d/data/stackGeometry.ts",
+        "name": "stackGeometry.ts",
+        "path": "hud/src/agentic/components/graph3d/architecture3d/data/stackGeometry.ts",
         "kind": "file",
         "primaryProcess": "hud",
         "descendantFiles": 0,
@@ -3531,6 +3984,33 @@
         "id": "repo:hud/src/agentic/components/graph3d/architecture3d/ui/ProcessLabels.tsx",
         "name": "ProcessLabels.tsx",
         "path": "hud/src/agentic/components/graph3d/architecture3d/ui/ProcessLabels.tsx",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/graph3d/architecture3d/ui/TerritoryLabelProjector.tsx",
+        "name": "TerritoryLabelProjector.tsx",
+        "path": "hud/src/agentic/components/graph3d/architecture3d/ui/TerritoryLabelProjector.tsx",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/graph3d/architecture3d/ui/TerritoryLabels.tsx",
+        "name": "TerritoryLabels.tsx",
+        "path": "hud/src/agentic/components/graph3d/architecture3d/ui/TerritoryLabels.tsx",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/graph3d/architecture3d/ui/TerritoryLayer.tsx",
+        "name": "TerritoryLayer.tsx",
+        "path": "hud/src/agentic/components/graph3d/architecture3d/ui/TerritoryLayer.tsx",
         "kind": "file",
         "primaryProcess": "hud",
         "descendantFiles": 0,
@@ -3712,6 +4192,15 @@
         "id": "repo:hud/src/agentic/components/media/ImageViewer.tsx",
         "name": "ImageViewer.tsx",
         "path": "hud/src/agentic/components/media/ImageViewer.tsx",
+        "kind": "file",
+        "primaryProcess": "hud",
+        "descendantFiles": 0,
+        "visualWeight": 1.0
+      },
+      {
+        "id": "repo:hud/src/agentic/components/media/LiveStream.tsx",
+        "name": "LiveStream.tsx",
+        "path": "hud/src/agentic/components/media/LiveStream.tsx",
         "kind": "file",
         "primaryProcess": "hud",
         "descendantFiles": 0,

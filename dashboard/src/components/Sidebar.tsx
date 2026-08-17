@@ -3,7 +3,6 @@ import type { Page } from '../types'
 import { HOST } from '../types'
 import { tokens } from '../ui/tokens'
 import { useCoreSession } from '../context/CoreSessionContext'
-import { dashRequest } from '../lib/dashQuery'
 import { AdminUserMenu } from './AdminUserMenu'
 
 const BORDER = tokens.color.border
@@ -32,7 +31,6 @@ const sections: NavSection[] = [
     items: [
       { icon: '⬡', label: 'Command Center', id: 'command' },
       { icon: '▦', label: 'Mission DEV Board', id: 'mission-board' },
-      { icon: '◎', label: 'Hermes Core', id: 'hermes' },
     ],
   },
   {
@@ -43,7 +41,7 @@ const sections: NavSection[] = [
       { icon: '⊕', label: 'Entités', id: 'entities' },
       { icon: '⊗', label: 'Agents', id: 'agents' },
       { icon: '⟨⟩', label: 'Tools', id: 'tools' },
-      { icon: '👁', label: 'Agent-Reach', id: 'reach' },
+      { icon: '⌂', label: 'Maison / HA', id: 'settings' },
       { icon: '◫', label: 'Apps hôtes', id: 'apps' },
     ],
   },
@@ -76,16 +74,17 @@ interface Props {
 
 export default function Sidebar({ active, onNavigate, open = false, onClose }: Props) {
   const { client } = useCoreSession()
-  const [hermesOnline, setHermesOnline] = useState<boolean | null>(null)
+  const [coreOnline, setCoreOnline] = useState<boolean | null>(null)
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(LS_COLLAPSED) === '1'
   })
 
   useEffect(() => {
-    void dashRequest(client, { type: 'hermes_status', action: 'status' }, 'hermes_result', 8000)
-      .then((d) => setHermesOnline(d.healthy === true))
-      .catch(() => setHermesOnline(false))
+    setCoreOnline(client.connected)
+    return client.subscribe((data) => {
+      if (data.type === 'pong' || data.type === 'auth_status') setCoreOnline(true)
+    })
   }, [client])
 
   const toggleCollapsed = () => {
@@ -173,10 +172,10 @@ export default function Sidebar({ active, onNavigate, open = false, onClose }: P
 
       {!collapsed && (
         <div style={{ padding: '8px 16px', borderBottom: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', background: hermesOnline ? 'rgba(52, 199, 89, 0.08)' : 'rgba(255, 59, 48, 0.08)', borderRadius: 8, border: hermesOnline ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(255, 59, 48, 0.2)' }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: hermesOnline ? tokens.color.success : tokens.color.danger }} />
-            <span style={{ fontFamily: 'Inter', fontSize: 10, color: hermesOnline ? tokens.color.success : tokens.color.danger, letterSpacing: '0.02em' }}>
-              {hermesOnline == null ? 'Hermes …' : hermesOnline ? 'Hermes en ligne' : 'Hermes hors ligne'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', background: coreOnline ? 'rgba(52, 199, 89, 0.08)' : 'rgba(255, 59, 48, 0.08)', borderRadius: 8, border: coreOnline ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(255, 59, 48, 0.2)' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: coreOnline ? tokens.color.success : tokens.color.danger }} />
+            <span style={{ fontFamily: 'Inter', fontSize: 10, color: coreOnline ? tokens.color.success : tokens.color.danger, letterSpacing: '0.02em' }}>
+              {coreOnline == null ? 'Core …' : coreOnline ? 'Core en ligne' : 'Core hors ligne'}
             </span>
           </div>
           <div style={{ fontFamily: 'Inter', fontSize: 10, color: MUTED, paddingLeft: 4 }}>

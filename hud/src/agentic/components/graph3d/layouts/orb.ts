@@ -10,7 +10,7 @@ const INSIDE = CLOUD_R * 0.86;
 
 const ORB_INTERIOR: Record<string, Vec3> = {
   core: [0, 0, 0],
-  hermes: [-0.62, 0.18, 0.42],
+  bridge: [-0.62, 0.18, 0.42],
   policy: [0.12, 1.22, 0.38],
   memory: [-0.48, 0.82, -0.62],
   hud: [-1.05, -0.9, 0.32],
@@ -76,7 +76,7 @@ function layeredPositions(ids: string[]): Record<string, Vec3> {
     vision: 1.45,
     core: 0.25,
     policy: 0.25,
-    hermes: 0.25,
+    bridge: 0.25,
     memory: -0.85,
     devices: -1.55,
     home: -1.55,

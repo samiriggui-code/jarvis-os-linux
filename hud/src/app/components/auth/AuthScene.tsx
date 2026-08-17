@@ -49,7 +49,6 @@ import { visionTitle, visionCaption, visionBody } from '../visionChrome';
 const orbF = orbFont;
 
 const BOOT_LABELS: Record<string, string> = {
-  hermes: 'Noyau Hermes',
   voice: 'Système vocal',
   face: 'Reconnaissance faciale',
   holomat: 'Vision Holomat',
@@ -87,7 +86,6 @@ type BootCheck = {
  * celui de `sequences.BOOT` : la voix annonce ce que l'écran coche.
  */
 const BOOT_CHECKS_INIT: BootCheck[] = [
-  { label: 'HERMES CORE',      component: 'hermes',  status: 'pending' },
   { label: 'VOICE SYSTEM',     component: 'voice',   status: 'pending' },
   { label: 'FACE RECOGNITION', component: 'face',    status: 'pending' },
   { label: 'HOLOMAT VISION',   component: 'holomat', status: 'pending' },
@@ -97,7 +95,7 @@ const BOOT_CHECKS_INIT: BootCheck[] = [
 
 /**
  * Délai d'attente du `boot_state` d'ouverture. Passé ce délai, le Core est
- * considéré comme absent : HERMES CORE au rouge, la séquence s'arrête, et on
+ * considéré comme absent : checklist au rouge, la séquence s'arrête, et on
  * face only. Pas de PIN (kiosk TV / Linux sans apps natives).
  *
  * Généreux exprès : le Core accepte les connexions immédiatement mais il y a
@@ -462,7 +460,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
           return;
         }
         console.warn('[boot] aucun boot_state — Core injoignable');
-        setCheckStatus('hermes', 'failed');
+        setCheckStatus('voice', 'failed');
         finish('Noyau cognitif injoignable');
       }, 15_000);
 

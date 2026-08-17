@@ -66,3 +66,15 @@ core/data/voice/cache/
 # il est petit, lisible en revue, et c'est sa comparaison avec le code qui
 # détecte les dérives. Ne pas confondre les deux.
 graphify-out/
+
+# ─── Debris de session ─────────────────────────────────────────────────────
+# Scratch / captures ponctuelles laissées à la racine ou dans core/ pendant
+# le dev — jamais des sources du projet, jamais à committer.
+/*.png
+tmp-*.wav
+tmp_*.py
+hud_camera_diag_snippet.js
+core/scratch_*.txt
+hud/tsconfig.tsbuildinfo
+hud/venv
+.firecrawl/

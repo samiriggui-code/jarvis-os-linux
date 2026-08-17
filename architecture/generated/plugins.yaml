@@ -56,39 +56,39 @@ apps:
     declencheurs: [réseau, wifi, lan]
   - id: terminal
     nom: Terminal
-    statut: surface
+    statut: soon
     risque: vps
     intention: system.shell
-    execute_par: hermes
-    declencheurs: [terminal, shell, console ssh]
+    execute_par: core
+    declencheurs: []
   - id: files
     nom: Fichiers
     statut: surface
     risque: admin
     intention: files.browse
-    execute_par: hermes
-    declencheurs: [fichiers, dossier, explorer]
+    execute_par: core
+    declencheurs: []
   - id: browser
     nom: Navigateur
     statut: surface
     risque: info
     intention: web.browse
-    execute_par: hermes
-    declencheurs: [navigateur, browser, holoweb]
+    execute_par: core
+    declencheurs: []
   - id: reach
     nom: Internet
     statut: surface
     risque: info
     intention: web.search
-    execute_par: hermes
-    declencheurs: [internet, agent-reach, agent reach, recherche web, cherche, trouve, propose, recherche, nouvelles, actualité, actualites, actualités, cherche sur internet, cherche sur le web, cherche sur youtube, cherche sur github, github, reddit, rss, openclaw]
+    execute_par: core
+    declencheurs: []
   - id: docker
     nom: Docker
     statut: soon
     risque: vps
     intention: vps.docker
-    execute_par: hermes
-    declencheurs: [docker, conteneur, containers]
+    execute_par: core
+    declencheurs: []
   - id: code
     nom: VS Code
     statut: soon
@@ -101,15 +101,15 @@ apps:
     statut: surface
     risque: admin
     intention: data.analyze
-    execute_par: hermes
-    declencheurs: [stats, données]
+    execute_par: core
+    declencheurs: []
   - id: storage
     nom: Stockage
     statut: soon
     risque: vps
     intention: vps.storage
-    execute_par: hermes
-    declencheurs: [stockage, disque, volume]
+    execute_par: core
+    declencheurs: []
   - id: cerveau
     nom: Cerveau
     statut: surface
@@ -136,8 +136,8 @@ apps:
     statut: surface
     risque: info
     intention: agent.skills
-    execute_par: hermes
-    declencheurs: [skills, compétences]
+    execute_par: core
+    declencheurs: []
   - id: connexions
     nom: Connexions
     statut: soon
@@ -171,15 +171,15 @@ apps:
     statut: surface
     risque: admin
     intention: agent.cron
-    execute_par: hermes
-    declencheurs: [cron, planifié, schedule]
+    execute_par: core
+    declencheurs: []
   - id: outils
     nom: Outils
     statut: surface
     risque: admin
     intention: agent.tools
-    execute_par: hermes
-    declencheurs: [outils, tools, tool manager]
+    execute_par: core
+    declencheurs: []
   - id: hud-lock
     nom: Verrouiller
     statut: live
@@ -252,11 +252,11 @@ apps:
     declencheurs: [caméra du salon, caméra salon, affiche la caméra, affiche la caméra du salon, montre la caméra, montre-moi le salon, regarde ce qui se passe au salon, regarde le salon]
   - id: music
     nom: Musique
-    statut: surface
+    statut: soon
     risque: media
-    intention: media.music
-    execute_par: hermes
-    declencheurs: [musique, spotify, plex audio]
+    intention: null
+    execute_par: null
+    declencheurs: []
   - id: video
     nom: Vidéo
     statut: surface

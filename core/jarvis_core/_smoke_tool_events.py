@@ -59,7 +59,7 @@ async def main() -> int:
           CAPABILITIES["memory-store-note"].operation is Operation.WRITE)
     non_default = sum(1 for c in CAPABILITIES.values() if c.operation is not Operation.READ)
     # 31 depuis l'ajout de `dev.board.start_run` (EXECUTE) — Mission DEV Board.
-    check("31 capacités explicitement non-READ", non_default == 31, f"trouvé {non_default}")
+    check("30 capacités explicitement non-READ", non_default == 30, f"trouvé {non_default}")
 
     print("\n\033[1m3. `tool_events.py` — journal non bloquant, sur DB isolée\033[0m")
     tmp_dir = Path(tempfile.mkdtemp(prefix="jarvis_tool_events_"))
@@ -93,9 +93,9 @@ async def main() -> int:
         duration_ms=12.5,
     ))
     te.record_tool_event(te.ToolEvent(
-        intent="media.music", stage="failed", owner="hermes", toolset="spotify",
-        risk=int(RiskLevel.MEDIA), operation=Operation.WRITE.value, role="user",
-        user_id="u1", device_id="nuc", reason="toolset désactivé",
+        intent="web.search", stage="failed", owner="hermes", toolset="web",
+        risk=int(RiskLevel.INFO), operation=Operation.READ.value, role="user",
+        user_id="u1", device_id="nuc", reason="backend extract absent",
     ))
 
     flushed = te.flush_tool_events(timeout=5.0)
@@ -118,7 +118,7 @@ async def main() -> int:
     check("`device_id` porté jusqu'en base (préparation multi-machine)",
           len(rows) >= 3 and rows[0]["device_id"] == "core" and rows[2]["device_id"] == "nuc")
     check("le refus Hermes est tracé avec sa raison",
-          len(rows) >= 3 and rows[2]["reason"] == "toolset désactivé")
+          len(rows) >= 3 and rows[2]["reason"] == "backend extract absent")
 
     te.record_tool_event_sync(te.ToolEvent(
         intent="core.preferences", stage="started", owner="core",

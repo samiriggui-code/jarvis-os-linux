@@ -11,7 +11,7 @@ export type ArchitectureAnchor = {
 /** Réf. vendor — ids canoniques architecture. */
 export const VENDOR_ARCHITECTURE_ANCHORS: ArchitectureAnchor[] = [
   { id: 'core', index: '01', label: 'CORE SYSTEM', side: 'left', top: 22 },
-  { id: 'hermes', index: '02', label: 'HERMES AGENT', side: 'left', top: 36 },
+  { id: 'bridge', index: '02', label: 'LLM BRIDGE', side: 'left', top: 36 },
   { id: 'memory', index: '03', label: 'MEMORY PALACE', side: 'left', top: 50 },
   { id: 'policy', index: '04', label: 'POLICY ENGINE', side: 'left', top: 64 },
   { id: 'hud', index: '05', label: 'HUD SURFACE', side: 'left', top: 78 },

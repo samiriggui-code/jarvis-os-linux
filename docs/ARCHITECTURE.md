@@ -9,6 +9,7 @@
 
 | Document | Statut | Contenu |
 |----------|--------|---------|
+| [`architecture/JARVIS-Gateway-Hermes-HA.md`](architecture/JARVIS-Gateway-Hermes-HA.md) | **Spec migration** | Couche JARVIS (`core/`), HA NUC, Hermes skills, Policy vs HA, checklist |
 | [`architecture/JARVIS-Agentic-UI.md`](architecture/JARVIS-Agentic-UI.md) | **Validé** | Surfaces, catalogue, Policy, admission, renderer |
 | [`architecture/JARVIS-Core-Plateforme.md`](architecture/JARVIS-Core-Plateforme.md) | Vision | Plateforme, agents, mémoire cible, écarts |
 | [`architecture/JARVIS-Satellites.md`](architecture/JARVIS-Satellites.md) | Référence | Pi, HA, VPS, NUC, classes réseau |
@@ -22,20 +23,15 @@
 ## Schéma distribué (prod cible)
 
 ```
-┌─────────────┐     tunnels SSH      ┌─────────────┐
-│  Portable   │◄────────────────────►│     NUC     │
-│ Core + HUD  │                      │ Hermes+PG   │
-│  (dev)      │◄────────────────────►│             │
-└──────┬──────┘                      └─────────────┘
-       │
-       └────────────────────────────►┌─────────────┐
-                                     │     VPS     │
-                                     │ voicebox    │
-                                     │ Ollama      │
-                                     └─────────────┘
+HUD/Dashboard ──WS──► Couche JARVIS (core/) ──► HA :8123 (NUC, maison unique)
+                              │
+                              ├──► Hermes :8642 (skills)
+                              └──► Pi salon · Agent Windows (satellites)
 
-Pi salon (jarvis-salon) — satellite domotique, SSH WAN :41223
+VPS — TLS, WSS relais, Ollama (LLM #1 si activé)
 ```
+
+Détail migration : [`architecture/JARVIS-Gateway-Hermes-HA.md`](architecture/JARVIS-Gateway-Hermes-HA.md).
 
 ---
 

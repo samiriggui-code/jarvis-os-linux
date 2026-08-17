@@ -104,6 +104,7 @@ export const CAPABILITIES_BY_KIND: Record<string, LayoutCapabilities> = {
   'camera-preview': { minWidth: 320, preferredWidth: 420, minHeight: 180, preferredHeight: 236, aspectRatio: 16 / 9, priority: 55, expandBehavior: 'preserveAspect', contentType: 'media' },
   'image-viewer': { minWidth: 200, preferredWidth: 320, minHeight: 150, preferredHeight: 240, aspectRatio: 4 / 3, priority: 50, expandBehavior: 'preserveAspect', contentType: 'media' },
   'video-preview': { minWidth: 280, preferredWidth: 420, minHeight: 158, preferredHeight: 236, aspectRatio: 16 / 9, priority: 50, expandBehavior: 'preserveAspect', contentType: 'media' },
+  'live-stream': { minWidth: 320, preferredWidth: 460, minHeight: 180, preferredHeight: 258, aspectRatio: 16 / 9, priority: 55, expandBehavior: 'preserveAspect', contentType: 'media' },
   screenshot: { minWidth: 280, preferredWidth: 420, minHeight: 158, preferredHeight: 236, aspectRatio: 16 / 9, priority: 50, expandBehavior: 'preserveAspect', contentType: 'media' },
   'media-gallery': { minWidth: 280, preferredWidth: 440, minHeight: 200, preferredHeight: 320, priority: 50, contentType: 'media' },
 

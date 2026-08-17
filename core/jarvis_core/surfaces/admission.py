@@ -43,6 +43,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "user": {"system.read", "memory.read", "console.read", "camera.read", "web.read"},
     # Pas `memory.read` : `MemoryPanel` expose la mémoire du foyer et elle est
     # **effaçable**. Ce n'est pas une lecture anodine.
+    # Pas `camera.read.satellite` non plus : les caméras de la maison (Pi
+    # salon…) sont admin-only, décision Samir 2026-08-17 — distinct de
+    # `camera.read` qui couvre la webcam locale du HUD (gestes/face,
+    # accordée à tout le foyer).
     "child": {"system.read"},
 }
 

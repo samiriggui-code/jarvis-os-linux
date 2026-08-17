@@ -11,7 +11,6 @@ import json
 import logging
 from typing import Any
 
-from .capabilities import Owner, for_intent
 from .verification import Observation, VerificationRequest
 
 logger = logging.getLogger("jarvis.verification.hooks")
@@ -132,23 +131,8 @@ async def build_observation(
     réseau réel) — les autres branches restent du travail en mémoire, aucune
     latence introduite pour vps/pi/device/missions.
     """
-    cap = for_intent(intent)
-    if cap is not None and cap.owner is Owner.HERMES:
-        return Observation(
-            observed="hermes_claim_is_not_proof",
-            success=False,
-            details={"source": "hermes_rejected", "intent": intent, "reviews": []},
-        )
-
     if intent in ("vps.terminal", "pi.terminal"):
         return _observe_remote_result(result, intent=intent, host=host)
-
-    if intent == "system.shell":
-        return Observation(
-            observed="system.shell via Hermes — claim rejected as proof",
-            success=False,
-            details={"source": "hermes_shell_rejected", "reviews": []},
-        )
 
     if intent in ("core.cursor", "device.app_launch"):
         return _observe_device(result, orch=orch)

@@ -42,7 +42,6 @@ DEVICES_URL = (
 CORE_SALON = (os.environ.get("JARVIS_CORE_SALON_URL") or "http://192.168.1.37:8080").strip().rstrip("/")
 SALON_TOKEN = (os.environ.get("JARVIS_SALON_TOKEN") or "").strip()
 
-HA_URL = (os.environ.get("JARVIS_HA_URL") or "http://127.0.0.1:8123").strip().rstrip("/")
 EAR_HEALTH = (os.environ.get("JARVIS_EAR_HEALTH") or "http://127.0.0.1:8767/health").strip()
 CAM_URL = (os.environ.get("JARVIS_CAM_URL") or "http://127.0.0.1:8768/").strip()
 PLAYER_ADB = (os.environ.get("JARVIS_PLAYER_ADB") or "192.168.1.49:5555").strip()
@@ -154,39 +153,6 @@ def detect_audio_output() -> dict[str, Any] | None:
     }
 
 
-def detect_home_assistant() -> dict[str, Any] | None:
-    # /api/ sans token → souvent 401 = instance vivante.
-    try:
-        req = urllib.request.Request(f"{HA_URL}/api/", method="GET")
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
-            code = getattr(resp, "status", 200)
-            if code < 500:
-                return {
-                    "name": "home_assistant",
-                    "capability_id": "home_assistant.gateway",
-                    "value": True,
-                    "metadata": {"instance": "ha_local", "url": HA_URL},
-                }
-    except urllib.error.HTTPError as exc:
-        if exc.code in (401, 403, 404):
-            return {
-                "name": "home_assistant",
-                "capability_id": "home_assistant.gateway",
-                "value": True,
-                "metadata": {"instance": "ha_local", "url": HA_URL, "auth": "required"},
-            }
-    except Exception:  # noqa: BLE001
-        pass
-    if _http_ok(HA_URL):
-        return {
-            "name": "home_assistant",
-            "capability_id": "home_assistant.gateway",
-            "value": True,
-            "metadata": {"instance": "ha_local", "url": HA_URL},
-        }
-    return None
-
-
 def detect_freebox_player() -> dict[str, Any] | None:
     ear = _http_json("GET", EAR_HEALTH, None, timeout=3.0) or {}
     if not ear.get("ok"):
@@ -207,13 +173,13 @@ def detect_freebox_player() -> dict[str, Any] | None:
 
 def probe_capabilities() -> list[dict[str, Any]]:
     caps: list[dict[str, Any]] = []
-    for fn in (
+    probes: list[Any] = [
         detect_camera,
         detect_audio_input,
         detect_audio_output,
-        detect_home_assistant,
         detect_freebox_player,
-    ):
+    ]
+    for fn in probes:
         try:
             cap = fn()
         except Exception:  # noqa: BLE001

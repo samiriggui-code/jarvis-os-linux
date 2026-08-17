@@ -7,7 +7,6 @@ exécute-la ». Ici on réutilise les mêmes briques bas niveau (Policy,
 approbation, IntentExecutor) sans passer par le catalogue de composants —
 même garde-fou, entrée adaptée à l'usage réel.
 
-NUC → `system.shell` (Owner.HERMES, chemin existant, inchangé).
 VPS / Pi → `vps.terminal` / `pi.terminal` (Owner.CORE, `remote_exec.py`,
 SSH dédié — voir capabilities.py et le plan Terminal admin).
 """
@@ -23,7 +22,6 @@ from ...capabilities import for_intent
 from ...policy import RiskLevel
 
 _HOST_INTENTS = {
-    "nuc": "system.shell",
     "vps": "vps.terminal",
     "pi": "pi.terminal",
 }
@@ -56,7 +54,7 @@ class TerminalHandlerMixin:
             await ws.send(json.dumps({
                 "type": "terminal_result",
                 "ok": False,
-                "error": f"hôte inconnu : « {host} » (nuc / vps / pi)",
+                "error": f"hôte inconnu : « {host} » (vps / pi)",
             }))
             return
         if not command:
@@ -187,7 +185,7 @@ class TerminalHandlerMixin:
             return
 
         # M2.1 — terminal contourne _execute_intent : Verification ici.
-        # RemoteResult (vps/pi) = observation ; system.shell Hermes ≠ preuve.
+        # RemoteResult (vps/pi) = observation.
         verification_meta = None
         verify = getattr(self, "_verify_after_execution", None)
         if callable(verify):

@@ -27,14 +27,12 @@ def main() -> int:
     from jarvis_core.routing import CapabilityProvider, provider_for_intent, resolve_execution_host
     from jarvis_core.routing.router import CapabilityRouter, RouteContext
     from jarvis_core.devices import DeviceRegistry
-    from jarvis_core.hermes import HermesIntentDelegate
     from jarvis_core.executors import IntentExecutorsMixin
     from jarvis_core.surfaces.publisher import publish_result_surface
 
     orch = Orchestrator()
     check("Orchestrator", orch is not None)
     check("router", hasattr(orch, "router"))
-    check("HermesIntentDelegate import", HermesIntentDelegate is not None)
     check("executors segmented", hasattr(IntentExecutorsMixin, "_execute_home"))
     check("surface publisher", callable(publish_result_surface))
     check("_open_intent unified", hasattr(orch, "_open_intent"))
@@ -89,14 +87,6 @@ def main() -> int:
     print("\n-- P2b contrat HUD --")
     rc = subprocess.call(
         [sys.executable, "-m", "jarvis_core._smoke_p2b"],
-        cwd=str(ROOT),
-        env=env,
-    )
-    if rc != 0:
-        raise SystemExit(rc)
-
-    rc = subprocess.call(
-        [sys.executable, "-m", "jarvis_core._smoke_hermes_events"],
         cwd=str(ROOT),
         env=env,
     )

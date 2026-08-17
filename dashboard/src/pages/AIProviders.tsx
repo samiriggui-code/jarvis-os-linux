@@ -1,25 +1,25 @@
 /**
  * AI Provider Manager — statut réel via Core WS type=providers.
- * Même donnée que la voix « Jarvis, montre-moi les providers » (core.providers,
- * executors/system.py) — juste sans surface HUD ni synthèse vocale ici.
+ * Chaîne : OpenRouter → Anthropic → mode sans LLM. Cursor = Cloud Agents (dev).
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
 import { useCoreSession } from '../context/CoreSessionContext'
 import { dashRequest } from '../lib/dashQuery'
 
+type ProviderBlock = { ok?: boolean; error?: string; configured?: boolean }
+
 type ProviderStatus = {
   ok?: boolean
   mode?: string
-  openrouter?: { ok?: boolean; error?: string; label?: string; usage?: number; limit?: number | null }
-  ollama?: { ok?: boolean; error?: string; model_count?: number }
+  openrouter?: ProviderBlock & { label?: string; usage?: number; limit?: number | null }
+  anthropic?: ProviderBlock & { model_count?: number }
+  cursor?: ProviderBlock & { agent_count?: number }
   error?: string
 }
 
 const MODE_LABEL: Record<string, string> = {
-  local: 'Ollama local',
-  remote: 'Ollama VPS',
-  cloud: 'OpenRouter (cloud)',
+  cloud: 'OpenRouter → Anthropic',
   system: 'Sans LLM (JARVIS BASE)',
 }
 
@@ -47,7 +47,8 @@ export default function AIProviders() {
 
   const mode = st?.mode || ''
   const orOk = st?.openrouter?.ok === true
-  const ollamaOk = st?.ollama?.ok === true
+  const anOk = st?.anthropic?.ok === true
+  const cuOk = st?.cursor?.ok === true
 
   return (
     <PageShell>
@@ -60,24 +61,35 @@ export default function AIProviders() {
           color={orOk ? '#34C759' : '#FFC857'}
         />
         <StatPill
-          label="OLLAMA"
-          value={loading ? '…' : ollamaOk ? `${st?.ollama?.model_count ?? 0} modèles` : (st?.ollama?.error ? 'ERREUR' : 'NON CONFIGURÉ')}
-          color={ollamaOk ? '#34C759' : '#FFC857'}
+          label="ANTHROPIC"
+          value={loading ? '…' : anOk ? `${st?.anthropic?.model_count ?? 0} modèles` : (st?.anthropic?.error ? 'ERREUR' : 'NON CONFIGURÉ')}
+          color={anOk ? '#34C759' : '#FFC857'}
+        />
+        <StatPill
+          label="CURSOR"
+          value={loading ? '…' : cuOk ? `${st?.cursor?.agent_count ?? 0} agents` : (st?.cursor?.error ? 'ERREUR' : 'NON CONFIGURÉ')}
+          color={cuOk ? '#34C759' : '#FFC857'}
         />
       </div>
       <Card>
         <CardTitle>Chaîne de bascule (AI Provider Manager)</CardTitle>
         <Row
-          name="Ollama VPS/local"
-          meta={ollamaOk ? `${st?.ollama?.model_count ?? 0} modèle(s) disponible(s)` : 'JARVIS_REMOTE_LLM_URL / JARVIS_OLLAMA_URL'}
-          status={ollamaOk ? 'OK' : (loading ? '…' : 'NON CONFIGURÉ')}
-          statusColor={ollamaOk ? '#34C759' : '#FFC857'}
-        />
-        <Row
           name="OpenRouter"
-          meta={st?.openrouter?.label ? `Clé « ${st.openrouter.label} »` : 'OPENROUTER_API_KEY'}
+          meta={st?.openrouter?.label ? `Clé « ${st.openrouter.label} » — chat primaire` : 'OPENROUTER_API_KEY — chat primaire'}
           status={orOk ? 'OK' : (loading ? '…' : (st?.openrouter?.error || 'NON CONFIGURÉ'))}
           statusColor={orOk ? '#34C759' : '#FFC857'}
+        />
+        <Row
+          name="Anthropic"
+          meta="ANTHROPIC_API_KEY — repli direct si OpenRouter échoue"
+          status={anOk ? 'OK' : (loading ? '…' : (st?.anthropic?.error || 'NON CONFIGURÉ'))}
+          statusColor={anOk ? '#34C759' : '#FFC857'}
+        />
+        <Row
+          name="Cursor Cloud Agents"
+          meta="CURSOR_API_KEY — Mission Control Dev, pas le chat"
+          status={cuOk ? 'OK' : (loading ? '…' : (st?.cursor?.error || 'NON CONFIGURÉ'))}
+          statusColor={cuOk ? '#34C759' : '#FFC857'}
         />
         <Row
           name="Mode sans LLM"

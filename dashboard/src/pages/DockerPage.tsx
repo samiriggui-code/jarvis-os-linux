@@ -4,15 +4,14 @@ import { HOST } from '../types'
 /** Docker — catalogue cible. Pas de faux "up" tant que l’API host n’est pas branchée. */
 export default function DockerPage() {
   const containers = [
-    { name: 'ollama (VPS)', image: 'ollama/ollama', ports: '127.0.0.1:11434', status: 'PENDING', note: 'secours LLM — déjà possible sur VPS' },
     { name: 'traefik', image: 'traefik', ports: '80/443', status: 'PENDING', note: 'TLS / reverse WSS → Core NUC' },
     { name: 'jarvis-core', image: '—', ports: 'NUC:8765', status: 'NUC', note: 'pas sur le VPS (archi foyer)' },
-    { name: 'hermes-agent', image: '—', ports: 'NUC', status: 'NUC', note: 'à côté du Core' },
+    { name: 'homeassistant', image: 'ghcr.io/home-assistant/home-assistant', ports: 'NUC:8123', status: 'NUC', note: 'docker compose foyer' },
   ]
 
   return (
     <PageShell>
-      <PlaceholderBanner note="Docker VPS = Traefik + Ollama secours. Core/Hermes/voix = NUC. Liste non live tant que Tool Manager absent." />
+      <PlaceholderBanner note="Docker VPS = Traefik. Core / HA / voix = NUC. Liste non live tant que l’API host n’est pas branchée." />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <StatPill label="HOST" value={HOST.role} color="#0A84FF" />
         <StatPill label="LIVE API" value="OFF" color="#FFC857" />

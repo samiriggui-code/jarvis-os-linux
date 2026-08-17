@@ -8,6 +8,7 @@ Type=simple
 Environment=JARVIS_CAM_DEVICE=/dev/video0
 Environment=JARVIS_CAM_SIZE=1280x720
 Environment=JARVIS_CAM_FPS=15
+Environment=JARVIS_CAM_MIC=plughw:CARD=Camera,DEV=0
 Environment=JARVIS_CAM_HOST=0.0.0.0
 Environment=JARVIS_CAM_PORT=8768
 ExecStart=/usr/bin/python3 /opt/jarvis/pi-salon/jarvis_cam.py

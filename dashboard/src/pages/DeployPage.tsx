@@ -7,7 +7,7 @@ export default function DeployPage() {
     {
       name: 'jarvis-os-linux',
       path: HOST.path,
-      stack: 'core · hud · dashboard · hermes',
+      stack: 'core · hud · dashboard',
       status: 'RUNNING',
       ok: true,
     },

@@ -1,6 +1,6 @@
 /**
  * MediaFrame — base UNIQUE pour CameraPreview/ImageViewer/VideoPreview/
- * Screenshot (règle de consolidation : un renderer, des presets).
+ * Screenshot/LiveStream (règle de consolidation : un renderer, des presets).
  */
 import type { ReactNode } from 'react';
 import { GlassCard } from '../../../visual/glass';

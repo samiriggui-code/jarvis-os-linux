@@ -1,9 +1,9 @@
 ---
 name: user-locale
 description: >-
-  Profil multi-user face+voix+langue. Après Holomat/auth, charger preferred_language,
-  secondary_languages, voicePreset, permissions. Répondre en miroir / preferred / sticky.
-  Whisper lang_id quand dispo. CE N’EST PAS UN MOCK.
+  TRIGGER — langue / voix / profil après auth Holomat (« passe en anglais », voix
+  soft). Ne PAS charger pour salutation, heure, météo, chat casual sans demande
+  de langue. CE N’EST PAS UN MOCK.
 ---
 
 # Skill — Locale & identité foyer

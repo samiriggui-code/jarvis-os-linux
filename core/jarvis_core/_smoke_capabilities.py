@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from dataclasses import replace
 
 # Console Windows en cp1252 : sans ça, un tiret cadratin fait échouer le test au
 # lieu de la chose testée. Même parade que `_smoke_p3.py`.
@@ -22,8 +21,7 @@ for _stream in (sys.stdout, sys.stderr):
 from .capabilities import (  # noqa: E402
     CAPABILITIES, Owner, allows, for_app, match_intent, toolsets_for,
 )
-from .hermes import HermesBridge, HermesRefused, HermesUnavailable  # noqa: E402
-from .policy import Decision, PolicyEngine, RiskLevel  # noqa: E402
+from .policy import PolicyEngine, RiskLevel  # noqa: E402
 
 OK, KO = "  ok  ", "  KO  "
 _failures = 0
@@ -38,7 +36,6 @@ def check(label: str, condition: bool, detail: str = "") -> None:
 
 async def main() -> int:
     policy = PolicyEngine()
-    bridge = HermesBridge(url="http://127.0.0.1:1", key="")
 
     print("\n── Table des capacités ─────────────────────────────────────────")
     n = len(CAPABILITIES)
@@ -54,10 +51,10 @@ async def main() -> int:
     check("home → risque HOME", home.risk is RiskLevel.HOME)
     check("home est réalisable", home.available)
 
-    docker = for_app("docker")
-    assert docker is not None
-    check("docker délègue au toolset terminal", docker.toolset == "terminal")
-    check("docker est réalisable", docker.available)
+    check("capacités agent supprimées", all(
+        name not in CAPABILITIES
+        for name in ("reach", "browser", "files", "terminal", "analyze", "skills", "outils", "crons", "docker", "storage")
+    ))
 
     video = for_app("video")
     assert video is not None
@@ -65,13 +62,9 @@ async def main() -> int:
     check("video ne délègue à aucun toolset", video.toolset is None)
     check("video est réalisable", video.available)
 
-    print("\n── Délégation par rôle ─────────────────────────────────────────")
-    check("anonyme ne délègue rien", toolsets_for(None) == set())
-    check("rôle inconnu ne délègue rien", toolsets_for("pirate") == set())
-    check("enfant : pas le web", "web" not in toolsets_for("child"))
-    check("utilisateur : le web oui", "web" in toolsets_for("user"))
-    check("enfant : pas de shell", "terminal" not in toolsets_for("child"))
-    check("admin : shell oui", "terminal" in toolsets_for("admin"))
+    print("\n── Aucun toolset agent ─────────────────────────────────────────")
+    for role in (None, "pirate", "child", "user", "admin"):
+        check(f"{role or 'anonyme'} ne délègue rien", toolsets_for(role) == set())
 
     print("\n── Rôle vs Dashboard ───────────────────────────────────────────")
     hub = for_app("hub")
@@ -87,58 +80,6 @@ async def main() -> int:
     d_shell = policy.evaluate(action="system.shell", risk=RiskLevel.VPS)
     check("shell : confirmation ADMIN", d_shell.needs_confirmation)
 
-    print("\n── Le pont refuse — et dit pourquoi ────────────────────────────")
-
-    async def refuses(label: str, coro, expected: type[Exception]) -> None:
-        try:
-            await coro
-        except expected as exc:
-            check(label, True, str(exc)[:64])
-        except Exception as exc:  # noqa: BLE001
-            check(label, False, f"mauvaise exception : {type(exc).__name__} {exc}")
-        else:
-            check(label, False, "AUCUN refus — c'est le défaut qu'on traque")
-
-    reach = for_app("reach")
-    assert reach is not None
-
-    await refuses(
-        "décision négative → refus",
-        bridge.ask(reach, "cherche", role="admin", decision=Decision(allowed=False, reason="non")),
-        HermesRefused,
-    )
-    await refuses(
-        "enfant → refus de délégation",
-        bridge.ask(reach, "cherche", role="child", decision=Decision(allowed=True)),
-        HermesRefused,
-    )
-    await refuses(
-        "anonyme → refus de délégation",
-        bridge.ask(reach, "cherche", role=None, decision=Decision(allowed=True)),
-        HermesRefused,
-    )
-    docker_sans_toolset = replace(docker, toolset=None)
-    await refuses(
-        "capacité sans toolset → refus",
-        bridge.ask(docker_sans_toolset, "ps", role="admin", decision=Decision(allowed=True)),
-        HermesRefused,
-    )
-    await refuses(
-        "capacité non-Hermes → refus",
-        bridge.ask(video, "joue", role="admin", decision=Decision(allowed=True)),
-        HermesRefused,
-    )
-    await refuses(
-        "domotique → jamais déléguée à Hermes",
-        bridge.ask(home, "allume", role="admin", decision=Decision(allowed=True)),
-        HermesRefused,
-    )
-    await refuses(
-        "sans clé API → indisponible, pas silencieux",
-        bridge.ask(reach, "cherche", role="admin", decision=Decision(allowed=True)),
-        HermesUnavailable,
-    )
-
     print("\n── Routage d'une phrase ────────────────────────────────────────")
     # Le point de départ : cette phrase partait en `action="chat", risk=INFO`.
     c = match_intent("jarvis allume les lumières du salon")
@@ -146,7 +87,7 @@ async def main() -> int:
     check("… et au risque HOME, pas INFO", c is not None and c.risk is RiskLevel.HOME)
 
     c = match_intent("ouvre le terminal")
-    check("« terminal » → shell au risque VPS", c is not None and c.risk is RiskLevel.VPS)
+    check("« terminal » sans capacité agent", c is None)
 
     # Le plus long gagne : sinon l'ordre de déclaration décide, donc le hasard.
     c = match_intent("ouvre mission control dev")
@@ -198,8 +139,8 @@ async def main() -> int:
         if not c.triggers and c.app_id not in NO_TRIGGER_OK
     ]
     check("toute capacité a des déclencheurs", not sans_declencheur, ", ".join(sans_declencheur))
-    bad = [c.app_id for c in CAPABILITIES.values() if c.owner is not Owner.HERMES and c.toolset]
-    check("aucun toolset sur une capacité non-Hermes", not bad, ", ".join(bad))
+    bad = [c.app_id for c in CAPABILITIES.values() if c.toolset]
+    check("aucun toolset dans Core", not bad, ", ".join(bad))
 
     # Clés dict != app_id quand plusieurs intentions partagent une tuile HUD.
     KEY_APP_MISMATCH_OK = frozenset({

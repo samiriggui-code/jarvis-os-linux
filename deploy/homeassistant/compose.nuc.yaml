@@ -1,0 +1,26 @@
+# Home Assistant — NUC (cerveau domotique unique)
+# Spec: docs/architecture/JARVIS-Gateway-Hermes-HA.md §7
+#
+# Install:
+#   sudo mkdir -p /opt/jarvis/homeassistant/config
+#   sudo cp compose.nuc.yaml /opt/jarvis/homeassistant/compose.yaml
+#   cd /opt/jarvis/homeassistant && sudo docker compose up -d
+#
+# Core: JARVIS_HASS_URL=http://127.0.0.1:8123
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: jarvis-homeassistant
+    network_mode: host
+    privileged: true
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Paris
+    volumes:
+      - ./config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

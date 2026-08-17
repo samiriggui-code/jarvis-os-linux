@@ -312,13 +312,38 @@ export const definitions: Record<string, ComponentDefinition> = {
       caption: z.string().default('').describe('Légende sous l\'image'),
     }),
     states: ['idle'],
-    permissions: [],
+    // Flux maison (Pi salon) : admin uniquement, pas le grand public du foyer
+    // — distinct de `camera.read` (webcam locale HUD, gestes/face, accordée
+    // au rôle `user`). Décision Samir 2026-08-17.
+    permissions: ['camera.read.satellite'],
     requiredContext: [],
     supportedActions: {},
     preferredRegion: 'center',
     preferredSize: 'wide',
     priority: 70,
     tags: ['image', 'caméra', 'salon', 'snapshot', 'flux', 'surveillance'],
+  },
+
+  LiveStream: {
+    name: 'LiveStream',
+    description:
+      "Lecteur vidéo+audio en direct depuis une URL fournie par le Core (caméra salon Pi). Contrairement à CameraPreview, n'ouvre jamais getUserMedia — le flux vient du satellite.",
+    category: 'media',
+    props: z.object({
+      src: z.string().default('').describe('URL du flux A/V (fMP4 /live.mp4)'),
+      caption: z.string().default('').describe('Légende sous le lecteur'),
+      titlebar: z.string().default('').describe('Barre de titre — nom de la source, fourni par le Core (une brique catalogue ne connaît pas la pièce)'),
+      muted: z.boolean().default(false).describe('Démarre muet (politique autoplay navigateur)'),
+    }),
+    states: ['idle'],
+    // Idem ImageViewer : flux maison admin-only, pas `camera.read` générique.
+    permissions: ['camera.read.satellite'],
+    requiredContext: [],
+    supportedActions: {},
+    preferredRegion: 'center',
+    preferredSize: 'wide',
+    priority: 72,
+    tags: ['caméra', 'salon', 'live', 'vidéo', 'audio', 'surveillance'],
   },
 
   // —— Vague catalogue riche (stats / table / chart / hub / dialog) ————

@@ -336,7 +336,7 @@ class SystemHandlerMixin:
             )
         )
     async def handle_stop_run(self, ws: Any, data: dict[str, Any]) -> None:
-        """Barge-in : coupe la parole + annule la mission DEV en cours."""
+        """Barge-in : coupe la parole et annule Mission DEV."""
         if self.mission_dev.running:
             self.mission_dev.abort()
         if self.voice is not None:
@@ -458,7 +458,7 @@ class SystemHandlerMixin:
         publier de surface ni parler : une simple lecture pour un client qui
         affiche, pas pour une composition HUD.
         """
-        from ...usage import fetch_ollama_status, fetch_openrouter_key
+        from ...usage import fetch_anthropic_status, fetch_cursor_status, fetch_openrouter_key
 
         action = str(data.get("action", "status"))
         if action != "status":
@@ -469,46 +469,13 @@ class SystemHandlerMixin:
             }))
             return
         mode = self.providers.current_mode()
-        or_info = fetch_openrouter_key()
-        ollama = fetch_ollama_status()
         await ws.send(json.dumps({
             "type": "providers_result",
             "ok": True,
             "mode": mode,
-            "openrouter": or_info,
-            "ollama": ollama,
-        }))
-
-    async def handle_hermes(self, ws: Any, data: dict[str, Any]) -> None:
-        """Statut Hermes — requête directe (dashboard admin).
-
-        Santé + toolsets réellement `enabled`/`configured` côté Hermes (pas la
-        liste déclarée côté Core dans capabilities.py) — même lecture que
-        celle qui décide en interne si une délégation est possible
-        (``HermesBridge._usable``), exposée en lecture seule ici.
-        """
-        action = str(data.get("action", "status"))
-        if action != "status":
-            await ws.send(json.dumps({
-                "type": "hermes_result",
-                "ok": False,
-                "error": f"action inconnue: {action}",
-            }))
-            return
-        healthy = await self.hermes.health()
-        toolsets: list[dict[str, Any]] = []
-        if healthy:
-            try:
-                toolsets = await self.hermes.toolsets()
-            except Exception as exc:  # noqa: BLE001 — statut dégradé, pas une panne du handler
-                logger.warning("hermes.toolsets(): %s", exc)
-        await ws.send(json.dumps({
-            "type": "hermes_result",
-            "ok": True,
-            "configured": self.hermes.configured,
-            "healthy": healthy,
-            "url": self.hermes.url,
-            "toolsets": toolsets,
+            "openrouter": fetch_openrouter_key(),
+            "anthropic": fetch_anthropic_status(),
+            "cursor": fetch_cursor_status(),
         }))
 
     async def handle_voicebox(self, ws: Any, data: dict[str, Any]) -> None:
@@ -541,7 +508,7 @@ class SystemHandlerMixin:
         }))
 
     async def handle_usage(self, ws: Any, data: dict[str, Any]) -> None:
-        """Dashboard tokens — summary + séries + snapshots OpenRouter/ElevenLabs/Ollama."""
+        """Dashboard tokens — summary + séries OpenRouter / Anthropic / Cursor."""
         from ...usage import dashboard_payload_async, series
 
         action = str(data.get("action", "summary"))

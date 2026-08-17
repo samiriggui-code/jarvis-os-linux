@@ -46,8 +46,6 @@ class SurfaceExecutorsMixin:
         return {"ok": True, "count": len(lines)}
 
     async def _execute_introspect(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from pathlib import Path
-
         from ..capabilities import CAPABILITIES, allows
         from ..surfaces.publisher import publish_result_surface
 
@@ -70,34 +68,8 @@ class SurfaceExecutorsMixin:
         except Exception as exc:  # noqa: BLE001
             items.append(f"(catalogue illisible : {exc})")
 
-        items.append("—— Compétences Hermes (SKILL.md) ——")
-        skill_roots = [
-            Path("/opt/jarvis/deploy/hermes/skills"),
-            Path(__file__).resolve().parents[2] / "deploy" / "hermes" / "skills",
-        ]
-        found = False
-        for root in skill_roots:
-            if not root.is_dir():
-                continue
-            for skill_md in sorted(root.glob("*/SKILL.md")):
-                found = True
-                name = skill_md.parent.name
-                try:
-                    head = skill_md.read_text(encoding="utf-8")[:400]
-                    first = next(
-                        (ln.strip("# ").strip() for ln in head.splitlines() if ln.strip()),
-                        name,
-                    )
-                except Exception:  # noqa: BLE001
-                    first = name
-                items.append(f"skill:{name} — {first}")
-            if found:
-                break
-        if not found:
-            items.append("(aucun SKILL.md trouvé sous deploy/hermes/skills)")
-
         body = (
-            "Introspection JARVIS : intentions, composants agentiques, compétences Hermes. "
+            "Introspection JARVIS : intentions et composants agentiques. "
             "Demandez une action précise pour l’exécuter (Policy → autorisation)."
         )
         if "code" in prompt:
@@ -400,13 +372,6 @@ class SurfaceExecutorsMixin:
                 await ws.send(json.dumps(payload))
             return {"ok": False, "intent": "core.mission_dev", "error": err}
 
-        hermes_ok: bool | None = None
-        hermes = self.supervisor.components.get("hermes")
-        if hermes is not None:
-            from ..supervisor import READY
-
-            hermes_ok = hermes.state == READY
-
         async def send(payload: dict[str, Any]) -> None:
             await self.broadcast(payload)
             if ws is not None:
@@ -428,9 +393,6 @@ class SurfaceExecutorsMixin:
             project_name=project_name,
             scenario=scenario,
             owner_user_id=self._session_user_id(ws),
-            hermes_ok=hermes_ok,
-            hermes_bridge=self.hermes,
-            session_role=self._session_role(ws),
         )
         return {
             "ok": True,
@@ -531,38 +493,6 @@ class SurfaceExecutorsMixin:
         )
         return True
 
-    async def _on_hermes_agent_event(self, ev: Any) -> None:
-        from ..tool_events import AgentToolEvent, record_tool_event, timeline_payload_agent
-
-        if not isinstance(ev, AgentToolEvent):
-            return
-        payload = timeline_payload_agent(ev)
-        self.emit("TOOL_EVENT", payload, source="hermes")
-        await self.broadcast(payload)
-        try:
-            from ..capabilities import for_intent
-
-            cap = for_intent(ev.intent) if ev.intent else None
-            record_tool_event(
-                ev.to_journal(
-                    owner="hermes",
-                    risk=int(cap.risk) if cap else 0,
-                    operation=cap.operation.value if cap else None,
-                    role=self._session_role(),
-                    user_id=self._session_user_id(),
-                )
-            )
-        except Exception:  # noqa: BLE001
-            logger.debug("journal AgentToolEvent ignoré", exc_info=True)
-
-        if ev.event in ("tool.started", "tool.completed", "agent.completed"):
-            await self._maybe_publish_surface_decision(
-                intent=ev.intent,
-                tool=ev.tool,
-                summary=ev.summary,
-                debounce_key=f"hermes:{ev.run_id or ''}:{ev.intent or ''}:{ev.tool or ''}:{ev.event}",
-            )
-
     async def _publish_result_surface(
         self,
         surface_id: str,
@@ -582,6 +512,17 @@ class SurfaceExecutorsMixin:
             source=source,
             items=items,
         )
+
+    async def _publish_component_surface(
+        self,
+        surface_id: str,
+        *,
+        component: str,
+        props: dict[str, Any],
+    ) -> None:
+        from ..surfaces.publisher import publish_component_surface
+
+        await publish_component_surface(self, surface_id, component=component, props=props)
 
     def _surface_component_name(self, surface_id: str, component_id: str) -> str | None:
         surface = self.surfaces.document.get("surfaces", {}).get(surface_id)

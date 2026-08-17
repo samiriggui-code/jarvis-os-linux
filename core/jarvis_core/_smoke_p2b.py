@@ -1,4 +1,4 @@
-"""P2b — split admission + hermes/events (offline).
+"""P2b — split admission + generic Core events (offline).
 
     python -m jarvis_core._smoke_p2b
 """
@@ -22,15 +22,20 @@ def main() -> int:
 
     from jarvis_core.surfaces.admission import validate_document, SurfaceCatalog
     from jarvis_core.surface import SurfaceBroadcaster, validate_document as vd_shim
-    from jarvis_core.hermes.events import map_hermes_run_event
+    from jarvis_core.tool_events import ToolEvent, timeline_payload
 
     check("admission module", validate_document is vd_shim)
     check("broadcaster + admission", SurfaceBroadcaster is not None)
-    check("hermes events direct", map_hermes_run_event({"event": "run.completed"}) is not None)
+    event = timeline_payload(ToolEvent(intent="home.control", stage="completed", owner="core"))
+    check("generic tool event", event.get("event") == "intent.completed")
 
     from jarvis_core.surface_decision import decide_surface_id
 
     check("skills tool → skills", decide_surface_id(tool="skills") == "skills")
+    check(
+        "web_search sous agent.skills → reach",
+        decide_surface_id(intent="agent.skills", tool="web_search") == "reach",
+    )
     check("agent.tools → outils", decide_surface_id(intent="agent.tools") == "outils")
     check("agent.cron → crons", decide_surface_id(intent="agent.cron") == "crons")
 

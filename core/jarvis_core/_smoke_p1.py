@@ -1,10 +1,8 @@
-"""P1 — intégrations services (mission dev ↔ kanban, chat Hermes, surfaces)."""
+"""P1 — intégrations services Core, chat Provider Manager, surfaces."""
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
-from unittest.mock import AsyncMock, MagicMock
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -23,7 +21,6 @@ def main() -> int:
 
     from jarvis_core.capabilities import match_intent
     from jarvis_core.executors.surfaces import SurfaceExecutorsMixin
-    from jarvis_core.mission_dev.kanban import sync_project_card
     from jarvis_core.surface_decision import decide_document, decide_surface_id
 
     check(
@@ -56,30 +53,19 @@ def main() -> int:
     # plus par un ResultPanel générique — `decide_document` doit donc rendre None.
     check("decide_document mission_dev (Board publie son propre document)", doc is None)
 
-    async def _kanban_mock() -> None:
-        bridge = MagicMock()
-        bridge.configured = True
-        bridge.ask = AsyncMock(return_value=MagicMock(text="carte #42 créée"))
-        ok, detail = await sync_project_card(
-            bridge,
-            role="admin",
-            project_name="demo",
-            project_id="pid-1",
-            mission_dev_id="mid-1",
-        )
-        check("kanban sync mock", ok and "42" in detail)
-        check("kanban uses skills toolset", bridge.ask.called)
+    from jarvis_core.gateway import chat_provider_mode
 
-    asyncio.run(_kanban_mock())
-
-    provider = (os.environ.get("JARVIS_CHAT_PROVIDER") or "llm").strip().lower()
-    check("chat default llm", provider in {"llm", "hermes"})
+    os.environ.pop("JARVIS_CHAT_PROVIDER", None)
+    check("chat default llm", chat_provider_mode() == "llm")
+    os.environ["JARVIS_CHAT_PROVIDER"] = "hermes"
+    check("chat remains llm", chat_provider_mode() == "llm")
+    os.environ.pop("JARVIS_CHAT_PROVIDER", None)
 
     from jarvis_core import Orchestrator
 
     orch = Orchestrator()
     check("_start_mission_dev_run", hasattr(orch, "_start_mission_dev_run"))
-    check("chat hermes env hook", "JARVIS_CHAT_PROVIDER" in open(
+    check("chat uses gateway module", "from ...gateway import" in open(
         os.path.join(os.path.dirname(__file__), "ws", "handlers", "chat.py"),
         encoding="utf-8",
     ).read())

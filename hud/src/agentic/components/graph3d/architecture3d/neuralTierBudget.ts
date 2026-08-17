@@ -10,7 +10,7 @@ import type { NodeTier, TierCounts } from './graphTypes';
  *   python scripts/audit-neural-tier-budget.py
  */
 export const PROD_FILESYSTEM_AUDIT = {
-  /** Graph3DModel — 9 nœuds sémantiques (CORE, HERMES, …) */
+  /** Graph3DModel — 9 nœuds sémantiques (CORE, BRIDGE, …) */
   majorProcess: 9,
   /** Dossiers 1er niveau core/jarvis_core (agents, auth, memory, …) */
   subsystem: 16,

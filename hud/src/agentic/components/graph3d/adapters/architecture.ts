@@ -36,7 +36,7 @@ export interface ArchitectureSnapshotLite {
 const CAPTIONS: Record<string, string> = {
   core: 'Noyau central — Calcul & Orchestration',
   policy: 'Règles & Gouvernance',
-  hermes: 'Réseau de communication',
+  bridge: 'Pont LLM — chat & recherche',
   memory: 'Mémoire contextuelle',
   devices: 'Périphériques connectés',
   home: 'Maison connectée',
@@ -48,7 +48,7 @@ const CAPTIONS: Record<string, string> = {
 /** Rails UI — aligné vendor/jarvis-neural-architecture/data/architectureData.ts */
 const UI_ANCHORS: Record<string, { uiSide: 'left' | 'right'; uiAnchorTop: number }> = {
   core: { uiSide: 'left', uiAnchorTop: 22 },
-  hermes: { uiSide: 'left', uiAnchorTop: 36 },
+  bridge: { uiSide: 'left', uiAnchorTop: 36 },
   memory: { uiSide: 'left', uiAnchorTop: 50 },
   policy: { uiSide: 'left', uiAnchorTop: 64 },
   hud: { uiSide: 'left', uiAnchorTop: 78 },
@@ -66,10 +66,9 @@ function withUiAnchor(node: GraphNode): GraphNode {
 /** Sous-ensemble jugé "vivant" par défaut (sans focus) — pas tout, sinon plus aucun contraste. */
 const ACTIVE_CONNECTION_IDS = new Set([
   'hud-core',
-  'core-hermes',
+  'core-bridge',
   'core-memory',
-  'hermes-memory',
-  'policy-hermes',
+  'bridge-memory',
   'core-voice',
 ]);
 
@@ -104,12 +103,12 @@ export function architectureLabSnapshot(): ArchitectureSnapshotLite {
         cluster: 'core-plane',
       },
       {
-        id: 'hermes',
-        label: 'HERMES',
-        status: 'CONFLICT',
-        provenance: 'DOC',
-        host: 'nuc (DOC) / vps (DOC)',
-        note: 'Conflit d’hôte documenté, non résolu.',
+        id: 'bridge',
+        label: 'BRIDGE',
+        status: 'AVAILABLE',
+        provenance: 'CODE',
+        host: 'nuc-main',
+        note: 'LLM Bridge (providers.py) — OpenRouter (primaire) + Anthropic (secours), réponse structurée.',
         cluster: 'core-plane',
       },
       {
@@ -165,20 +164,17 @@ export function architectureLabSnapshot(): ArchitectureSnapshotLite {
     connections: [
       { id: 'hud-core', from: 'hud', to: 'core', kind: 'ws' },
       { id: 'core-policy', from: 'core', to: 'policy', kind: 'inproc' },
-      { id: 'core-hermes', from: 'core', to: 'hermes', kind: 'http' },
+      { id: 'core-bridge', from: 'core', to: 'bridge', kind: 'inproc' },
       { id: 'core-memory', from: 'core', to: 'memory', kind: 'sql' },
       { id: 'core-devices', from: 'core', to: 'devices', kind: 'registry' },
       { id: 'devices-home', from: 'devices', to: 'home', kind: 'http' },
       { id: 'hud-voice', from: 'hud', to: 'voice', kind: 'media' },
       { id: 'hud-vision', from: 'hud', to: 'vision', kind: 'ws' },
-      { id: 'hermes-memory', from: 'hermes', to: 'memory', kind: 'http' },
-      { id: 'policy-hermes', from: 'policy', to: 'hermes', kind: 'gate' },
+      { id: 'bridge-memory', from: 'bridge', to: 'memory', kind: 'inproc' },
       { id: 'policy-memory', from: 'policy', to: 'memory', kind: 'gate' },
       { id: 'hud-memory', from: 'hud', to: 'memory', kind: 'ws' },
-      { id: 'hud-hermes', from: 'hud', to: 'hermes', kind: 'ws' },
       { id: 'voice-vision', from: 'voice', to: 'vision', kind: 'bus' },
       { id: 'vision-devices', from: 'vision', to: 'devices', kind: 'bus' },
-      { id: 'hermes-devices', from: 'hermes', to: 'devices', kind: 'http' },
       { id: 'core-voice', from: 'core', to: 'voice', kind: 'tts' },
       { id: 'core-home', from: 'core', to: 'home', kind: 'http' },
       { id: 'memory-devices', from: 'memory', to: 'devices', kind: 'bus' },
@@ -211,7 +207,7 @@ export function adaptArchitectureSnapshot(snap: ArchitectureSnapshotLite): Graph
     type: 'service',
     cluster: s.cluster,
     status: toStatus(s.status),
-    importance: s.id === 'hermes' ? 0.88 : s.id === 'policy' ? 0.78 : 0.7,
+    importance: s.id === 'bridge' ? 0.88 : s.id === 'policy' ? 0.78 : 0.7,
     summary: s.note,
     caption: CAPTIONS[s.id],
     facts: [
@@ -249,7 +245,7 @@ export function adaptArchitectureSnapshot(snap: ArchitectureSnapshotLite): Graph
       active: ACTIVE_CONNECTION_IDS.has(c.id),
     })),
     clusters: [
-      { id: 'core-plane', label: 'Plan Core', nodeIds: ['core', 'policy', 'hermes', 'memory'] },
+      { id: 'core-plane', label: 'Plan Core', nodeIds: ['core', 'policy', 'bridge', 'memory'] },
       { id: 'surfaces', label: 'Surfaces', nodeIds: ['hud', 'voice', 'vision'] },
       { id: 'edge', label: 'Bord', nodeIds: ['devices', 'home'] },
     ],

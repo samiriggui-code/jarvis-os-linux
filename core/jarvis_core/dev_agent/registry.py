@@ -28,6 +28,9 @@ class DevRunRecord:
     started_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     timeout_s: float = 600.0
+    # Phase 2 — Cursor Cloud Agents (None = chemin device Windows).
+    cloud_agent_id: str | None = None
+    cloud_run_id: str | None = None
 
     def touch(self, *, state: RunState | None = None) -> None:
         self.updated_at = time.time()
@@ -36,6 +39,9 @@ class DevRunRecord:
 
     def is_terminal(self) -> bool:
         return self.state in TERMINAL_RUN_STATES
+
+    def is_cloud(self) -> bool:
+        return bool(self.cloud_agent_id and self.cloud_run_id)
 
     def to_status_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -51,6 +57,10 @@ class DevRunRecord:
             "updated_at": self.updated_at,
             "progress_count": len(self.progress),
         }
+        if self.cloud_agent_id:
+            out["cloud_agent_id"] = self.cloud_agent_id
+        if self.cloud_run_id:
+            out["cloud_run_id"] = self.cloud_run_id
         if self.result is not None:
             out["result"] = self.result.to_dict()
         if self.error_code:

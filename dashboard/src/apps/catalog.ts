@@ -13,7 +13,7 @@ import type { Page } from '../types'
 
 export type AppStatus = 'live' | 'surface' | 'soon'
 export type AppCat = 'Surfaces' | 'Système' | 'Agent' | 'Maison' | 'Médias' | 'Outils'
-export type AppOwner = 'core' | 'hermes' | 'device'
+export type AppOwner = 'core' | 'device'
 
 export interface DashApp {
   id: string
@@ -83,8 +83,8 @@ export const DASH_APPS: DashApp[] = [
   },
   {
     id: 'jarvis', name: 'Noyau', icon: Brain, color: C.violet, cat: 'Système',
-    status: 'live', pinned: true, owner: 'core', intent: 'core.neural_map', page: 'hermes',
-    blurb: 'Carte NeuralMap / Hermes',
+    status: 'live', pinned: true, owner: 'core', intent: 'core.neural_map', page: 'command',
+    blurb: 'Carte NeuralMap / Core',
   },
   {
     id: 'monitor', name: 'Moniteur', icon: Cpu, color: C.success, cat: 'Système',
@@ -118,27 +118,27 @@ export const DASH_APPS: DashApp[] = [
   },
   {
     id: 'terminal', name: 'Terminal', icon: Terminal, color: C.accent, cat: 'Outils',
-    status: 'surface', owner: 'hermes', intent: 'system.shell', page: 'terminal',
+    status: 'surface', owner: 'core', intent: 'system.shell', page: 'terminal',
     blurb: 'Shell allowlist VPS',
   },
   {
     id: 'files', name: 'Fichiers', icon: FolderOpen, color: C.warning, cat: 'Agent',
-    status: 'surface', owner: 'hermes', intent: 'files.browse',
+    status: 'soon', owner: 'core', intent: 'files.browse',
     blurb: 'Explorateur chemins autorisés',
   },
   {
     id: 'browser', name: 'Navigateur', icon: Globe, color: C.accent, cat: 'Agent',
-    status: 'surface', owner: 'hermes', intent: 'web.browse',
+    status: 'soon', owner: 'core', intent: 'web.browse',
     blurb: 'Navigation pilotée',
   },
   {
     id: 'reach', name: 'Agent Reach', icon: Globe, color: C.teal, cat: 'Agent',
-    status: 'surface', owner: 'hermes', intent: 'web.search', page: 'reach',
+    status: 'surface', owner: 'core', intent: 'web.search', page: 'reach',
     blurb: 'Recherche web',
   },
   {
     id: 'docker', name: 'Docker', icon: Box, color: C.accent, cat: 'Outils',
-    status: 'soon', owner: 'hermes', intent: 'vps.docker', page: 'docker',
+    status: 'soon', owner: 'core', intent: 'vps.docker', page: 'docker',
     blurb: 'Conteneurs VPS',
   },
   {
@@ -148,12 +148,12 @@ export const DASH_APPS: DashApp[] = [
   },
   {
     id: 'analyze', name: 'Analyse', icon: BarChart3, color: C.accent, cat: 'Agent',
-    status: 'surface', owner: 'hermes', intent: 'data.analyze',
+    status: 'soon', owner: 'core', intent: 'data.analyze',
     blurb: 'Exécution / stats',
   },
   {
     id: 'storage', name: 'Stockage', icon: HardDrive, color: C.warning, cat: 'Outils',
-    status: 'soon', owner: 'hermes', intent: 'vps.storage',
+    status: 'soon', owner: 'core', intent: 'vps.storage',
     blurb: 'Volumes VPS',
   },
   {
@@ -163,7 +163,7 @@ export const DASH_APPS: DashApp[] = [
   },
   {
     id: 'skills', name: 'Skills', icon: Sparkles, color: C.violet, cat: 'Agent',
-    status: 'surface', owner: 'hermes', intent: 'agent.skills', page: 'tools',
+    status: 'surface', owner: 'core', intent: 'agent.skills', page: 'tools',
     blurb: 'Compétences agent',
   },
   {
@@ -188,12 +188,12 @@ export const DASH_APPS: DashApp[] = [
   },
   {
     id: 'crons', name: 'Crons', icon: Timer, color: C.muted, cat: 'Agent',
-    status: 'surface', owner: 'hermes', intent: 'agent.cron', page: 'tools',
-    blurb: 'Planifié Hermes',
+    status: 'soon', owner: 'core', intent: 'agent.cron', page: 'tools',
+    blurb: 'Tâches planifiées',
   },
   {
     id: 'outils', name: 'Outils', icon: Wrench, color: C.warning, cat: 'Agent',
-    status: 'surface', owner: 'hermes', intent: 'agent.tools', page: 'tools',
+    status: 'surface', owner: 'core', intent: 'agent.tools', page: 'tools',
     blurb: 'Tool manager',
   },
   {
@@ -202,9 +202,8 @@ export const DASH_APPS: DashApp[] = [
     blurb: 'Home Assistant',
   },
   {
-    id: 'music', name: 'Musique', icon: Music, color: C.success, cat: 'Médias',
-    status: 'surface', owner: 'hermes', intent: 'media.music', page: 'voice',
-    blurb: 'Audio / Spotify',
+    id: 'music', name: 'Musique', icon: Music, color: C.muted, cat: 'Médias',
+    status: 'soon', blurb: 'Bientôt — Plex / HA',
   },
   {
     id: 'video', name: 'Vidéo', icon: Video, color: C.warning, cat: 'Médias',

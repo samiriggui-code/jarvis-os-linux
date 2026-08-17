@@ -4,7 +4,7 @@ Journal des tool calls — Tool Bus Phase 1 (gouvernance, pas d'agent loop ici).
 Table `tool_events` via SQLAlchemy (même DB que users / usage_events).
 
 Distinct de `usage.py` : celui-là mesure des complétions LLM (tokens, coût) ;
-celui-ci mesure des actions — quelle intention, portée par qui (Core ou Hermes),
+celui-ci mesure des actions — quelle intention, portée par qui (Core ou Device),
 avec quel résultat. Deux tables, deux schémas ; le pattern d'écriture est copié
 depuis `usage.py`, pas partagé, parce qu'un partage n'aurait de sens qu'à partir
 d'un 3ᵉ site d'appel — pas avant.
@@ -14,10 +14,8 @@ doit jamais attendre la base. `record_tool_event` rend la main immédiatement,
 l'écriture se fait sur un fil de fond, dans une file bornée qui jette plutôt que
 de grossir sans limite.
 
-Phase 2 — `AgentToolEvent` : événement de cycle de vie Hermes (SSE `/v1/runs`),
-distinct du journal d'intention (`ToolEvent` / stage started|completed). Le
-pont Hermes convertit ; le Core publie sur le bus / WS ; le HUD n'est pas
-encore branché.
+Le contrat conservé est générique : `ToolEvent` décrit le cycle de vie des
+intentions Core et Device.
 """
 from __future__ import annotations
 
@@ -26,7 +24,7 @@ import logging
 import queue
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
@@ -66,78 +64,6 @@ class ToolEvent:
     meta: dict[str, Any] = field(default_factory=dict)
 
 
-# ── Cycle de vie outil Hermes (Phase 2) — mapping dans hermes/events.py ─────
-
-
-@dataclass(frozen=True)
-class AgentToolEvent:
-    """Contrat Tool Bus — événement synthétique (jamais de chaîne de pensée).
-
-    Voir `docs/architecture/JARVIS-Tool-Bus.md`.
-    """
-
-    event: str
-    """tool.started | tool.completed | tool.failed | agent.started | agent.completed | agent.failed"""
-
-    run_id: str | None = None
-    tool: str | None = None
-    tool_call_id: str | None = None
-    status: str | None = None  # running | success | failed
-    duration_ms: float | None = None
-    summary: str | None = None
-    device_id: str | None = None
-    intent: str | None = None
-    toolset: str | None = None
-
-    def to_payload(self) -> dict[str, Any]:
-        """Dict prêt pour bus / WS — champs None omis."""
-        raw = asdict(self)
-        return {k: v for k, v in raw.items() if v is not None}
-
-    def to_journal(
-        self,
-        *,
-        owner: str = "hermes",
-        risk: int = 0,
-        operation: str | None = None,
-        role: str | None = None,
-        user_id: str | None = None,
-    ) -> ToolEvent:
-        """Projection grossière vers le journal d'intention (même table)."""
-        stage = {
-            "tool.started": "started",
-            "tool.completed": "completed",
-            "tool.failed": "failed",
-            "agent.started": "started",
-            "agent.completed": "completed",
-            "agent.failed": "failed",
-        }.get(self.event, self.event)
-        return ToolEvent(
-            intent=self.intent or "hermes.run",
-            stage=stage,
-            owner=owner,
-            toolset=self.toolset,
-            risk=risk,
-            operation=operation,
-            role=role,
-            user_id=user_id,
-            duration_ms=self.duration_ms,
-            reason=self.summary if self.event.endswith("failed") else None,
-            device_id=self.device_id,
-            meta={
-                "event": self.event,
-                "run_id": self.run_id,
-                "tool": self.tool,
-                "tool_call_id": self.tool_call_id,
-                "status": self.status,
-                "summary": self.summary,
-            },
-        )
-
-
-from .hermes.events import map_hermes_chat_progress, map_hermes_run_event  # noqa: E402
-
-
 # ── Timeline HUD (P2) — payload WS unifié ────────────────────────────────────
 
 _STAGE_TO_EVENT = {
@@ -171,8 +97,6 @@ def timeline_payload(
     }
     if event.toolset:
         out["toolset"] = event.toolset
-    if event.toolset and event.owner == "hermes":
-        out["tool"] = event.toolset
     if event.duration_ms is not None:
         out["duration_ms"] = event.duration_ms
     if event.reason:
@@ -190,11 +114,6 @@ def timeline_payload(
             if key in event.meta and event.meta[key] is not None:
                 out[key] = event.meta[key]
     return out
-
-
-def timeline_payload_agent(ev: AgentToolEvent) -> dict[str, Any]:
-    """AgentToolEvent → même canal WS que les intentions Core."""
-    return {"type": "tool_event", **ev.to_payload()}
 
 
 def row_to_timeline(row: ToolEventRow) -> dict[str, Any]:

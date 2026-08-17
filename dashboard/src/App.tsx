@@ -6,7 +6,6 @@ import RecoveryPage from './pages/RecoveryPage'
 import DashboardOverview from './pages/DashboardOverview'
 import CommandCenter from './pages/CommandCenter'
 import MissionDevBoardPage from './pages/MissionDevBoardPage'
-import HermesCore from './pages/HermesCore'
 import VoiceManager from './pages/VoiceManager'
 import HolomatPage from './pages/HolomatPage'
 import Entities from './pages/Entities'
@@ -33,7 +32,6 @@ function PageContent({ page, onNavigate }: { page: Page; onNavigate: (p: Page) =
     case 'dashboard': return <DashboardOverview />
     case 'command': return <CommandCenter onNavigate={onNavigate} />
     case 'mission-board': return <MissionDevBoardPage />
-    case 'hermes': return <HermesCore />
     case 'voice': return <VoiceManager />
     case 'holomat': return <HolomatPage />
     case 'entities': return <Entities />

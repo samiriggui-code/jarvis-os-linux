@@ -19,7 +19,6 @@ import asyncio
 import base64
 import logging
 import os
-from dataclasses import replace
 from typing import Any
 from urllib import error, request
 
@@ -57,23 +56,37 @@ def _fetch_snapshot_bytes() -> bytes:
 
 
 def _stream_url(token: str | None = None) -> str:
+    """URL MJPEG (snapshot / compat)."""
     if _CAMERA_PUBLIC_BASE:
         q = f"?device_id={CAMERA_DEVICE_ID}" + (f"&t={token}" if token else "")
         return f"{_CAMERA_PUBLIC_BASE}/v1/salon/camera/stream.mjpg{q}"
-    # Dev local : direct vers le Pi, aucun proxy local n'existe pour ce chemin
-    # (constaté : le chemin relatif nginx ne résout à rien sur Vite :5173).
     return f"{_CAM_BASE}/stream.mjpg"
 
 
-async def _publish_camera_surface(orch: Any, *, src: str, caption: str) -> None:
-    """Publie LA surface caméra dédiée (ImageViewer) — jamais un ResultPanel.
+def _live_url(token: str | None = None) -> str:
+    """URL A/V fMP4 pour le HUD (image + son)."""
+    if _CAMERA_PUBLIC_BASE:
+        q = f"?device_id={CAMERA_DEVICE_ID}" + (f"&t={token}" if token else "")
+        return f"{_CAMERA_PUBLIC_BASE}/v1/salon/camera/live.mp4{q}"
+    return f"{_CAM_BASE}/live.mp4"
 
-    Même mécanique d'admission que `surfaces.publisher.publish_result_surface`
-    (catalogue, permissions, contexte) mais ciblant `ImageViewer`, pas
-    `ResultPanel` — composant HUD déjà existant (`agentic/components/media/
-    ImageViewer.tsx`), pas de duplication.
-    """
+
+async def _publish_camera_surface(
+    orch: Any,
+    *,
+    src: str,
+    caption: str,
+    component: str = "ImageViewer",
+    extra_props: dict[str, Any] | None = None,
+) -> None:
+    """Publie LA surface caméra dédiée — ImageViewer (snapshot) ou LiveStream (live)."""
     from ..surfaces.admission import SurfaceRejected, validate_document
+
+    props: dict[str, Any] = {"src": src, "caption": caption}
+    if component == "ImageViewer":
+        props["alt"] = "Caméra salon"
+    if extra_props:
+        props.update(extra_props)
 
     document = {
         "surfaces": {
@@ -81,8 +94,8 @@ async def _publish_camera_surface(orch: Any, *, src: str, caption: str) -> None:
                 "root": ["camera-main"],
                 "components": {
                     "camera-main": {
-                        "name": "ImageViewer",
-                        "props": {"src": src, "alt": "Caméra salon", "caption": caption},
+                        "name": component,
+                        "props": props,
                         "state": "idle",
                     }
                 },
@@ -130,14 +143,20 @@ class CameraExecutorsMixin:
         return {"ok": True, "cameras": cameras}
 
     async def _execute_home_camera_view(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Ouvre le flux LIVE pi-salon côté HUD — jamais la webcam locale."""
+        """Ouvre le flux LIVE pi-salon (vidéo+audio) côté HUD — jamais la webcam locale."""
         from ..camera_access import mint_camera_token
 
         uid = self._session_user_id() or "local"
         token = mint_camera_token(CAMERA_DEVICE_ID) if _CAMERA_PUBLIC_BASE else None
-        stream_url = _stream_url(token)
+        stream_url = _live_url(token)
 
-        await _publish_camera_surface(self, src=stream_url, caption="Salon — LG AN-VC500 (live)")
+        await _publish_camera_surface(
+            self,
+            src=stream_url,
+            caption="Salon — LG AN-VC500 (live A/V)",
+            component="LiveStream",
+            extra_props={"muted": False, "titlebar": "Salon — live"},
+        )
         await self.say(
             "camera_live_opened",
             bindings={"room": "salon"},
@@ -149,15 +168,14 @@ class CameraExecutorsMixin:
             "device_id": CAMERA_DEVICE_ID,
             "source": CAMERA_SOURCE,
             "stream_url": stream_url,
+            "component": "LiveStream",
         }
 
     async def _execute_home_camera_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Une image pi-salon — jamais un snapshot fabriqué ni la webcam HUD."""
-        from ..capabilities import Owner, for_intent
-        from ..hermes.bridge import HermesRefused, HermesUnavailable, strip_hermes_display_text
+        from ..capabilities import for_intent
 
         uid = self._session_user_id() or "local"
-        role = self._session_role()
 
         try:
             raw = await asyncio.to_thread(_fetch_snapshot_bytes)
@@ -211,30 +229,11 @@ class CameraExecutorsMixin:
                 "reason": decision.reason or "refusé par la Policy",
             }
 
-        hermes_cap = replace(cap, owner=Owner.HERMES, toolset="vision")
-        try:
-            reply = await self.hermes.ask(
-                hermes_cap, prompt, role=role, decision=decision, image_b64=jpeg_b64,
-            )
-        except (HermesUnavailable, HermesRefused) as exc:
-            return {
-                "ok": True,
-                "device_id": CAMERA_DEVICE_ID,
-                "jpeg_b64": jpeg_b64,
-                "analyzed": False,
-                "reason": str(exc),
-            }
-
-        text = strip_hermes_display_text(reply.text or "")
-        if text:
-            ev = await self.speak_hermes(text, user_id=uid)
-            await self.broadcast(ev)
-            await self.handoff_speaker_jarvis()
         return {
             "ok": True,
             "device_id": CAMERA_DEVICE_ID,
             "source": CAMERA_SOURCE,
             "jpeg_b64": jpeg_b64,
-            "analyzed": bool(text),
-            "text": text,
+            "analyzed": False,
+            "reason": "vision_provider_unavailable",
         }

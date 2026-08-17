@@ -40,7 +40,8 @@
 
 | Date | Décision |
 |------|----------|
-| 2026-08-07 | **Architecture A** : la boucle agent reste **dans Hermes** ; le Core reçoit un **stream d'événements** et expose les capacités périphériques. Le Core **n'est pas** un second agent. |
+| 2026-08-16 | **Hermes retiré du produit (GO Samir)** : plus de pont Core↔Hermes, plus de `Owner.HERMES`, plus de page Dashboard Hermes, chat libre = `providers.complete` uniquement. Domotique = **HA via Core** (`home.control`, media.*). Supersède « Architecture A / Hermes agent #1 » pour le runtime. Code mort `hermes/` + `hermes_toolsets` + smokes Hermes **supprimés**. Service NUC `jarvis-hermes` à arrêter. |
+| 2026-08-07 | ~~**Architecture A** : boucle agent dans Hermes~~ — **révoqué runtime 2026-08-16** (voir ci-dessus). Doc historique conservée. |
 | 2026-08-07 | Évolution de `Capability` + `IntentExecutor` + `HermesBridge` vers Tool Bus — **sans** dupliquer terminal / file / browser / HA / Plex Hermes. |
 | 2026-08-07 | HA + Plex Mode-3 restent **adapters Core** (déterministes) ; enregistrés comme Tools, pas déplacés vers Hermes. |
 | 2026-08-07 | Nomenclature : **IntentCapability** = `Capability` existant (alias doc + `IntentCapability = Capability`) ; **HostCapability** = capacité machine. Pas de rename massif. |

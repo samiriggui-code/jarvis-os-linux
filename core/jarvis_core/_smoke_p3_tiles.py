@@ -31,16 +31,7 @@ def main() -> int:
     check("vps.code registered", "vps.code" in orch.intents.actions)
     check("core.missions available", CAPABILITIES["objectifs"].available)
     check("vps.code available", CAPABILITIES["code"].available)
-    check("media.music off by default", not CAPABILITIES["music"].available)
-
-    prev = os.environ.pop("JARVIS_SPOTIFY_ENABLED", None)
-    try:
-        os.environ["JARVIS_SPOTIFY_ENABLED"] = "1"
-        check("media.music with env", CAPABILITIES["music"].available)
-    finally:
-        os.environ.pop("JARVIS_SPOTIFY_ENABLED", None)
-        if prev is not None:
-            os.environ["JARVIS_SPOTIFY_ENABLED"] = prev
+    check("media.music absent (Spotify retiré)", "music" not in CAPABILITIES)
 
     with tempfile.TemporaryDirectory() as tmp:
         store = MissionStore(path=Path(tmp) / "missions.json")

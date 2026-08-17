@@ -1,11 +1,10 @@
-"""P2a — timeout Hermes configurable + messages fallback web.search.
+"""P2a — chat libre via Provider Manager.
 
     python -m jarvis_core._smoke_p2a
 """
 
 from __future__ import annotations
 
-import os
 import sys
 
 for _stream in (sys.stdout, sys.stderr):
@@ -20,37 +19,17 @@ def check(label: str, cond: bool) -> None:
 
 
 def main() -> int:
-    from jarvis_core.hermes.bridge import (
-        DEFAULT_TIMEOUT,
-        HermesBridge,
-        resolve_hermes_timeout,
-    )
-    from jarvis_core.intents.executors_routing import IntentRoutingMixin
-
-    print("P2a — prod UX Hermes + fallback web")
-
-    check("DEFAULT_TIMEOUT = 120", DEFAULT_TIMEOUT == 120.0)
-    check("resolve sans env", resolve_hermes_timeout() == 120.0)
-    check("resolve explicite", resolve_hermes_timeout(30.0) == 30.0)
-
-    prev = os.environ.pop("JARVIS_HERMES_TIMEOUT", None)
-    try:
-        os.environ["JARVIS_HERMES_TIMEOUT"] = "90"
-        check("resolve via env", resolve_hermes_timeout() == 90.0)
-        bridge = HermesBridge(url="http://127.0.0.1:1", key="")
-        check("bridge hérite env", bridge.timeout == 90.0)
-    finally:
-        os.environ.pop("JARVIS_HERMES_TIMEOUT", None)
-        if prev is not None:
-            os.environ["JARVIS_HERMES_TIMEOUT"] = prev
-
-    # Messages fallback — inspection statique du source (pas de WS)
     import inspect
 
-    src = inspect.getsource(IntentRoutingMixin._fallback_web_surface)
-    check("message timeout vocal", "La recherche prend trop de temps" in src)
-    check("message timeout surface", "dépassé le délai autorisé" in src)
-    check("détection délai SSE", "délai sse" in src.lower())
+    from jarvis_core.gateway import chat_provider_mode
+    from jarvis_core.ws.handlers.chat import ChatHandlerMixin
+
+    print("P2a — Provider Manager only")
+
+    check("chat mode llm", chat_provider_mode() == "llm")
+    src = inspect.getsource(ChatHandlerMixin._handle_user_chat_body)
+    check("providers.complete nominal", "providers.complete" in src)
+    check("no delegated chat branch", "chat_provider_mode" not in src)
 
     print("\nP2a smokes : ALL PASS")
     return 0

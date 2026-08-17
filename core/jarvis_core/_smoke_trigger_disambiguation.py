@@ -125,7 +125,6 @@ def test_g_semantic_resolver_never_called_for_certain_matches() -> None:
     ):
         orch = _make_orchestrator(role="admin")
         orch.providers.complete = must_not_be_called  # type: ignore[method-assign]
-        orch.hermes.key = "fake-key"
         ws = _Ws()
         try:
             asyncio.run(orch.handle_user_chat(ws, phrase))

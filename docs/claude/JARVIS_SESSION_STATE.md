@@ -1,16 +1,103 @@
 # État de session — JARVIS OS
 
-> **Dernière mise à jour :** 2026-08-13 (nuit) — Graph3D V0 primitive Agentic. **STOP.** Pas NUC, pas orbe identité.  
+> **Dernière mise à jour :** 2026-08-17 12h40 — Dashboard **sans Hermes** + usage tokens **OpenRouter / Anthropic / Cursor**.  
 > **À lire en premier** dans toute nouvelle conversation Claude/Cursor.  
-> Runtime fronts NUC = `hud/dist` + `dashboard/dist` syncés via `sync-fronts-nuc.ps1 -ReloadNginx` (preuves : index.html timestamps + nginx -t + curl 200).
 >
-> **Enrôlement :** formulaire (prénom → M./Mme/Mlle → date naissance, Jarvis commente, Valider/Reprendre) → face → voix. Après HUD : voix seule. Migration `004_user_profile`.
->
-> **Règle :** jalon Architecture Awareness **terminé** (chat → `architecture.explain` → `chat_reply`). **STOP.** Pas D3.1 / propose / HUD Architecture / TTS. Attendre GO Samir.
->
-> **⚠️ Parallèle :** Claude = chantier caméra vacances (ne pas toucher). HA M2.2 code livré, **aucun test réel équipement**.
->
-> **Chantier HA + Salon — implémentation M2.2 livrée (voir handoff ci-dessous).** Code + smokes réels tous verts. **Aucun test réel sur un équipement n'a encore été exécuté** — Samir a explicitement choisi d'attendre avant de déclencher des actions sur les vrais appareils (Apple TV, Freebox Server, Bravia, Freebox Player). Prochaine session : proposer à nouveau les tests réels avant de déclencher automatiquement.
+> **Runtime :** Core + HA + chat LLM. **Hermes retiré.**  
+> **Dashboard Usage :** graphe OpenRouter + Anthropic + Cursor (sans Ollama). Crédits OpenRouter via `/key` ; Anthropic = tokens locaux + sonde `/v1/models` ; Cursor = `GET /v1/agents/{id}/usage` à la fin de chaque Cloud run.  
+> **Caméra :** « montre la caméra du salon » → tuile `salon-camera` + composant `LiveStream` (`<video>` fMP4). Pi libère `/dev/video0` et pause `jarvis-ear` le temps du live (micro exclusif).  
+> **Preuve Pi :** `/live.mp4` → 819 Ko, header `ftyp isom/mp41`.  
+> **Si muet :** Chrome bloque l’autoplay son → bouton « Activer le son ».
+
+---
+
+## ⚠️ SIGNALEMENT LIVE 2026-08-16 20h (Claude, pour Cursor) — régressions pendant tests réels Samir
+
+**Contexte :** Samir teste en vrai (voix) pendant que le NUC redéploie en parallèle. `jarvis-core` a redémarré **20:11:58** avec `chat_cancel.py` / `chat_research_route.py` / `chat_search_memory.py` tout neufs (jamais vus tourner avant ce redémarrage). Juste après, Samir rapporte en direct :
+
+1. **JARVIS long, ne répond pas à temps** — probablement le sujet latence déjà connu (§ header, `_probe_hermes_latency.py`), pas nouveau.
+2. **« il s'interrompt sa recherche quand il entend qqch »** — code lu (`chat_cancel.py::looks_like_cancel_request`) : ne déclenche que sur texte transcrit contenant stop/annule/arrête la recherche, pas sur un simple bruit. Donc soit la STT mistranscrit du bruit ambiant en un mot qui matche un pattern, soit il y a un barge-in/VAD plus bas niveau (pas trouvé où) qui coupe indépendamment de ce fichier. **Pas confirmé avec des logs live** — je n'ai pas eu le temps de capturer l'événement exact avant ce message.
+3. **« l'agentic UI ne marche pas, les outils recherche n'affichent rien, ni Google Chrome ni les composants agentic UI »** — pas d'investigation faite côté HUD (hors de portée immédiate depuis Claude, pas de navigateur ouvert sur le HUD live). À vérifier : est-ce que `hud_command action=open_external` et `_publish_result_surface` (dans `hermes/delegate.py`) arrivent bien au HUD et sont bien rendus côté React après le refactor `chat_search_memory`/`chat_research_route` ?
+
+**Pas de code touché par Claude sur ces 3 points** — uniquement lu `chat_cancel.py`, `chat_research_route.py`, `chat_search_memory.py`, `hermes/delegate.py` (déjà à jour, identique au NUC). Aucun redéploiement déclenché par Claude sur ce tour.
+
+**Suggestion :** si Cursor est encore en train d'itérer sur `chat_cancel`/`chat_research_route`/`chat_search_memory`, un point de sync avant le prochain redéploiement éviterait de tester du code à moitié fini en live avec Samir dessus. Sinon, prochaine étape logique : logs live NUC pendant un test volontaire (recherche web + interruption volontaire) pour capturer l'événement exact, + vérif HUD console/network pendant un `web.search`.
+
+**Cursor fix pass 20h15 (post-signalement) :**
+- Core resync LAN · `JARVIS_HERMES_CHAT_ONLY=1` · platform_toolsets **web+skills** (2).
+- Smokes NUC : toolset rollout · chat_research_route · gateway ALL PASS.
+
+**Cursor fix pass 21h08 (symptômes Samir — interruption + agentic UI vide) :**
+- **Cause interruption** : micro HUD en barge-in continu → bruit/STT (« stop », écho TTS) annulait ou coupait la recherche. Fix Core : pendant run Hermes actif → ignorer écho + fragments <12 car / <3 mots ; annulation explicite seulement (« stop la recherche »). Fix HUD : pas de barge-in sur transcripts courts.
+- **Cause agentic UI vide** : tuile reach + Chrome n'ouvraient qu'**après** Hermes (10–120 s). Fix : `_prime_web_search_ui` dès le début de `web.search` (open_space reach + Google immédiat).
+- **Déployé NUC 21h08** : Core + HUD rebuild/sync (`sync-core-only-nuc.ps1`, `sync-fronts-nuc.ps1`).
+- **Test vocal** : « cherche sur google la météo demain » → tuile Internet + Chrome **tout de suite**, recherche continue sans couper au bruit.
+
+---
+
+## Retrait Hermes — clos (Cursor, confirmé 22h35)
+
+Retrait piloté par Cursor (service NUC stop+disable, chat basculé sur LLM providers). Claude n'a pas touché au retrait lui-même — voir en-tête §Runtime pour l'état courant.
+
+Domotique non affectée : `home.control` / `media.*` sont déjà `Owner.CORE`, jamais passés par Hermes.
+
+---
+
+## 🔴 EN COURS 2026-08-16 23h (Claude) — Phase 1 : pont LLM direct (OpenRouter + Anthropic)
+
+**Répartition actée avec Samir** — doc de référence : [`docs/architecture/JARVIS-Post-Hermes-Architecture.md`](../architecture/JARVIS-Post-Hermes-Architecture.md).
+
+- **Claude (moi, ce chantier)** : Phase 1 — chat/recherche via OpenRouter (primaire) + Anthropic direct (secours), réponse structurée `{speech, display}`. Fichiers touchés : `core/jarvis_core/llm_chat.py` (nouveau), `core/jarvis_core/ws/handlers/chat.py`.
+- **Cursor** : Phase 2 — Mission Control Dev via Cursor Cloud Agents API (`mission_dev/`, `dev.board.*`, nouveau `cursor_agents.py`).
+
+**Fait et déployé (23h47)** — pas de nouveau fichier finalement : `providers.py` (AI Provider Manager, antérieur à Hermes) était déjà branché par Cursor dans `chat.py` (`self.providers.complete(...)`). J'ai juste :
+- Basculé `JARVIS_OPENROUTER_MODEL` de `qwen/qwen3.5-flash-02-23` vers `anthropic/claude-sonnet-4.5` — chat en Claude, mesuré **2,4s** (vs 6-9s avec Hermes).
+- Ajouté `_anthropic_complete()` dans `providers.py` — repli direct API Anthropic (`ANTHROPIC_API_KEY` dans `core.env`) si OpenRouter échoue, avant Ollama. Testé isolément : 2,9s, réponse correcte.
+- Nouveau smoke `_smoke_providers_fallback.py` — ALL PASS (mock, pas de réseau réel).
+- Smokes existants revérifiés : `_smoke_gateway`, `_smoke_chat_capability_routing`, `_smoke_echo_guard`, `_smoke_p2a`, `_smoke_capabilities` tous PASS.
+
+**Régression trouvée, pas de mon fait, pour Cursor :** `_smoke_trigger_disambiguation.py::test_b_analyse_donnees_still_routes_to_data_analyze` échoue — teste encore la capacité `data.analyze` (`Owner.HERMES`, app_id `analyze`), retirée avec Hermes. Test resté périmé après le nettoyage, pas touché ici (hors scope de ce tour).
+
+**Suite (23h56, clos) :**
+- Palier Ollama entièrement retiré de `providers.py` (mort — jamais configuré, pas de regret) : enum `ProviderMode.LOCAL/REMOTE` supprimés, `_ollama_complete`/`_ollama_base` supprimés, `complete()` simplifié à OpenRouter → Anthropic → message d'erreur propre.
+- Agentic UI pour le chat libre : `chat.py` appelle maintenant `_publish_result_surface("reach", title="Jarvis", body=reply, source="chat.free")` en plus de la voix — carte visible à chaque réponse de chat, pas seulement recherche. Réutilise la tuile `reach` existante (pas de nouvelle tuile HUD ce soir — si vous voulez une tuile "Assistant" dédiée avec sa propre icône, c'est un fast-follow côté `hud/src/app/apps/catalog.ts`, pas fait ici).
+- Smokes : `_smoke_p2a`, `_smoke_gateway`, `_smoke_chat_capability_routing`, `_smoke_echo_guard`, `_smoke_capabilities`, `_smoke_providers_fallback` (nouveau) — tous PASS.
+- Déployé NUC 23h56.
+
+**Suite (00h23, clos) — réponse structurée + choix de composant agentic UI :**
+- `providers.py::complete_structured()` — le LLM choisit parmi 4 composants (`ResultPanel`, `DataTable`, `ImageViewer`, `ChartCard`, sous-ensemble des 58 du catalogue) et renvoie `{"speech", "component", "props"}` en JSON strict. Parsing tolérant (`_parse_structured_reply`) : jamais de crash, jamais de composant halluciné accepté, repli `ResultPanel` avec le `speech` préservé si le JSON est invalide.
+- `STRUCTURED_COMPONENTS` déclare les props **obligatoires exactes** de chaque composant (vérifiées contre `ui_catalog.json` — `ResultPanel` a `source`+`items` obligatoires même avec valeur par défaut, piège trouvé et corrigé ce soir).
+- `surfaces/publisher.py::publish_component_surface()` — généralisation de `publish_result_surface` (conservée telle quelle, compat rétro) pour diffuser n'importe quel composant du catalogue, pas seulement `ResultPanel`.
+- `chat.py` : chat libre appelle `complete_structured` au lieu de `complete` ; `speech` → TTS/chat_reply (inchangé), `component`+`props` → `_publish_component_surface("reach", ...)`.
+- Nouveau smoke `_smoke_structured_reply.py` — **inclut une vérification anti-dérive** : compare les props obligatoires déclarées dans `STRUCTURED_COMPONENTS` aux `required` réels de `ui_catalog.json`, échoue si le HUD change son schéma sans mise à jour ici.
+- **Testé en direct sur le NUC** : demande de comparaison → Claude choisit `DataTable` tout seul, remplit les bonnes colonnes/lignes (4,8s). Chat casual → `ResultPanel` (3,5s). Les deux confirmés avec le vrai réseau, pas mockés.
+- Layout HUD (orbe qui se réduit en bas quand une surface s'ouvre) : **déjà existant**, rien touché — `App.tsx` bascule automatiquement sur `<MiniOrb position="bottom-center">` dès qu'une seule app est visible (`hudMode === 'surface'`).
+
+**Pas encore fait (fast-follow, hors scope ce soir) :** tuile HUD "Assistant" dédiée (réutilise `reach` pour l'instant) ; les 54 autres composants du catalogue (Terminal, CodeBlock, DeviceGrid…) non exposés au chat libre — ajout trivial dans `STRUCTURED_COMPONENTS` si besoin, un composant à la fois.
+
+**Suite (00h57, clos) — intuitivité (accueil + suggestion + mémoire) :**
+- `ws/handlers/auth.py::_speak_welcome_greeting()` — après login réussi, génère (via `providers.complete`) et parle une phrase d'accueil dynamique et contextuelle (heure, jamais figée), termine par une question ouverte. Lancé en tâche de fond (`asyncio.create_task`) — un échec ne bloque jamais le login. Testé en direct NUC : 2,8s, cohérent avec la personnalité JARVIS.
+- `providers.py::_STRUCTURED_INSTRUCTIONS` — ajout d'une consigne : suggestion de suite naturelle en fin de `speech` seulement quand pertinent (jamais systématique, jamais sur une réponse déjà complète).
+- `chat.py::_handle_user_chat_body` — recherche mémoire (`jarvis_memory_search`, lecture seule) injectée en contexte avant `complete_structured` si des souvenirs pertinents existent. Respecte l'invariant existant : le chat ne fait jamais écrire en mémoire (ça reste réservé au pipeline Vérification).
+- Nouveau smoke `_smoke_intuitivite.py` (8 checks : accueil nominal/échec sans crash, mémoire avec/sans hits, mémoire indisponible sans crash) — ALL PASS.
+- `CURSOR_API_KEY` posée dans `core.env` NUC pour la Phase 2 Cursor. `JARVIS_CURSOR_REPO_URL` **pas posée** — pas de remote git sur ce repo local, à fournir par Samir/Cursor.
+- Déployé NUC 00h57 (+ `systemctl daemon-reload` après le warning unit-file changé par le passage de Cursor).
+
+---
+
+## ✅ Phase 2 CLOS — Cloud Agents API (Cursor, 2026-08-17)
+
+**Livré :**
+- `core/jarvis_core/cursor_agents.py` — client API (`POST /v1/agents`, Basic auth, `autoCreatePR=False` toujours).
+- `dev_agent/dispatch.py::start_run` — si `agent=="cursor"` + `CURSOR_API_KEY` → cloud ; sinon device Windows (inchangé).
+- Registry : champs `cloud_agent_id` / `cloud_run_id`.
+- Smoke : `python -m jarvis_core._smoke_cursor_agents` → **ALL PASS**.
+- Policy : toujours via `mission_board` avant `start_run` (pas contourné).
+- CLAIM vs OBSERVATIONS : respecté (pas de patch inventé).
+
+**Reste ops (Samir / sync) :** poser `CURSOR_API_KEY` + `JARVIS_CURSOR_REPO_URL` dans `/etc/jarvis/core.env` NUC, sync Core, tester un `dev.board.start_run` réel.
+
+**Détail :** [`docs/architecture/JARVIS-Post-Hermes-Architecture.md`](../architecture/JARVIS-Post-Hermes-Architecture.md) §6.
 
 ---
 

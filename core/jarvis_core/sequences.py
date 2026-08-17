@@ -149,10 +149,6 @@ class Sequence:
 BOOT = Sequence(
     "boot",
     [
-        Step("boot_hermes", awaits="hermes.ready", fails_on="hermes.degraded",
-             timeout_s=12.0, on_timeout="boot_hermes_failed",
-             wait_event="boot_wait", when="hermes_watched",
-             recovers="hermes", announce="after", min_hold_s=0.4),
         Step("boot_voice", awaits="voice.ready", fails_on="voice.degraded",
              timeout_s=20.0, on_timeout="boot_voice_failed",
              wait_event="boot_wait", when="voice_watched",
@@ -603,7 +599,7 @@ class SequenceRunner:
         deferred = step.awaits is not None and step.announce == "after"
         silent = step.announce == "never"
 
-        # `awaits="hermes.ready"` → la brique surveillée est « hermes ». La
+        # `awaits="voice.ready"` → la brique surveillée est « voice ». La
         # ligne passe en attente au moment où la phrase la nomme, et ne
         # tranchera qu'une fois la phrase finie.
         watched = step.awaits.split(".", 1)[0] if step.awaits else None

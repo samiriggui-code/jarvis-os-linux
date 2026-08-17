@@ -115,6 +115,107 @@ class DevAgentDispatch:
                 code="workspace_not_found",
             )
 
+        # Phase 2 — Cloud Agents API si clé présente (cursor only).
+        # Fallback device Windows inchangé si pas de clé / agent ≠ cursor.
+        from .. import cursor_agents as ca
+
+        if agent == "cursor" and ca.is_configured():
+            return await self._start_cloud_run(params, policy, workspace=workspace, request_id=request_id)
+
+        return await self._start_device_run(params, policy, workspace=workspace, request_id=request_id)
+
+    async def _start_cloud_run(
+        self,
+        params: DevAgentRunParams,
+        policy: dict[str, Any],
+        *,
+        workspace: Any,
+        request_id: str | None,
+    ) -> DevRunRecord:
+        from .. import cursor_agents as ca
+
+        _ = policy  # déjà granted en amont (mission_board / caller)
+        repo_url = ca.resolve_repo_url(
+            workspace_id=params.workspace_id,
+            repo_name=getattr(workspace, "repo_name", None),
+            local_path=str(params.local_path or getattr(workspace, "local_path", "") or ""),
+        )
+        if not repo_url:
+            raise DevAgentDispatchError(
+                "URL repo Cloud manquante — définir JARVIS_CURSOR_REPO_URL dans core.env",
+                code="repo_url_required",
+            )
+
+        payload = ca.build_create_payload(
+            prompt=params.prompt,
+            repo_url=repo_url,
+            read_only=bool(params.read_only),
+            name=(params.mission_dev_id or params.workspace_id)[:100],
+        )
+        # Sécurité : jamais PR auto sans confirmation Policy dédiée (future).
+        payload["autoCreatePR"] = False
+
+        run_id = str(uuid.uuid4())
+        req_id = str(request_id or uuid.uuid4())
+        rec = self._registry.create_pending(
+            request_id=req_id,
+            device_id=ca.DEVICE_ID_CLOUD,
+            workspace_id=params.workspace_id,
+            agent="cursor",
+            timeout_s=float(params.timeout_s),
+            mission_dev_id=params.mission_dev_id,
+            step_id=params.step_id,
+            run_id=run_id,
+        )
+
+        try:
+            created = await asyncio.to_thread(ca.create_agent, payload, timeout_s=60.0)
+        except ca.CursorAgentsError as exc:
+            rec.touch(state=RunState.FAILED)
+            rec.error_code = exc.code
+            rec.error_message = str(exc)
+            raise DevAgentDispatchError(str(exc), code=exc.code) from exc
+
+        agent_obj = created.get("agent") if isinstance(created.get("agent"), dict) else {}
+        run_obj = created.get("run") if isinstance(created.get("run"), dict) else {}
+        cloud_agent_id = str(agent_obj.get("id") or "").strip()
+        cloud_run_id = str(run_obj.get("id") or "").strip()
+        if not cloud_agent_id or not cloud_run_id:
+            rec.touch(state=RunState.FAILED)
+            rec.error_code = "cursor_bad_response"
+            rec.error_message = "Réponse create agent sans agent.id / run.id"
+            raise DevAgentDispatchError(rec.error_message, code="cursor_bad_response")
+
+        rec.cloud_agent_id = cloud_agent_id
+        rec.cloud_run_id = cloud_run_id
+        status_raw = str(run_obj.get("status") or "CREATING")
+        try:
+            rec.touch(state=RunState(ca.map_run_status(status_raw)))
+        except ValueError:
+            rec.touch(state=RunState.ACCEPTED)
+
+        rec.progress.append(
+            {
+                "run_id": run_id,
+                "phase": "cloud_accepted",
+                "message": f"Cloud agent {cloud_agent_id} · run {cloud_run_id}",
+                "sequence": 1,
+                "agent_url": str(agent_obj.get("url") or f"https://cursor.com/agents/{cloud_agent_id}"),
+            }
+        )
+        self._publish("device.run.status", rec.to_status_dict())
+        self._start_cloud_watcher(rec, collect_git_diff=bool(params.collect_git_diff))
+        return rec
+
+    async def _start_device_run(
+        self,
+        params: DevAgentRunParams,
+        policy: dict[str, Any],
+        *,
+        workspace: Any,
+        request_id: str | None,
+    ) -> DevRunRecord:
+        agent = str(params.agent or "").strip().lower()
         ctx = RouteContext(capability_id=CAPABILITY_DEV_AGENT_RUN)
         route = self._router.resolve_dev_agent_device(ctx, agent=agent, workspace=workspace)
         if route.rejected or not route.device_id:
@@ -227,6 +328,23 @@ class DevAgentDispatch:
         if rec.is_terminal():
             return {"ok": True, "run_id": run_id, "state": rec.state.value, "already_terminal": True}
 
+        if rec.is_cloud():
+            from .. import cursor_agents as ca
+
+            try:
+                reply = await asyncio.to_thread(
+                    ca.cancel_run,
+                    str(rec.cloud_agent_id),
+                    str(rec.cloud_run_id),
+                    timeout_s=CANCEL_TIMEOUT_S,
+                )
+            except ca.CursorAgentsError as exc:
+                return {"ok": False, "error_code": exc.code, "error": str(exc), "run_id": run_id}
+            rec.touch(state=RunState.CANCELLED)
+            self._stop_watcher(run_id)
+            self._publish("device.run.status", rec.to_status_dict())
+            return {"ok": True, "run_id": run_id, "state": RunState.CANCELLED.value, "cloud": reply}
+
         ws = self._connections.ws_for_device(rec.device_id)
         if ws is None:
             return {"ok": False, "error_code": "device_offline", "run_id": run_id}
@@ -260,6 +378,109 @@ class DevAgentDispatch:
                 rec.touch(state=RunState.CANCELLED)
             self._publish("device.run.status", rec.to_status_dict())
         return reply
+
+    def _start_cloud_watcher(self, rec: DevRunRecord, *, collect_git_diff: bool) -> None:
+        run_id = rec.run_id
+        if run_id in self._watchers:
+            return
+
+        async def _watch() -> None:
+            from .. import cursor_agents as ca
+
+            deadline = rec.started_at + rec.timeout_s
+            poll_s = 3.0
+            while time.time() < deadline:
+                await asyncio.sleep(poll_s)
+                current = self._registry.get(run_id)
+                if current is None or current.is_terminal() or not current.is_cloud():
+                    return
+                try:
+                    cloud = await asyncio.to_thread(
+                        ca.get_run,
+                        str(current.cloud_agent_id),
+                        str(current.cloud_run_id),
+                        timeout_s=30.0,
+                    )
+                except ca.CursorAgentsError as exc:
+                    logger.warning("cloud poll %s : %s", run_id, exc)
+                    continue
+
+                status = str(cloud.get("status") or "")
+                mapped = ca.map_run_status(status)
+                try:
+                    state = RunState(mapped)
+                except ValueError:
+                    state = RunState.RUNNING
+
+                if state == RunState.RUNNING and current.state != RunState.RUNNING:
+                    current.touch(state=RunState.RUNNING)
+                    current.progress.append(
+                        {
+                            "run_id": run_id,
+                            "phase": "cloud_running",
+                            "message": f"status={status}",
+                            "sequence": len(current.progress) + 1,
+                        }
+                    )
+                    self._publish(
+                        "device.run.progress",
+                        {
+                            "run_id": run_id,
+                            "phase": "cloud_running",
+                            "message": f"status={status}",
+                            "device_id": current.device_id,
+                            "state": current.state.value,
+                        },
+                    )
+                elif status.upper() not in ca.TERMINAL_RUN_STATUSES:
+                    current.touch()
+                    continue
+
+                # Terminal — tokens Cloud si l'API les a déjà posés (sinon 0, jamais inventés).
+                try:
+                    await asyncio.to_thread(
+                        ca.record_run_usage,
+                        str(current.cloud_agent_id),
+                        str(current.cloud_run_id),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("cursor usage record %s : %s", run_id, exc)
+
+                result_dict = ca.result_from_cloud_run(
+                    local_run_id=run_id,
+                    workspace_id=current.workspace_id,
+                    cloud=cloud,
+                    agent_id=str(current.cloud_agent_id),
+                    collect_git_diff=collect_git_diff,
+                )
+                current.result = DevAgentRunResult.from_dict(result_dict)
+                if result_dict.get("ok"):
+                    current.touch(state=RunState.COMPLETED)
+                    self._stop_watcher(run_id)
+                    self._publish("device.run.completed", current.to_status_dict())
+                else:
+                    current.error_code = str(result_dict.get("error_code") or "cloud_run_failed")
+                    current.error_message = str(result_dict.get("error_message") or "")
+                    try:
+                        current.touch(state=RunState(mapped) if mapped in ("FAILED", "CANCELLED") else RunState.FAILED)
+                    except ValueError:
+                        current.touch(state=RunState.FAILED)
+                    self._stop_watcher(run_id)
+                    self._publish("device.run.failed", current.to_status_dict())
+                return
+
+            current = self._registry.get(run_id)
+            if current and not current.is_terminal():
+                current.touch(state=RunState.TIMEOUT)
+                current.error_code = "timeout"
+                current.error_message = f"Cloud run expiré après {current.timeout_s}s"
+                self._publish("device.run.failed", current.to_status_dict())
+
+        try:
+            loop = asyncio.get_running_loop()
+            self._watchers[run_id] = loop.create_task(_watch())
+        except RuntimeError:
+            pass
 
     def status(self, run_id: str) -> dict[str, Any]:
         rec = self._registry.get(run_id)

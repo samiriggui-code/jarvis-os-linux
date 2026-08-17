@@ -52,7 +52,7 @@ export default function ToolsPage() {
 
   return (
     <PageShell>
-      <PlaceholderBanner note={err || 'Journal réel — table tool_events, écrite à chaque appel Core + Hermes délégué.'} />
+      <PlaceholderBanner note={err || 'Journal réel — table tool_events, écrite à chaque appel Core.'} />
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <StatPill label="ÉVÉNEMENTS (40 DERNIERS)" value={loading ? '…' : String(list.length)} />
         <StatPill label="ADMIN/VPS" value={loading ? '…' : String(criticalCount)} color="#FF3B30" />

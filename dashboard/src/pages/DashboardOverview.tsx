@@ -1,6 +1,6 @@
 /**
  * Dashboard — consommation IA live via Core WS `type: usage`.
- * OpenRouter crédits · ElevenLabs caractères · Ollama status · charts locaux.
+ * OpenRouter crédits · Anthropic tokens locaux · Cursor Cloud Agents · ElevenLabs TTS.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
@@ -26,7 +26,8 @@ type SeriesPoint = {
   tokens: number
   cost: number
   openrouter: number
-  ollama: number
+  anthropic: number
+  cursor: number
   elevenlabs: number
 }
 
@@ -34,7 +35,17 @@ type PeriodTot = {
   tokens: number
   cost: number
   calls: number
-  by_provider?: Record<string, { tokens: number; cost: number }>
+  by_provider?: Record<string, { tokens: number; cost: number; calls?: number }>
+}
+
+type LiveProvider = {
+  ok?: boolean
+  configured?: boolean
+  error?: string
+  note?: string
+  local_day_tokens?: number
+  local_month_tokens?: number
+  local_month_calls?: number
 }
 
 type UsagePayload = {
@@ -43,14 +54,18 @@ type UsagePayload = {
   totals?: Record<string, PeriodTot>
   series?: SeriesPoint[]
   granularity?: string
-  openrouter?: {
-    ok?: boolean
-    configured?: boolean
+  openrouter?: LiveProvider & {
     usage?: number
     limit?: number | null
     limit_remaining?: number | null
     label?: string
-    error?: string
+  }
+  anthropic?: LiveProvider & {
+    model_count?: number
+    models?: string[]
+  }
+  cursor?: LiveProvider & {
+    agent_count?: number
   }
   elevenlabs?: {
     ok?: boolean
@@ -59,14 +74,6 @@ type UsagePayload = {
     character_limit?: number
     remaining?: number | null
     tier?: string
-    error?: string
-  }
-  ollama?: {
-    ok?: boolean
-    configured?: boolean
-    host?: string
-    models?: string[]
-    model_count?: number
     error?: string
   }
   generated_at?: string
@@ -135,8 +142,9 @@ export default function DashboardOverview() {
 
   const t = data?.totals
   const or = data?.openrouter
+  const an = data?.anthropic
+  const cu = data?.cursor
   const el = data?.elevenlabs
-  const ol = data?.ollama
 
   return (
     <PageShell>
@@ -146,7 +154,7 @@ export default function DashboardOverview() {
             ? 'Chargement usage Core…'
             : err
               ? err
-              : `Live Core · ${data?.generated_at?.slice(0, 19) || '—'} · DB usage_events`
+              : `Live Core · ${data?.generated_at?.slice(0, 19) || '—'} · OpenRouter · Anthropic · Cursor`
         }
       />
 
@@ -189,7 +197,7 @@ export default function DashboardOverview() {
                   color: tokens.color.textMuted,
                 }}
               >
-                Aucun événement local — les appels OpenRouter/Ollama rempliront le graphe.
+                Aucun événement local — OpenRouter, Anthropic et Cursor rempliront le graphe.
               </div>
             ) : (
               <ResponsiveContainer>
@@ -232,10 +240,18 @@ export default function DashboardOverview() {
                   />
                   <Area
                     type="monotone"
-                    dataKey="ollama"
-                    name="Ollama"
-                    stroke="#0A84FF"
-                    fill="rgba(10,132,255,0.15)"
+                    dataKey="anthropic"
+                    name="Anthropic"
+                    stroke="#D97757"
+                    fill="rgba(217,119,87,0.18)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="cursor"
+                    name="Cursor"
+                    stroke="#34C759"
+                    fill="rgba(52,199,89,0.12)"
                     strokeWidth={2}
                   />
                 </AreaChart>
@@ -245,18 +261,42 @@ export default function DashboardOverview() {
         </Card>
 
         <Card>
-          <CardTitle>Providers (live API)</CardTitle>
+          <CardTitle>Providers (live API + compteurs locaux)</CardTitle>
           <Row
             name="OpenRouter"
             meta={
               or?.ok
-                ? `usage ${fmtUsd(or.usage)} · reste ${fmtUsd(or.limit_remaining ?? undefined)} · ${or.label || 'key'}`
+                ? `usage ${fmtUsd(or.usage)} · reste ${fmtUsd(or.limit_remaining ?? undefined)} · local 30j ${fmtTokens(or.local_month_tokens)} · ${or.label || 'key'}`
                 : or?.configured
                   ? `erreur · ${or.error || '?'}`
                   : 'clé absente'
             }
             status={or?.ok ? 'OK' : or?.configured ? 'ERR' : 'OFF'}
             statusColor={or?.ok ? '#00FF99' : or?.configured ? '#FF6B4A' : '#FFC857'}
+          />
+          <Row
+            name="Anthropic"
+            meta={
+              an?.ok
+                ? `${an.model_count ?? 0} modèles · local 24h ${fmtTokens(an.local_day_tokens)} · 30j ${fmtTokens(an.local_month_tokens)} (${an.local_month_calls ?? 0} appels)`
+                : an?.configured
+                  ? `erreur · ${an.error || '?'}`
+                  : 'clé absente'
+            }
+            status={an?.ok ? 'OK' : an?.configured ? 'ERR' : 'OFF'}
+            statusColor={an?.ok ? '#00FF99' : an?.configured ? '#FF6B4A' : '#FFC857'}
+          />
+          <Row
+            name="Cursor"
+            meta={
+              cu?.ok
+                ? `${cu.agent_count ?? 0} agents récents · local 30j ${fmtTokens(cu.local_month_tokens)} (${cu.local_month_calls ?? 0} runs)`
+                : cu?.configured
+                  ? `erreur · ${cu.error || '?'}`
+                  : 'clé absente'
+            }
+            status={cu?.ok ? 'OK' : cu?.configured ? 'ERR' : 'OFF'}
+            statusColor={cu?.ok ? '#00FF99' : cu?.configured ? '#FF6B4A' : '#FFC857'}
           />
           <Row
             name="ElevenLabs"
@@ -270,21 +310,9 @@ export default function DashboardOverview() {
             status={el?.ok ? 'OK' : el?.configured ? 'ERR' : 'OFF'}
             statusColor={el?.ok ? '#00FF99' : el?.configured ? '#FF6B4A' : '#FFC857'}
           />
-          <Row
-            name="Ollama"
-            meta={
-              ol?.ok
-                ? `${ol.host} · ${ol.model_count ?? 0} modèles · ${(ol.models || []).slice(0, 2).join(', ') || '—'}`
-                : ol?.configured
-                  ? `${ol.host || ''} · ${ol.error || 'down'}`
-                  : 'URL absente (JARVIS_REMOTE_LLM_URL)'
-            }
-            status={ol?.ok ? 'OK' : ol?.configured ? 'DOWN' : 'OFF'}
-            statusColor={ol?.ok ? '#00FF99' : ol?.configured ? '#FF6B4A' : '#FFC857'}
-          />
           <div style={{ marginTop: 12, fontFamily: tokens.font.mono, fontSize: 9, color: tokens.color.textMuted, lineHeight: 1.5 }}>
-            Compteurs locaux = chaque completion Core. Crédits OpenRouter / quota ElevenLabs = API compte.
-            Ollama VPS : décommenter JARVIS_REMOTE_LLM_URL (tunnel) dans core/.env.
+            Compteurs locaux = chaque completion Core (OpenRouter / Anthropic) et chaque run Cloud Agent (Cursor, tokens via GET /usage — 0 si l’API n’a pas encore posé les chiffres).
+            Crédits OpenRouter = API compte. Anthropic n’expose pas le solde sur la clé Messages.
           </div>
         </Card>
       </div>

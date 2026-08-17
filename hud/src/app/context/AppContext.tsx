@@ -178,7 +178,7 @@ export type MissionControlDevState = {
 
 export const CURSOR_MISSION_DEV_STEPS: MissionDevStep[] = [
   { id: 'memory', label: 'Création mémoire projet (DB)', status: 'pending' },
-  { id: 'hermes', label: 'Hermès — analyse & routage', status: 'pending' },
+  { id: 'routing', label: 'Routage Core / Policy', status: 'pending' },
   { id: 'agent-dev', label: 'Agent Dev (simulation)', status: 'pending' },
   { id: 'cursor', label: 'Cursor — contexte projet', status: 'pending' },
   { id: 'git', label: 'Git — dépôt prêt', status: 'pending' },

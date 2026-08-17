@@ -90,7 +90,19 @@ def test_echo_expires_after_window() -> None:
     # fenêtre elle-même est bornée dans le temps, pas indéfinie.
     assert time.monotonic() - 0.0 > RECENT_SPOKEN_WINDOW_S
     assert not t.is_echo_of_recent_speech("noyau cognitif en ligne")
-    print("  OK — parole hors fenêtre (12 s) → plus considérée comme écho")
+    print(f"  OK — parole hors fenêtre ({RECENT_SPOKEN_WINDOW_S:g} s) → plus considérée comme écho")
+
+
+def test_interim_feedback_echo_not_search_followup() -> None:
+    """Incident 2026-08-16 : écho interim ne doit jamais être une suite recherche."""
+    from jarvis_core.chat_search_memory import looks_like_search_followup
+
+    assert not looks_like_search_followup(
+        "je continue de travailler là-dessus ça prend un"
+    )
+    assert looks_like_search_followup("continue la recherche")
+    assert looks_like_search_followup("la suite")
+    print("  OK — écho interim ≠ suite recherche ; continue la recherche OK")
 
 
 def test_lock_veille_hardcoded_guard_still_works() -> None:
@@ -114,6 +126,7 @@ def main() -> int:
     test_normal_command_never_flagged()
     test_short_utterance_never_flagged()
     test_echo_expires_after_window()
+    test_interim_feedback_echo_not_search_followup()
     test_lock_veille_hardcoded_guard_still_works()
     print("=== ALL OK ===")
     return 0

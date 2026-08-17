@@ -93,22 +93,13 @@ def test_available_invariant() -> None:
     print("  OK — AVAILABLE invariant (+ downgrade)")
 
 
-def test_hermes_conflict() -> None:
+def test_removed_agent_service_absent() -> None:
     from jarvis_core.architecture import snapshot
 
     snap = snapshot()
-    hermes = next((m for m in snap["machines"] if m.get("id") == "hermes.host"), None)
-    assert hermes is not None, snap["machines"]
-    assert hermes.get("conflict") is True
-    assert hermes.get("resolved_by") is None
-    claims = hermes.get("claims") or []
-    values = {c.get("value") for c in claims}
-    assert "nuc" in values and "vps" in values
-    sources = {c.get("source") for c in claims}
-    assert any("JARVIS_CONTEXT" in s for s in sources)
-    assert any("ecosystem-hosts" in s for s in sources)
-    assert hermes.get("status") == "UNKNOWN"
-    print("  OK — conflit Hermes NUC/VPS conflict=true resolved_by=null")
+    assert all(m.get("id") != "hermes.host" for m in snap["machines"])
+    assert all(s.get("name") != "hermes" for s in snap["services"])
+    print("  OK — service agent supprimé du snapshot")
 
 
 def test_no_secrets() -> None:
@@ -230,7 +221,7 @@ def main() -> int:
     test_snapshot_shape()
     test_provenance_and_limitations()
     test_available_invariant()
-    test_hermes_conflict()
+    test_removed_agent_service_absent()
     test_no_secrets()
     test_unknown_without_proof()
     test_no_mutation_and_devices_observed()

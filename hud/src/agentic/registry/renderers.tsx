@@ -14,6 +14,7 @@ import { CameraPreview } from '../../app/components/CameraPreview';
 import { CommandConsole } from '../../app/components/CommandConsole';
 import { GesturePanel } from '../../app/components/GesturePanel';
 import { ImageViewer as ImageViewerComponent } from '../components/media/ImageViewer';
+import { LiveStream as LiveStreamComponent } from '../components/media/LiveStream';
 import { MemoryPanel } from '../../app/components/MemoryPanel';
 import { ScanningPanel } from '../../app/components/ScanningPanel';
 import { SettingsPanel } from '../../app/components/SettingsPanel';
@@ -115,6 +116,13 @@ export const renderers: Record<RegisteredName, React.FC<AgenticProps>> = {
       src={props.src as string}
       alt={props.alt as string}
       caption={props.caption as string}
+    />
+  ),
+  LiveStream: ({ props }) => (
+    <LiveStreamComponent
+      src={props.src as string}
+      caption={props.caption as string}
+      muted={props.muted as boolean}
     />
   ),
   SectionHeader,

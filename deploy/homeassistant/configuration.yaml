@@ -1,12 +1,7 @@
-# Home Assistant — Pi du salon (jarvis-salon, 192.168.1.27).
+# Home Assistant — NUC (cerveau domotique). Déployé via deploy/homeassistant/compose.nuc.yaml
 #
-# Ce fichier est la source de vérité, versionnée ici et déployée sur le Pi.
-# Rien d'important ne doit vivre uniquement dans `.storage` : la carte SD d'un
-# Raspberry est un support de sauvegarde discutable, et une configuration cliquée
-# dans un navigateur ne se relit pas.
-#
-# Rappel du contrat (JARVIS-Satellites.md) : ce Pi capte et actionne. Il ne
-# décide pas, ne parle pas, et n'héberge ni mémoire ni logique d'agent.
+# Source YAML versionnée ici ; runtime /opt/jarvis/homeassistant/config sur NUC.
+# Pi salon = I/O seulement (cam, ear, enceinte) — pas de second HA.
 
 default_config:
 

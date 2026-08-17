@@ -2,7 +2,7 @@
 
 Source deploy → runtime Pi `/opt/jarvis/pi-salon/` + systemd.
 
-Pi = oreilles + bouche + relais ADB Freebox. NUC Core = cerveau. Pas de Chromium.
+Pi = oreilles + bouche + cam + relais ADB Freebox. **HA = NUC** (`127.0.0.1:8123`). Pas de Chromium.
 
 ## Fichiers
 

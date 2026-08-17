@@ -19,7 +19,9 @@ logger = logging.getLogger("jarvis.core")
 # a coupé le boot). Généralise le garde qui n'existait qu'en dur pour les
 # phrases de lock/veille (`ws/handlers/chat.py`) à N'IMPORTE QUEL texte
 # réellement parlé, sans liste de phrases à maintenir à la main.
-RECENT_SPOKEN_WINDOW_S = 12.0
+# 28 s : un TTS long (résumé web) finit bien après 12 s ; l'écho STT arrive
+# encore plus tard (incident 2026-08-16 : interim + réponse ≈ 16 s).
+RECENT_SPOKEN_WINDOW_S = 28.0
 _ECHO_MIN_WORDS = 3
 _ECHO_OVERLAP_RATIO = 0.7
 
@@ -144,10 +146,6 @@ class OrchestratorSpeechMixin:
     ) -> dict[str, Any]:
         """TTS pour une entité secondaire — anti-faux-agent : caller garantit la provenance."""
         clean = (text or "").strip()
-        if speaker_entity == "hermes":
-            from .hermes.bridge import strip_hermes_display_text
-
-            clean = strip_hermes_display_text(clean)
         if not clean:
             clean = "C'est fait."
         ev = await self.speak(
@@ -160,24 +158,6 @@ class OrchestratorSpeechMixin:
         if isinstance(ev, dict) and producer:
             ev = {**ev, "producer": producer}
         return ev
-
-    async def speak_hermes(
-        self,
-        text: str,
-        *,
-        user_id: str = "local",
-        language: str | None = None,
-        preset: str | None = None,
-    ) -> dict[str, Any]:
-        """Synthèse TTS avec la voix Hermes (ElevenLabs entity profile)."""
-        return await self.speak_entity(
-            text,
-            speaker_entity="hermes",
-            user_id=user_id,
-            language=language,
-            preset=preset,
-            producer="hermes",
-        )
 
     async def handoff_speaker(
         self,
@@ -195,10 +175,6 @@ class OrchestratorSpeechMixin:
             await ws.send(json.dumps(payload))
         else:
             await self.broadcast(payload)
-
-    async def handoff_speaker_jarvis(self, ws: Any = None) -> None:
-        """Raccourci Hermes → JARVIS (compat)."""
-        await self.handoff_speaker("hermes", "jarvis", ws=ws)
 
     async def say(
         self,

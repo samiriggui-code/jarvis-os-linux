@@ -114,7 +114,7 @@ def test_paraphrase_routes_to_available_capability() -> None:
     orch, policy_calls = _make_orchestrator(role="user")
     _register_windows_agent(orch, with_metrics=True)
 
-    async def fake_complete(prompt: str, *, call_mode=None, personality=None) -> str:
+    async def fake_complete(prompt: str, *, call_mode=None, personality=None, system_suffix=None) -> str:
         from jarvis_core.personality import LLMCallMode
 
         assert call_mode == LLMCallMode.STRUCTURED
@@ -141,7 +141,7 @@ def test_offline_capability_never_selected_falls_back_to_chat() -> None:
     — doit retomber en chat, jamais exécuter."""
     orch, _ = _make_orchestrator(role="user")  # pas d'agent Windows enregistré
 
-    async def adversarial_complete(prompt: str, *, call_mode=None, personality=None) -> str:
+    async def adversarial_complete(prompt: str, *, call_mode=None, personality=None, system_suffix=None) -> str:
         from jarvis_core.personality import LLMCallMode
 
         if call_mode == LLMCallMode.STRUCTURED:
@@ -167,7 +167,7 @@ def test_invented_capability_never_executed() -> None:
     orch, _ = _make_orchestrator(role="admin")
     _register_windows_agent(orch, with_metrics=True)
 
-    async def fake_complete(prompt: str, *, call_mode=None, personality=None) -> str:
+    async def fake_complete(prompt: str, *, call_mode=None, personality=None, system_suffix=None) -> str:
         from jarvis_core.personality import LLMCallMode
 
         if call_mode == LLMCallMode.STRUCTURED:
@@ -194,7 +194,7 @@ def test_general_question_goes_to_chat_with_context_note() -> None:
 
     seen_prompts: list[str] = []
 
-    async def fake_complete(prompt: str, *, call_mode=None, personality=None) -> str:
+    async def fake_complete(prompt: str, *, call_mode=None, personality=None, system_suffix=None) -> str:
         from jarvis_core.personality import LLMCallMode
 
         if call_mode == LLMCallMode.STRUCTURED:
@@ -214,13 +214,10 @@ def test_general_question_goes_to_chat_with_context_note() -> None:
     print("  OK — question générale → chat, avec contexte « outils déjà évalués » injecté")
 
 
-def test_hermes_toolset_denied_by_role_falls_back_to_chat() -> None:
-    """« Give me a news briefing » (aucun trigger FR web.search) — rôle guest
-    n'a pas le toolset `web` délégable : web.search jamais candidat."""
+def test_removed_web_capability_falls_back_to_chat() -> None:
+    """Une demande d'actualité reste dans le chat provider sans capacité web."""
     orch, _ = _make_orchestrator(role="guest")
-    orch.hermes.key = "fake-hermes-key"  # configured=True, mais rôle guest sans toolset
-
-    async def adversarial_complete(prompt: str, *, call_mode=None, personality=None) -> str:
+    async def adversarial_complete(prompt: str, *, call_mode=None, personality=None, system_suffix=None) -> str:
         from jarvis_core.personality import LLMCallMode
 
         if call_mode == LLMCallMode.STRUCTURED:
@@ -235,32 +232,47 @@ def test_hermes_toolset_denied_by_role_falls_back_to_chat() -> None:
 
     executed = [m for m in ws.messages if m.get("type") == "surface_result" and m.get("intent") == "web.search"]
     assert not executed, ws.messages
-    print("  OK — rôle sans toolset Hermes délégué → web.search jamais candidat, jamais exécuté")
+    print("  OK — capacité web supprimée → jamais candidate, chat provider")
 
 
-def test_semantic_routing_never_bypasses_deterministic_research_filet() -> None:
-    """« cherche les dernières nouvelles » matche déjà le filet recherche
-    déterministe (mots-clés) — le resolver sémantique ne doit jamais être
-    sollicité dans ce cas non plus (ordre de priorité intact)."""
+def test_research_phrase_uses_provider_chat() -> None:
+    """Sans capacité web agent, une recherche reste une demande au provider."""
     orch, _ = _make_orchestrator(role="admin")
-    orch.hermes.key = "fake-hermes-key"
 
-    async def must_not_be_called(*args: Any, **kwargs: Any) -> str:
-        raise AssertionError("le filet recherche déterministe doit intercepter avant le resolver sémantique")
+    async def complete(prompt: str, *, call_mode=None, personality=None, system_suffix=None) -> str:
+        from jarvis_core.personality import LLMCallMode
 
-    orch.providers.complete = must_not_be_called  # type: ignore[method-assign]
+        if call_mode == LLMCallMode.STRUCTURED:
+            return _CHAT_JSON_ACTION
+        return "Je peux répondre avec les informations du modèle, sans recherche web dédiée."
+
+    orch.providers.complete = complete  # type: ignore[method-assign]
 
     ws = _Ws()
-    # `_open_intent` route ensuite vers Hermes (HermesIntentDelegate.execute),
-    # qui échouera (pas de vrai Hermes local) — seul l'ORDRE nous intéresse ici,
-    # pas le résultat de la délégation elle-même.
-    try:
-        asyncio.run(orch.handle_user_chat(ws, "cherche les dernières nouvelles du monde"))
-    except AssertionError:
-        raise
-    except Exception:
-        pass
-    print("  OK — filet recherche déterministe prioritaire, resolver sémantique jamais atteint")
+    asyncio.run(orch.handle_user_chat(ws, "cherche les dernières nouvelles du monde"))
+    replies = [m for m in ws.messages if m.get("type") == "chat_reply"]
+    assert replies and "sans recherche web" in replies[-1].get("text", "")
+    print("  OK — demande recherche → chat Provider Manager")
+
+
+def test_google_phrase_uses_provider_chat() -> None:
+    """Sans capacité web agent, une phrase Google reste dans le chat provider."""
+    orch, _ = _make_orchestrator(role="admin")
+
+    async def complete(prompt: str, *, call_mode=None, personality=None, system_suffix=None) -> str:
+        from jarvis_core.personality import LLMCallMode
+
+        if call_mode == LLMCallMode.STRUCTURED:
+            return _CHAT_JSON_ACTION
+        return "Réponse provider sans ouverture de navigateur."
+
+    orch.providers.complete = complete  # type: ignore[method-assign]
+
+    ws = _Ws()
+    asyncio.run(orch.handle_user_chat(ws, "sur google les actualités du jour"))
+    replies = [m for m in ws.messages if m.get("type") == "chat_reply"]
+    assert replies, ws.messages
+    print("  OK — « sur google … » → chat Provider Manager")
 
 
 def main() -> int:
@@ -270,8 +282,9 @@ def main() -> int:
     test_offline_capability_never_selected_falls_back_to_chat()
     test_invented_capability_never_executed()
     test_general_question_goes_to_chat_with_context_note()
-    test_hermes_toolset_denied_by_role_falls_back_to_chat()
-    test_semantic_routing_never_bypasses_deterministic_research_filet()
+    test_removed_web_capability_falls_back_to_chat()
+    test_research_phrase_uses_provider_chat()
+    test_google_phrase_uses_provider_chat()
     print("=== ALL OK ===")
     return 0
 

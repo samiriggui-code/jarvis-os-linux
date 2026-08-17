@@ -75,7 +75,6 @@ ROUTES: dict[str, Route] = {
     "supervisor": Route("handle_supervisor", "supervisor_status", {"ok": False}),
     "usage": Route("handle_usage", "usage_result", {"ok": False}),
     "providers": Route("handle_providers", "providers_result", {"ok": False}),
-    "hermes_status": Route("handle_hermes", "hermes_result", {"ok": False}),
     "voicebox": Route("handle_voicebox", "voicebox_result", {"ok": False}),
     "boot": Route("handle_boot", "core_error"),
     "surface": Route("handle_surface", "surface_error", {"ok": False}),

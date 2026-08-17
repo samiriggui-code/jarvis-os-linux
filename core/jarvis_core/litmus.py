@@ -83,22 +83,6 @@ def _check_mission_drain_api(_orch: Any) -> tuple[bool, str]:
     return ok, "MissionStore drain API" if ok else "API manquante"
 
 
-def _check_hermes_slim(_orch: Any) -> tuple[bool, str]:
-    from .capabilities import _apply_hermes_slim
-
-    prev = os.environ.get("JARVIS_HERMES_SKILLS_ONLY")
-    try:
-        os.environ["JARVIS_HERMES_SKILLS_ONLY"] = "1"
-        got = _apply_hermes_slim({"skills", "terminal", "web"})
-        ok = got == {"skills"}
-    finally:
-        if prev is None:
-            os.environ.pop("JARVIS_HERMES_SKILLS_ONLY", None)
-        else:
-            os.environ["JARVIS_HERMES_SKILLS_ONLY"] = prev
-    return ok, f"slim={got}" if ok else f"FAIL slim={got}"
-
-
 def _make_static_catalog() -> list[LitmusEntry]:
     entries: list[LitmusEntry] = []
 
@@ -157,12 +141,6 @@ def _make_static_catalog() -> list[LitmusEntry]:
                 tier=LitmusTier.STATIC,
                 check=lambda o: _check_mission_drain_api(o),
             ),
-            LitmusEntry(
-                capability_id="product:hermes.slim",
-                label="Hermes skills-only filter",
-                tier=LitmusTier.STATIC,
-                check=lambda o: _check_hermes_slim(o),
-            ),
         ]
     )
     return entries
@@ -196,7 +174,7 @@ E2E_PROOFS: tuple[LitmusEntry, ...] = (
     ),
     LitmusEntry(
         capability_id="product:policy.chain",
-        label="Policy + Hermes refus + match_intent",
+        label="Policy + match_intent",
         tier=LitmusTier.E2E,
         smoke_module="jarvis_core._smoke_capabilities",
     ),
@@ -218,12 +196,6 @@ E2E_PROOFS: tuple[LitmusEntry, ...] = (
         label="Mission drain loop E2E",
         tier=LitmusTier.E2E,
         smoke_module="jarvis_core._smoke_drain",
-    ),
-    LitmusEntry(
-        capability_id="product:hermes.slim",
-        label="Hermes MCP slim E2E",
-        tier=LitmusTier.E2E,
-        smoke_module="jarvis_core._smoke_hermes_slim",
     ),
 )
 

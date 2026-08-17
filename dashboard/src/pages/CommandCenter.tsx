@@ -1,7 +1,5 @@
 /**
- * Command Center — vue d'ensemble réelle (Hermes + devices), reste un
- * lanceur vers les autres pages pour le détail. Docker/Événements : aucune
- * source Core aujourd'hui, affichés honnêtement plutôt qu'inventés.
+ * Command Center — vue d'ensemble (Core + devices). Hermes retiré.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, Row, StatPill } from '../components/ui'
@@ -15,19 +13,19 @@ type DeviceInfo = { device_id?: string; type?: string; online?: boolean; metadat
 export default function CommandCenter({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { client } = useCoreSession()
   const [devices, setDevices] = useState<DeviceInfo[] | null>(null)
-  const [hermesHealthy, setHermesHealthy] = useState<boolean | null>(null)
+  const [coreOnline, setCoreOnline] = useState<boolean | null>(null)
 
   const refresh = useCallback(() => {
-    void Promise.all([
-      dashRequest(client, { type: 'device', action: 'list' }, 'device_list'),
-      dashRequest(client, { type: 'hermes_status', action: 'status' }, 'hermes_result'),
-    ]).then(([dev, hermes]) => {
-      setDevices(Array.isArray(dev.devices) ? (dev.devices as DeviceInfo[]) : [])
-      setHermesHealthy(hermes.healthy === true)
-    }).catch(() => {
-      setDevices([])
-      setHermesHealthy(false)
-    })
+    setCoreOnline(client.connected)
+    void dashRequest(client, { type: 'device', action: 'list' }, 'device_list')
+      .then((dev) => {
+        setDevices(Array.isArray(dev.devices) ? (dev.devices as DeviceInfo[]) : [])
+        setCoreOnline(true)
+      })
+      .catch(() => {
+        setDevices([])
+        setCoreOnline(client.connected)
+      })
   }, [client])
 
   useEffect(() => { refresh() }, [refresh])
@@ -51,7 +49,7 @@ export default function CommandCenter({ onNavigate }: { onNavigate: (p: Page) =>
             Command Center
           </h1>
           <p style={{ margin: '8px 0 0', fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(17,17,20,0.5)', lineHeight: 1.45 }}>
-            {HOST.label} · Core {HOST.coreHost} — HUD HS → Recovery (Ctrl+Alt+R).
+            {HOST.label} · focus maison (HA) — sans Hermes. HUD HS → Recovery (Ctrl+Alt+R).
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -79,7 +77,7 @@ export default function CommandCenter({ onNavigate }: { onNavigate: (p: Page) =>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
         <StatPill label="HOST" value={HOST.role} />
-        <StatPill label="HERMES" value={hermesHealthy == null ? '…' : hermesHealthy ? 'EN LIGNE' : 'HORS LIGNE'} color={hermesHealthy ? '#34C759' : '#FF3B30'} />
+        <StatPill label="CORE" value={coreOnline == null ? '…' : coreOnline ? 'EN LIGNE' : 'HORS LIGNE'} color={coreOnline ? '#34C759' : '#FF3B30'} />
         <StatPill label="DEVICES EN LIGNE" value={devices == null ? '…' : String(onlineDevices.length)} color="#0A84FF" />
         <StatPill label="DOCKER" value="—" color="rgba(17,17,20,0.35)" />
       </div>

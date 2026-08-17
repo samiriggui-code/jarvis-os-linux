@@ -193,6 +193,21 @@ def _bucket_sql(granularity: str) -> str:
     return "substr(created_at, 1, 10)"
 
 
+_SERIES_KEYS = ("openrouter", "anthropic", "cursor", "elevenlabs")
+
+
+def _empty_series_point(bucket: str) -> dict[str, Any]:
+    return {
+        "bucket": bucket,
+        "tokens": 0,
+        "cost": 0.0,
+        "openrouter": 0,
+        "anthropic": 0,
+        "cursor": 0,
+        "elevenlabs": 0,
+    }
+
+
 def series(granularity: str = "day", hours_back: int | None = None) -> list[dict[str, Any]]:
     now = _utc_now()
     if hours_back is None:
@@ -213,7 +228,8 @@ def series(granularity: str = "day", hours_back: int | None = None) -> list[dict
                        SUM(tokens_in + tokens_out) AS tokens,
                        SUM(cost_usd) AS cost,
                        SUM(CASE WHEN provider='openrouter' THEN tokens_in+tokens_out ELSE 0 END) AS openrouter,
-                       SUM(CASE WHEN provider LIKE 'ollama%' THEN tokens_in+tokens_out ELSE 0 END) AS ollama,
+                       SUM(CASE WHEN provider='anthropic' THEN tokens_in+tokens_out ELSE 0 END) AS anthropic,
+                       SUM(CASE WHEN provider='cursor' THEN tokens_in+tokens_out ELSE 0 END) AS cursor,
                        SUM(CASE WHEN provider='elevenlabs' THEN tokens_out ELSE 0 END) AS elevenlabs
                 FROM usage_events
                 WHERE created_at >= :since
@@ -230,7 +246,8 @@ def series(granularity: str = "day", hours_back: int | None = None) -> list[dict
             "tokens": int(r["tokens"] or 0),
             "cost": round(float(r["cost"] or 0), 6),
             "openrouter": int(r["openrouter"] or 0),
-            "ollama": int(r["ollama"] or 0),
+            "anthropic": int(r["anthropic"] or 0),
+            "cursor": int(r["cursor"] or 0),
             "elevenlabs": int(r["elevenlabs"] or 0),
         }
         for r in rows
@@ -247,15 +264,11 @@ def series(granularity: str = "day", hours_back: int | None = None) -> list[dict
             key = f"{d.isocalendar().year}-W{d.isocalendar().week:02d}"
         except ValueError:
             key = p["bucket"]
-        agg = weeks.setdefault(
-            key,
-            {"bucket": key, "tokens": 0, "cost": 0.0, "openrouter": 0, "ollama": 0, "elevenlabs": 0},
-        )
+        agg = weeks.setdefault(key, _empty_series_point(key))
         agg["tokens"] += p["tokens"]
         agg["cost"] = round(agg["cost"] + p["cost"], 6)
-        agg["openrouter"] += p["openrouter"]
-        agg["ollama"] += p["ollama"]
-        agg["elevenlabs"] += p["elevenlabs"]
+        for k in _SERIES_KEYS:
+            agg[k] += int(p.get(k) or 0)
     return [weeks[k] for k in sorted(weeks)]
 
 
@@ -284,7 +297,8 @@ def period_totals() -> dict[str, Any]:
             by_p = s.execute(
                 text(
                     """
-                    SELECT provider, SUM(tokens_in+tokens_out) AS tokens, SUM(cost_usd) AS cost
+                    SELECT provider, SUM(tokens_in+tokens_out) AS tokens, SUM(cost_usd) AS cost,
+                           COUNT(*) AS calls
                     FROM usage_events WHERE created_at >= :since
                     GROUP BY provider
                     """
@@ -299,6 +313,7 @@ def period_totals() -> dict[str, Any]:
                     r["provider"]: {
                         "tokens": int(r["tokens"] or 0),
                         "cost": round(float(r["cost"] or 0), 6),
+                        "calls": int(r["calls"] or 0),
                     }
                     for r in by_p
                 },
@@ -338,6 +353,61 @@ def fetch_openrouter_key() -> dict[str, Any]:
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:200]
         return {"ok": False, "configured": True, "error": f"HTTP {exc.code}: {detail}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "configured": True, "error": str(exc)}
+
+
+def fetch_anthropic_status() -> dict[str, Any]:
+    """Sonde la clé Messages API — pas le Usage Admin (clé org). Tokens = usage_events."""
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return {"ok": False, "configured": False, "error": "ANTHROPIC_API_KEY absente"}
+    try:
+        data = _http_json(
+            "https://api.anthropic.com/v1/models",
+            {
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01",
+            },
+        )
+        models = [
+            m.get("id")
+            for m in (data.get("data") or [])
+            if isinstance(m, dict) and m.get("id")
+        ]
+        return {
+            "ok": True,
+            "configured": True,
+            "model_count": len(models),
+            "models": models[:8],
+            "note": "crédits compte = console Anthropic ; ici = tokens locaux + clé OK",
+        }
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:200]
+        return {"ok": False, "configured": True, "error": f"HTTP {exc.code}: {detail}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "configured": True, "error": str(exc)}
+
+
+def fetch_cursor_status() -> dict[str, Any]:
+    """Sonde CURSOR_API_KEY via GET /v1/agents — tokens = GET .../usage enregistrés en local."""
+    from jarvis_core.cursor_agents import CursorAgentsError, is_configured, list_agents
+
+    if not is_configured():
+        return {"ok": False, "configured": False, "error": "CURSOR_API_KEY absente"}
+    try:
+        data = list_agents(limit=20)
+        items = data.get("items") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            items = []
+        return {
+            "ok": True,
+            "configured": True,
+            "agent_count": len(items),
+            "note": "tokens Cloud = GET /v1/agents/{id}/usage à la fin de chaque run",
+        }
+    except CursorAgentsError as exc:
+        return {"ok": False, "configured": True, "error": str(exc)}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "configured": True, "error": str(exc)}
 
@@ -422,6 +492,19 @@ def fetch_ollama_status() -> dict[str, Any]:
         return {"ok": False, "configured": True, "host": host, "error": str(exc)}
 
 
+def _attach_local(block: dict[str, Any], totals: dict[str, Any], provider: str) -> dict[str, Any]:
+    out = dict(block)
+    for window in ("day", "month"):
+        bp = (totals.get(window) or {}).get("by_provider") or {}
+        row = bp.get(provider) if isinstance(bp, dict) else None
+        if not isinstance(row, dict):
+            row = {}
+        out[f"local_{window}_tokens"] = int(row.get("tokens") or 0)
+        out[f"local_{window}_cost"] = float(row.get("cost") or 0)
+        out[f"local_{window}_calls"] = int(row.get("calls") or 0)
+    return out
+
+
 def dashboard_payload(granularity: str = "day") -> dict[str, Any]:
     # Assure tables (Core boot fait déjà Alembic ; usage peut être appelé tôt)
     try:
@@ -429,14 +512,16 @@ def dashboard_payload(granularity: str = "day") -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         pass
     meta = describe_backend()
+    totals = period_totals()
     return {
         "ok": True,
-        "totals": period_totals(),
+        "totals": totals,
         "series": series(granularity),
         "granularity": granularity,
-        "openrouter": fetch_openrouter_key(),
+        "openrouter": _attach_local(fetch_openrouter_key(), totals, "openrouter"),
+        "anthropic": _attach_local(fetch_anthropic_status(), totals, "anthropic"),
+        "cursor": _attach_local(fetch_cursor_status(), totals, "cursor"),
         "elevenlabs": fetch_elevenlabs_subscription(),
-        "ollama": fetch_ollama_status(),
         "db": meta["backend"],
         "generated_at": _utc_now().isoformat(),
     }

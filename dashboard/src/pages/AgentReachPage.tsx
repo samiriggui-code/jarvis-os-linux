@@ -1,5 +1,5 @@
 /**
- * Agent-Reach — paramétrage admin (capability Internet Hermes).
+ * Agent-Reach — paramétrage admin (capability Internet Core).
  * Statut via Core WS type=agent_reach ; cookies = ~/.agent-reach (jamais git).
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -48,7 +48,7 @@ export default function AgentReachPage() {
 
   return (
     <PageShell>
-      <PlaceholderBanner note="Agent-Reach = couche Internet Hermes (fetch). Pas un LLM. Cookies locaux · install --safe sur VPS." />
+      <PlaceholderBanner note="Recherche web / fetch — CLI agent-reach côté Core. Pas un LLM. Cookies locaux · jamais git." />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <StatPill label="CLI" value={installed ? 'OK' : 'MISSING'} color={installed ? '#00FF99' : '#FF6B4A'} />
         <StatPill label="CONFIG" value={st?.config_exists ? 'YES' : 'NO'} color={st?.config_exists ? '#0A84FF' : '#FFC857'} />
@@ -83,7 +83,7 @@ export default function AgentReachPage() {
           <CardTitle>État / install</CardTitle>
           <Row name="CLI agent-reach" meta={st?.cli_path || 'non trouvé dans PATH'} status={installed ? 'OK' : 'TODO'} statusColor={installed ? '#00FF99' : '#FF6B4A'} />
           <Row name="Config" meta={st?.config_path || '~/.agent-reach/config.yaml'} status={st?.config_exists ? 'OK' : 'VIDE'} />
-          <Row name="Skill Hermes" meta={st?.skill || 'deploy/hermes/skills/agent-reach'} status="SEED" />
+          <Row name="Skill" meta={st?.skill || 'web.search / chat_research_route'} status="CORE" />
           <Row name="Amont" meta={st?.upstream || 'github.com/Panniantong/agent-reach'} status="PIN" />
           {!installed && (
             <pre style={{
@@ -142,7 +142,7 @@ agent-reach doctor`}
       <Card style={{ marginTop: 14 }}>
         <CardTitle>Fonctionnement</CardTitle>
         <Row name="1. User" meta="« Jarvis cherche / résume cette vidéo YouTube »" status="VOICE" />
-        <Row name="2. Hermes" meta="skill agent-reach → CLI amont (gh, yt-dlp, …)" status="DELEGATE" />
+        <Row name="2. Core" meta="web.search → CLI agent-reach / extract (gh, yt-dlp, …)" status="CORE" />
         <Row name="3. Filtre" meta="données externes avant LLM" status="POLICY" statusColor="#FFC857" />
         <Row name="4. Réponse" meta="synthèse locale (FR/EN profil)" status="TTS" />
       </Card>

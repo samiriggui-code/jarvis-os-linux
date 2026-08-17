@@ -242,6 +242,7 @@ class AuthHandlerMixin:
                         await ws.send(json.dumps(self.voice.cancel()))
                     except Exception:  # noqa: BLE001
                         pass
+                asyncio.create_task(self._speak_welcome_greeting(ws))
         elif action == "recovery_login":
             # Niveau 0 (docs/RECOVERY.md) : PIN seul, sans caméra ni micro.
             # Le seul chemin qui fonctionne quand la biométrie est morte.
@@ -303,6 +304,52 @@ class AuthHandlerMixin:
             result = {"type": "auth_error", "error": f"action inconnue: {action}"}
 
         await ws.send(json.dumps(result))
+
+    async def _speak_welcome_greeting(self, ws: Any) -> None:
+        """Accueil dynamique après connexion — pas de formule figée à chaque fois.
+
+        Lancé en tâche de fond (``asyncio.create_task``, jamais ``await`` direct
+        dans ``handle_auth``) : un échec ici ne doit jamais retarder ni faire
+        échouer le login lui-même, d'où le garde-fou large en sortie.
+        """
+        try:
+            import datetime
+
+            from ...personality import LLMCallMode, PersonalityRequest, SpeakerEntity, resolve_personality
+
+            say_ctx = self._say_context(ws)
+            bindings = say_ctx.get("bindings") if isinstance(say_ctx.get("bindings"), dict) else {}
+            personality = resolve_personality(
+                PersonalityRequest(
+                    speaker=SpeakerEntity.JARVIS,
+                    user_role=self._session_role(ws),
+                    context=LLMCallMode.NARRATIVE,
+                    address=say_ctx.get("address"),
+                    title=bindings.get("titre"),
+                    user_name=bindings.get("user"),
+                )
+            )
+            heure = datetime.datetime.now().strftime("%H:%M")
+            prompt = (
+                f"Connexion à {heure}. Génère une phrase d'accueil courte et naturelle "
+                "(1 à 2 phrases), différente à chaque fois — pas une formule figée. "
+                "Termine par une question ouverte sur ce que l'utilisateur veut faire "
+                "(travailler sur quoi, quelle recherche). Jamais de liste de fonctionnalités."
+            )
+            greeting = await self.providers.complete(
+                prompt, call_mode=LLMCallMode.NARRATIVE, personality=personality,
+            )
+            ev = await self.speak(
+                greeting,
+                user_id=self._session_user_id(ws) or "local",
+                speaker_entity=personality.speaker_entity.value,
+                voice_instruct=personality.voice_instruct,
+                voice_personality=personality.voice_personality,
+            )
+            await ws.send(json.dumps(ev))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("accueil dynamique ignoré : %s", exc)
+
     def _session_user_id(self, ws: Any | None = None) -> str | None:
         if self.auth is None:
             return None

@@ -23,10 +23,8 @@ def main() -> int:
         MONITOR_SURFACE_ID,
     )
     from jarvis_core.tool_events import (
-        AgentToolEvent,
         ToolEvent,
         timeline_payload,
-        timeline_payload_agent,
     )
 
     check("monitor intent", decide_surface_id(intent="core.monitor") == MONITOR_SURFACE_ID)
@@ -43,11 +41,6 @@ def main() -> int:
     )
     check("timeline intent event", tp["event"] == "intent.completed")
     check("timeline route", tp.get("route", {}).get("host_route_reason") == "core_in_process")
-
-    ap = timeline_payload_agent(
-        AgentToolEvent(event="tool.completed", tool="web_search", status="success", intent="web.search")
-    )
-    check("timeline agent event", ap["event"] == "tool.completed" and ap["type"] == "tool_event")
 
     from jarvis_core import Orchestrator
 

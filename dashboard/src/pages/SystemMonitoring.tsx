@@ -81,7 +81,7 @@ export default function SystemMonitoring() {
           <CardTitle>Non couvert par le superviseur</CardTitle>
           <Row name="Home Assistant" meta="aucune sonde côté Core" status="INCONNU" statusColor="rgba(17,17,20,0.35)" />
           <Row name="PostgreSQL" meta="aucune sonde côté Core" status="INCONNU" statusColor="rgba(17,17,20,0.35)" />
-          <Row name="Ollama" meta="statut lu à la demande (page AI Providers), pas supervisé en continu" status="PARTIEL" statusColor="#FFC857" />
+          <Row name="OpenRouter / Anthropic / Cursor" meta="statut lu à la demande (Usage + IA / Providers), pas supervisé en continu" status="PARTIEL" statusColor="#FFC857" />
         </Card>
       </div>
     </PageShell>

@@ -21,7 +21,6 @@ export type BootCheck = {
 };
 
 export const INITIAL_BOOT_CHECKS: BootCheck[] = [
-  { label: 'Hermes Core', component: 'hermes', status: 'pending' },
   { label: 'Voice System', component: 'voice', status: 'pending' },
   { label: 'Face Recognition', component: 'face', status: 'pending' },
   { label: 'Holomat Vision', component: 'holomat', status: 'pending' },
@@ -116,7 +115,7 @@ export function runSystemBootGate(opts: {
         return;
       }
       console.warn('[boot] aucun boot_state — Core injoignable');
-      setCheckStatus('hermes', 'failed');
+      setCheckStatus('voice', 'failed');
       finish('Noyau cognitif injoignable');
     }, 15_000);
 

@@ -1,9 +1,9 @@
 ---
 name: ecosystem-hosts
 description: >-
-  Routage multi-hôte JARVIS : VPS (cerveau/dashboard), NUC (kiosk + apps locales),
-  PC Windows (agent + Netflix/Prime), TV / HA (lampe, lave-linge, caméras).
-  Ouvrir la bonne app sur la bonne machine. Setup installe d’abord les outils VPS.
+  TRIGGER — routage multi-hôte (VPS, NUC, Windows, Pi). Charger seulement si la
+  question porte sur « où tourne », quel host, tunnel, ou architecture réseau.
+  Ne PAS charger pour salutation, chat casual, heure, météo, domotique (→ Core/HA).
 ---
 
 # Skill — Écosystème multi-hôte
@@ -12,10 +12,10 @@ description: >-
 
 | Host | Rôle | Apps / actions typiques |
 |------|------|-------------------------|
-| **VPS** | Cerveau, Dashboard, Docker, Hermes, Policy | docker limited, terminal allowlist, deploy, tokens |
-| **NUC** | HUD kiosk + médias locaux | Plex / Plexamp, VLC, VS Code, apps installées NUC → bibliothèque ProLiant |
-| **PC Windows** | Agent portable | Apps système + Netflix, Prime, Edge, Explorer… via agent Windows |
-| **TV / HA** | Salon / maison | HA entities : TV, lampes, lave-linge WiFi, caméras (plus tard) |
+| **VPS** | TLS, WSS, Ollama | Admin allowlist |
+| **NUC** | HUD + HA + couche JARVIS + Hermes | Plex, streaming HA |
+| **PC Windows** | Agent portable | Cursor, apps |
+| **Pi salon** | Satellite I/O | Cam, ear, Zigbee vers HA NUC |
 | **ProLiant (Windows)** | Médias uniquement | Plex + bibliothèque / NAS — **pas d’Ollama**, **pas de SSH**, pas d’agent OS |
 
 ## Règle d’or
@@ -29,9 +29,9 @@ Intent utilisateur
 ```
 
 Exemples :
-- Sur **NUC** : « Jarvis ouvre Plex » → lance client Plex NUC (studio / app) vers lib ProLiant.
-- Sur **Windows portable** : « Jarvis Netflix » → agent Windows démarre Netflix UWP/Store.
-- Sur **TV** : « Jarvis allume le salon » → HA light.* ; lave-linge = entity HA si WiFi.
+- Sur **NUC** : « Netflix Apple TV chambre » → couche JARVIS → HA `media_player` (Policy).
+- Sur **Windows portable** : « Ouvre Cursor » → agent Windows (`dev.agent.run`).
+- Sur **TV / maison** : « allume le salon » → couche JARVIS → HA `light.*`.
 - **VPS** : jamais d’ouvrir Netflix sur le VPS ; seulement outils admin allowlist.
 
 ## Setup — ordre d’install

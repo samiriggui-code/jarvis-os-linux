@@ -33,7 +33,7 @@ def test_nine_root_ids() -> None:
     graph = _load()
     root_ids = graph["rootIds"]
     assert len(root_ids) == 9, root_ids
-    expected = {"core", "hermes", "memory", "policy", "hud", "devices", "home", "voice", "vision"}
+    expected = {"core", "bridge", "memory", "policy", "hud", "devices", "home", "voice", "vision"}
     assert set(root_ids) == expected, set(root_ids) ^ expected
     for rid in root_ids:
         node = graph["nodes"][rid]
@@ -142,8 +142,8 @@ def test_transversal_example_perception_dispatch() -> None:
     )
     assert target is not None, "perception_dispatch.py introuvable dans le scan"
     assert target["primaryProcess"] == "vision"
-    assert set(target["processRefs"]) == {"vision", "hud", "hermes"}
-    print("  OK — perception_dispatch.py primaryProcess=vision, processRefs={vision,hud,hermes}")
+    assert set(target["processRefs"]) == {"vision", "hud"}
+    print("  OK — perception_dispatch.py primaryProcess=vision, processRefs={vision,hud}")
 
 
 def test_process_stats_are_internally_coherent() -> None:

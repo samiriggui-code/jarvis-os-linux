@@ -78,7 +78,7 @@ def _fix_inner_imports(text: str, prefix: str) -> str:
     text = re.sub(
         r"from \.(auth\.|capabilities|locale|surface|composer|voice|holomat|"
         r"gestures|supervisor|agent_reach_status|usage|homeassistant|plex|"
-        r"tool_events|surface_decision|hermes|salon_player)",
+        r"tool_events|surface_decision|salon_camera)",
         repl,
         text,
     )

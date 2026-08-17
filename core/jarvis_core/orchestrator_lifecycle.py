@@ -46,14 +46,6 @@ class OrchestratorLifecycleMixin:
         # qui lit et filtre — un agent demande, il ne fournit jamais.
         self.bindings = BindingResolver()
         register_bindings(self)
-        # Pont vers Hermes — la seule voie entre le Core et l'agent. Construit
-        # toujours : un pont non configuré refuse en le disant, ce qui vaut mieux
-        # qu'un attribut absent découvert au premier clic.
-        from .hermes import HermesBridge
-
-        self.hermes = HermesBridge()
-        # Phase 2 : cycle de vie outils Hermes → bus / WS / journal (pas de HUD dédié encore).
-        self.hermes.on_event = self._on_hermes_agent_event
         # Domotique — adaptateur DIRECT, sans agent ni modèle. Le contrat écrit
         # `Core → Home Assistant Adapter → HA API` ; le §11 du cahier des charges
         # exige que la maison réponde même sans LLM. Passer par Hermes violait les
@@ -81,7 +73,7 @@ class OrchestratorLifecycleMixin:
         # défaut à masquer.
         register_capabilities(self)
         # Memory V2 + Verification §7 (M2.1) — pipeline live ; Memory seulement
-        # après RESULT_VALIDATED. Hermes/LLM ne produisent jamais cette décision.
+        # après RESULT_VALIDATED. Un LLM ne produit jamais cette décision.
         from .memory import get_memory_api
         from .verification import VerificationPipeline
 
@@ -292,21 +284,12 @@ class OrchestratorLifecycleMixin:
             self.supervisor.note("face", READY if ok else DEGRADED, None)
             return ok
 
-        async def soft_hermes() -> bool:
-            comp = self.supervisor.components.get("hermes")
-            if comp is None:
-                return False
-            ok = bool(await comp.check())
-            self.supervisor.note("hermes", READY if ok else DEGRADED, None)
-            return ok
-
         self.recovery = RecoveryManager(
             self.say,
             policy=self.policy,
             soft_probes={
                 "voice": soft_voice,
                 "face": soft_face,
-                "hermes": soft_hermes,
             },
         )
 
@@ -339,7 +322,7 @@ class OrchestratorLifecycleMixin:
                 ),
                 **{
                     f"{name}_watched": watched(name)
-                    for name in ("hermes", "voice", "face", "holomat", "users", "agents")
+                    for name in ("voice", "face", "holomat", "users", "agents")
                 },
                 # Auth = micro + voicebox. Caméra hors facteur d'accès.
                 "no_biometrics": lambda: (
@@ -517,15 +500,6 @@ class OrchestratorLifecycleMixin:
 
         self.supervisor.register("agents", agents_check, interval_s=60.0)
 
-        hermes_url = os.environ.get("JARVIS_HERMES_URL")
-        if hermes_url:
-            from .supervisor import http_check
-
-            self.supervisor.register(
-                "hermes",
-                http_check(f"{hermes_url.rstrip('/')}/health"),
-                interval_s=20.0,
-            )
     async def _forward_bus(self) -> None:
         """Unique pont bus → clients WS.
 

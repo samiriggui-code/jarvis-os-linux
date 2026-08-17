@@ -88,17 +88,14 @@ class SystemExecutorsMixin:
             {"type": "hud_command", "action": "open_space", "app": "jarvis"}
         )
         core_n = sum(1 for c in CAPABILITIES.values() if c.owner is Owner.CORE)
-        hermes_n = sum(1 for c in CAPABILITIES.values() if c.owner is Owner.HERMES)
         items = [
             f"intentions Core · {core_n}",
-            f"intentions Hermes · {hermes_n}",
-            f"Hermes · {getattr(self.hermes, 'url', '—')}",
             f"Provider · {self.providers.current_mode()}",
             "Circuit · match_intent → Policy → host_gate → IntentExecutor",
         ]
         body = (
-            "Carte neurale : intentions enregistrées, pont Hermes, mode LLM actif. "
-            "Demandez « introspection » pour le détail composants et skills."
+            "Carte neurale : intentions enregistrées et Provider Manager actif. "
+            "Demandez « introspection » pour le détail des composants."
         )
         await publish_result_surface(
             self,
@@ -179,12 +176,11 @@ class SystemExecutorsMixin:
         snap = self.supervisor.status()
         items = [
             "Policy · IA → Proposition → Policy → Autorisation → Exécution",
-            "Hermes · pont unique, toolsets par rôle de session",
             "Surfaces · admission catalogue + gravité côté Core",
             f"Session · rôle={self._session_role()} user={self._session_user_id() or '—'}",
         ]
         for comp in snap.get("components") or []:
-            if isinstance(comp, dict) and comp.get("name") in ("hermes", "voice", "users"):
+            if isinstance(comp, dict) and comp.get("name") in ("voice", "users"):
                 items.append(f"brique {comp.get('name')} · {comp.get('state')}")
 
         body = (
@@ -207,24 +203,24 @@ class SystemExecutorsMixin:
 
     async def _execute_providers(self, payload: dict[str, Any]) -> dict[str, Any]:
         from ..surfaces.publisher import publish_result_surface
-        from ..usage import fetch_ollama_status, fetch_openrouter_key
+        from ..usage import fetch_anthropic_status, fetch_cursor_status, fetch_openrouter_key
 
         mode = self.providers.current_mode()
         or_info = fetch_openrouter_key()
-        ollama = fetch_ollama_status()
+        anthropic = fetch_anthropic_status()
+        cursor = fetch_cursor_status()
         items = [
             f"mode actif · {mode}",
             f"OpenRouter · {'ok' if or_info.get('ok') else or_info.get('error', 'non configuré')}",
-            f"Ollama · {'ok' if ollama.get('ok') else ollama.get('error', 'non configuré')}",
+            f"Anthropic · {'ok' if anthropic.get('ok') else anthropic.get('error', 'non configuré')}",
+            f"Cursor · {'ok' if cursor.get('ok') else cursor.get('error', 'non configuré')}",
         ]
-        if ollama.get("model_count"):
-            items.append(f"Ollama modèles · {ollama.get('model_count')}")
         if or_info.get("label"):
             items.append(f"OpenRouter label · {or_info.get('label')}")
 
         body = (
-            "AI Provider Manager — bascule OpenRouter → Ollama VPS → mode système. "
-            "Chat libre et compose passent par ce routeur."
+            "AI Provider Manager — OpenRouter (primaire) → Anthropic (repli) → mode système. "
+            "Cursor Cloud Agents = Mission Control Dev, pas le chat."
         )
         await publish_result_surface(
             self,
@@ -253,13 +249,13 @@ class SystemExecutorsMixin:
             f"appels (24h) · {day.get('calls', 0)}",
             f"base · {dash.get('db', '—')}",
         ]
-        for key in ("openrouter", "ollama", "elevenlabs"):
+        for key in ("openrouter", "anthropic", "cursor", "elevenlabs"):
             block = dash.get(key) if isinstance(dash.get(key), dict) else {}
             if block.get("configured"):
                 status = "ok" if block.get("ok") else block.get("error", "?")
                 items.append(f"{key} · {status}")
 
-        body = "Consommation tokens et snapshots providers (OpenRouter, Ollama, ElevenLabs)."
+        body = "Consommation tokens — OpenRouter, Anthropic, Cursor Cloud Agents (ElevenLabs = caractères TTS)."
         await publish_result_surface(
             self,
             "tokens",
@@ -278,7 +274,7 @@ class SystemExecutorsMixin:
         role = metrics.host_role() if metrics.AVAILABLE else "core"
         items = [
             f"hôte Core · {host} ({role})",
-            f"Hermes · {getattr(self.hermes, 'url', '—')}",
+            f"Provider · {self.providers.current_mode()}",
             f"Voicebox · {getattr(getattr(self.voice, 'client', None), 'base', '—')}",
         ]
         for dev in self.devices.list_devices()[:12]:
@@ -396,7 +392,7 @@ class SystemExecutorsMixin:
 
         body = (
             "Éditeur distant : liste des projets locaux. "
-            "Pour éditer un fichier, utilisez Mission Control Dev ou Hermes (toolset file)."
+            "Pour éditer un fichier, utilisez Mission Control Dev."
         )
         if not root:
             body = (

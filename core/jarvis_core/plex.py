@@ -403,7 +403,11 @@ class PlexAdapter:
         l'application fait afficher une confirmation par tvOS, qu'il faut
         accepter à la télécommande. Les suivantes passent seules.
         """
-        url = (os.environ.get("JARVIS_HASS_URL") or "http://192.168.1.27:8123").rstrip("/")
+        url = (os.environ.get("JARVIS_HASS_URL") or "").strip().rstrip("/")
+        if not url:
+            from .gateway import hass_default_url
+
+            url = hass_default_url()
         token = os.environ.get("JARVIS_HASS_TOKEN") or ""
         if not token:
             raise PlexUnavailable("JARVIS_HASS_TOKEN absente — les lecteurs passent par HA.")

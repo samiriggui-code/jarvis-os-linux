@@ -1,13 +1,9 @@
 /**
- * JARVIS BASE / Recovery — accessible clavier+souris sans HUD, sans voix, sans Hermes.
+ * JARVIS BASE / Recovery — accessible clavier+souris sans HUD, sans voix.
  * URL directe : /#/recovery · raccourci Ctrl+Alt+R
  *
- * Les indicateurs de santé étaient des `useState` figés qui ne bougeaient
- * jamais (coreWs/hermes/ha/hud toujours aux mêmes valeurs) — dangereux sur
- * LA page qu'on ouvre quand tout va mal. Remplacés par de vraies requêtes
- * Core (supervisor, hermes_status, providers, voicebox). HA/HUD/Docker
- * n'ont aucune sonde côté Core aujourd'hui — affichés "—" (inconnu),
- * jamais un faux vert ni un faux rouge.
+ * Sondes Core : supervisor / providers / voicebox. Hermes retiré.
+ * HA/HUD/Docker : "—" si pas de sonde, jamais un faux vert.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardTitle, PageShell, PlaceholderBanner, Row, StatPill } from '../components/ui'
@@ -34,7 +30,6 @@ const STATUS_LABEL: Record<CheckStatus, string> = {
 type Checks = {
   dashboard: CheckStatus
   coreWs: CheckStatus
-  hermes: CheckStatus
   voicebox: CheckStatus
   apiKeys: CheckStatus
   ha: CheckStatus
@@ -45,7 +40,6 @@ type Checks = {
 const UNKNOWN: Checks = {
   dashboard: 'ok',
   coreWs: 'fail',
-  hermes: 'unk',
   voicebox: 'unk',
   apiKeys: 'unk',
   ha: 'unk',
@@ -65,19 +59,15 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
     client.connect()
     const unsub = client.subscribe((data) => {
       gotAny = true
-      if (data.type === 'hermes_result') {
-        next.hermes = data.healthy ? 'ok' : (data.configured ? 'fail' : 'warn')
-      }
       if (data.type === 'providers_result') {
         const orOk = (data.openrouter as { ok?: boolean } | undefined)?.ok === true
-        const ollamaOk = (data.ollama as { ok?: boolean } | undefined)?.ok === true
-        next.apiKeys = orOk || ollamaOk ? 'ok' : (data.mode === 'system' ? 'warn' : 'fail')
+        const anOk = (data.anthropic as { ok?: boolean } | undefined)?.ok === true
+        next.apiKeys = orOk || anOk ? 'ok' : (data.mode === 'system' ? 'warn' : 'fail')
       }
       if (data.type === 'voicebox_result') {
         next.voicebox = data.available === true ? 'ok' : (data.available === false ? 'fail' : 'unk')
       }
     })
-    client.send({ type: 'hermes_status', action: 'status' })
     client.send({ type: 'providers', action: 'status' })
     client.send({ type: 'voicebox', action: 'status' })
     const timer = window.setTimeout(() => {
@@ -105,9 +95,16 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
     {
       id: 'api',
       title: 'Clé API / Provider HS',
-      detail: 'OpenRouter / cloud / Ollama — LLM muet ou erreurs 401.',
+      detail: 'OpenRouter / Anthropic / Cursor — LLM muet ou erreurs 401.',
       go: 'ai' as Page,
       fix: ['IA / Providers → statut route', 'Vérifier secrets (.env / coffre) — jamais en clair ici', 'Bascule mode sans LLM (JARVIS BASE)'],
+    },
+    {
+      id: 'ha',
+      title: 'Home Assistant difficile',
+      detail: 'Token HA, URL, IoT — cerveau maison unique. Aucune sonde auto aujourd’hui.',
+      go: 'settings' as Page,
+      fix: ['Réglages → JARVIS_HASS_URL / token', 'Vérifier HA NUC :8123', 'Pi Zigbee = radio seulement'],
     },
     {
       id: 'mic',
@@ -115,20 +112,6 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
       detail: 'Pas de synthèse/transcription — le Core replie sur tts_fallback / SpeechSynthesis navigateur.',
       go: 'voice' as Page,
       fix: ['Voice Manager → statut voicebox', 'Vérifier tunnel SSH NUC→VPS (17600)', 'jarvis-tunnel-voicebox.service'],
-    },
-    {
-      id: 'hermes',
-      title: 'Hermes déconne',
-      detail: 'Agent :8642 down, timeouts, skills morts.',
-      go: 'hermes' as Page,
-      fix: ['Hermes Core → health :8642', 'Docker → hermes-agent restart', 'Terminal → logs container'],
-    },
-    {
-      id: 'ha',
-      title: 'Home Assistant difficile à paramétrer',
-      detail: 'Token HA, URL, IoT gateway — config manuelle ici. Aucune sonde automatique aujourd’hui.',
-      go: 'settings' as Page,
-      fix: ['Entités / Tools → ha.control', 'URL + token HA (secrets)', 'Isoler IoT du Core (réseau)'],
     },
   ]
 
@@ -145,19 +128,18 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
           MODE RECOVERY · JARVIS BASE
         </div>
         <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(17,17,20,0.75)', lineHeight: 1.5 }}>
-          Entrée <strong style={{ color: '#FFC857' }}>clavier + souris uniquement</strong> — pas de voix, pas de HUD, pas besoin que Hermes réponde.
+          Entrée <strong style={{ color: '#FFC857' }}>clavier + souris uniquement</strong> — pas de voix, pas de HUD.
           URL directe <code style={{ color: '#0A84FF' }}>#/recovery</code> · raccourci <code style={{ color: '#0A84FF' }}>Ctrl+Alt+R</code>.
         </div>
       </div>
 
-      <PlaceholderBanner note={checking ? 'Sonde en cours (Hermes, Providers, Voicebox)…' : 'HA/HUD/Docker : aucune sonde côté Core — "—" veut dire inconnu, jamais un statut inventé.'} />
+      <PlaceholderBanner note={checking ? 'Sonde en cours (Core, Providers, Voicebox)…' : 'HA/HUD/Docker : aucune sonde côté Core — "—" = inconnu.'} />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
         {(
           [
             ['DASHBOARD', checks.dashboard],
             ['CORE WS', checks.coreWs],
-            ['HERMES', checks.hermes],
             ['VOICEBOX', checks.voicebox],
             ['API', checks.apiKeys],
             ['HA', checks.ha],
@@ -234,7 +216,6 @@ export default function RecoveryPage({ onNavigate }: { onNavigate: (p: Page) => 
                 ['docker', 'Docker'],
                 ['ai', 'API / LLM'],
                 ['voice', 'Voix'],
-                ['hermes', 'Hermes'],
                 ['settings', 'HA / Policy'],
               ] as [Page, string][]).map(([id, label]) => (
                 <button

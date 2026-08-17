@@ -69,16 +69,21 @@ INTENT_SURFACE_APP: dict[str, str] = {
 
 
 def decide_surface_id(*, intent: str | None = None, tool: str | None = None) -> str | None:
-    """Retourne un `surface_id` (= app_id) ou None si aucune règle ne match."""
-    if intent and str(intent).strip() in INTENT_SURFACE_APP:
-        return INTENT_SURFACE_APP[str(intent).strip()]
-    if intent and str(intent).strip() == MONITOR_INTENT:
-        return MONITOR_SURFACE_ID
+    """Retourne un `surface_id` (= app_id) ou None si aucune règle ne match.
+
+    Les outils Hermes explicites (web_search, browser…) priment sur l'intent :
+    sinon un chat ``agent.skills`` qui appelle ``web_search`` ouvrirait la tuile
+    skills au lieu de reach (bug constaté NUC 2026-08-16).
+    """
     tool_name = str(tool or "").strip()
     if tool_name in MONITOR_TOOLS:
         return MONITOR_SURFACE_ID
     if tool_name in TOOL_SURFACE_APP:
         return TOOL_SURFACE_APP[tool_name]
+    if intent and str(intent).strip() in INTENT_SURFACE_APP:
+        return INTENT_SURFACE_APP[str(intent).strip()]
+    if intent and str(intent).strip() == MONITOR_INTENT:
+        return MONITOR_SURFACE_ID
     return None
 
 

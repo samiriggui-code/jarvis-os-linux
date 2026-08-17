@@ -5,7 +5,6 @@ export type Page =
   | 'dashboard'
   | 'command'
   | 'mission-board'
-  | 'hermes'
   | 'voice'
   | 'holomat'
   | 'entities'
@@ -26,13 +25,12 @@ export const PAGE_TITLES: Record<Page, string> = {
   dashboard: 'Dashboard · Tokens & stats',
   command: 'Command Center',
   'mission-board': 'Mission DEV · Board',
-  hermes: 'Hermes Core',
   voice: 'Voice Manager',
   holomat: 'Holomat Vision',
   entities: 'Entités',
   agents: 'Agents',
   tools: 'Tools',
-  reach: 'Agent-Reach · Internet',
+  reach: 'Recherche web',
   apps: 'Applications hôtes',
   docker: 'Docker',
   terminal: 'Terminal · NUC / VPS / Pi',

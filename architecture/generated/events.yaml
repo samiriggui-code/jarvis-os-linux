@@ -12,10 +12,10 @@ bus_publies:
     politique_debit: COALESCE
     sources: [core/jarvis_core/vision_objects.py]
 publications_dynamiques:  # type passé en variable, invisible à l'AST
-  - "core/jarvis_core/orchestrator_lifecycle.py:L270"
-  - "core/jarvis_core/orchestrator_lifecycle.py:L272"
-  - "core/jarvis_core/orchestrator_lifecycle.py:L569"
-  - "core/jarvis_core/orchestrator_lifecycle.py:L588"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L262"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L264"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L543"
+  - "core/jarvis_core/orchestrator_lifecycle.py:L562"
   - "core/jarvis_core/vision_objects.py:L261"
   - "core/jarvis_core/ws/handlers/auth.py:L139"
   - "core/jarvis_core/ws/handlers/system.py:L191"

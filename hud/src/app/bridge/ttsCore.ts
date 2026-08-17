@@ -6,7 +6,8 @@
  *   tts_fallback  voicebox indisponible → texte HUD seul (pas de voix OS)
  *   tts_skipped   rien à dire (TTS coupé, phrase vide, barge-in)
  *
- * Filtre produit actif : **hologramme** (`voiceFilter.ts`) — WAV restent bruts.
+ * Filtre lecture : **sec** (pas d’effet). L’hologramme (reverb/echo/chorus)
+ * créait un écho micro → fausses commandes STT (2026-08-16).
  *
  * On rend compte au Core avec `voice/playback` : c'est ce retour qui fait
  * repasser l'orbe en `idle` sur la *vraie* fin du son, au lieu d'un délai fixe.
@@ -33,8 +34,8 @@ let speaking = false;
 let playGen = 0;
 const speakingListeners = new Set<SpeakingListener>();
 
-// Produit : hologramme (candidat validé 2026-08-11).
-setVoiceFilterPreset('hologramme');
+// Sec = WAV brut, zéro post-FX (anti-écho micro).
+setVoiceFilterPreset('sec');
 
 function setSpeaking(next: boolean) {
   if (speaking === next) return;
@@ -146,7 +147,7 @@ async function playWav(payload: Record<string, unknown>, send: Send): Promise<vo
     await resumeVoiceFilterCtx();
     await playFilteredAudio(base64ToArrayBuffer(b64), finish, {
       sinkId: outputDeviceId,
-      preset: 'hologramme',
+      preset: 'sec',
     });
     if (gen !== playGen) return;
     setSpeaking(true);

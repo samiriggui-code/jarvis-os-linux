@@ -7,6 +7,9 @@ export type { CameraPreviewProps } from './CameraPreview';
 export { ImageViewer, default as ImageViewerDefault } from './ImageViewer';
 export type { ImageViewerProps } from './ImageViewer';
 
+export { LiveStream, default as LiveStreamDefault } from './LiveStream';
+export type { LiveStreamProps } from './LiveStream';
+
 export { VideoPreview, default as VideoPreviewDefault } from './VideoPreview';
 export type { VideoPreviewProps } from './VideoPreview';
 

@@ -1,6 +1,6 @@
 /**
  * Voice Filter — post-traitement Web Audio à la lecture (WAV bruts).
- * Preset produit : hologramme (lab + voice_filter_candidate.yaml).
+ * Preset produit : **sec** (anti-écho micro). Hologramme reste dispo en lab.
  * L’agent / le Core ne génèrent pas de filtre ; le HUD applique la chaîne.
  */
 
@@ -98,7 +98,7 @@ export const SEC: VoiceFilterParams = {
   shim: 0,
 };
 
-let activePreset: VoiceFilterPresetId = 'hologramme';
+let activePreset: VoiceFilterPresetId = 'sec';
 let ctx: AudioContext | null = null;
 let activeNodes: AudioNode[] = [];
 let activeSources: AudioBufferSourceNode[] = [];

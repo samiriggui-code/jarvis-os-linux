@@ -22,7 +22,7 @@ const ORB_SCALE = RADIUS * 0.72;
 /** Positions intérieures vendor — `layouts/orb.ts` ORB_INTERIOR. */
 const ORB_INTERIOR: Record<string, [number, number, number]> = {
   core: [0, 0, 0],
-  hermes: [-0.62, 0.18, 0.42],
+  bridge: [-0.62, 0.18, 0.42],
   policy: [0.12, 1.22, 0.38],
   memory: [-0.48, 0.82, -0.62],
   hud: [-1.05, -0.9, 0.32],

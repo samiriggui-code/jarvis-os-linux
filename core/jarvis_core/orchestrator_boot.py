@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from typing import Any
 
@@ -12,11 +13,16 @@ from .ws.routes import BOOT_REPLAY_COOLDOWN_S
 logger = logging.getLogger("jarvis.core")
 
 
+def _boot_announce_disabled() -> bool:
+    """`JARVIS_BOOT_SILENT=1` — jamais de narration boot (checklist HUD intacte)."""
+    return (os.environ.get("JARVIS_BOOT_SILENT") or "").strip().lower() in ("1", "true", "yes")
+
+
 class OrchestratorBootMixin:
 
     async def _send_boot_state(self, ws: Any, *, spoken: bool) -> None:
         """Encadre le boot pour le HUD — `start` puis `end`, toujours."""
-        checks = ["hermes", "voice", "face", "holomat", "users", "agents"]
+        checks = ["voice", "face", "holomat", "users", "agents"]
         try:
             await ws.send(json.dumps({
                 "type": "boot_state", "phase": "start", "checks": checks,
@@ -37,7 +43,8 @@ class OrchestratorBootMixin:
         """Démarrage parlé : boot système, puis identification."""
         now = time.monotonic()
         silent = (
-            getattr(self, "_boot_skip", False)
+            _boot_announce_disabled()
+            or getattr(self, "_boot_skip", False)
             or self.voice_cache is None
             or now - self._boot_spoken_at < BOOT_REPLAY_COOLDOWN_S
         )
@@ -62,7 +69,7 @@ class OrchestratorBootMixin:
         await ws.send(json.dumps({
             "type": "boot_state",
             "phase": "start",
-            "checks": ["hermes", "voice", "face", "holomat", "users", "agents"],
+            "checks": ["voice", "face", "holomat", "users", "agents"],
         }))
 
         from .sequences import watched_components

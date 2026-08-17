@@ -2,7 +2,7 @@
  * Terminal admin — NUC / VPS / Pi salon, exécution réelle via Core WS
  * type=terminal (core/jarvis_core/ws/handlers/terminal.py).
  *
- * NUC → système déjà en place (Hermes toolset terminal, allowlist Policy).
+ * NUC → allowlist Policy Core (ws/handlers/terminal.py).
  * VPS / Pi → SSH dédié (`remote_exec.py`) ; sans clé configurée côté Core,
  * la commande échoue avec une raison explicite — jamais un faux succès.
  *
@@ -18,7 +18,7 @@ import { useCoreSession } from '../context/CoreSessionContext'
 type Host = 'nuc' | 'vps' | 'pi'
 
 const HOSTS: { id: Host; label: string; note: string }[] = [
-  { id: 'nuc', label: 'NUC', note: 'Hermes · toolset terminal' },
+  { id: 'nuc', label: 'NUC', note: 'Core · allowlist Policy' },
   { id: 'vps', label: 'VPS', note: 'SSH dédié · remote_exec.py' },
   { id: 'pi', label: 'Pi salon', note: 'SSH dédié · remote_exec.py' },
 ]
