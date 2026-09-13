@@ -64,6 +64,11 @@ export const toast = {
 
   dismiss: (id?: string) => requireHost().dismiss(id),
 
+  /** Met à jour un toast existant (promise Core pending → success/error). */
+  update: (id: string, patch: Partial<ToastInput>): void => {
+    requireHost().patch(id, patch);
+  },
+
   /**
    * Affiche un toast `pending`, puis le remplace success/error à la résolution.
    * Retourne la même promesse (chaînable).
@@ -101,6 +106,70 @@ export const toast = {
     );
   },
 };
+
+/** Pending Core `display_notification` — un toast par titre, patché à la fin. */
+const pendingByTitle = new Map<string, string>();
+
+export type CoreNotificationPayload = {
+  message: string;
+  level?: ToastTone;
+  title?: string;
+  action_label?: string;
+  action_app?: string;
+  action_intent?: string;
+};
+
+/** Applique un `display_notification` Core (pending sticky → update success/error/action). */
+export function applyCoreNotification(payload: CoreNotificationPayload): string {
+  const title = payload.title || 'JARVIS';
+  const level = payload.level ?? 'info';
+  const message = payload.message;
+
+  if (level === 'pending') {
+    const existing = pendingByTitle.get(title);
+    if (existing) {
+      toast.update(existing, { type: 'pending', title, message, durationMs: null, action: undefined });
+      return existing;
+    }
+    const id = toast.message({ type: 'pending', title, message, durationMs: null });
+    pendingByTitle.set(title, id);
+    return id;
+  }
+
+  const pendingId = pendingByTitle.get(title);
+  if (pendingId) {
+    pendingByTitle.delete(title);
+    const type: ToastTone = level === 'pending' ? 'success' : level;
+    const action = payload.action_label
+      ? {
+          label: payload.action_label,
+          app: payload.action_app,
+          intent: payload.action_intent,
+        }
+      : undefined;
+    toast.update(pendingId, {
+      type,
+      title,
+      message,
+      action,
+      durationMs: action ? null : resolveDurationMs({ type, title, message, action }),
+    });
+    return pendingId;
+  }
+
+  if (payload.action_label) {
+    return toast.action({
+      type: level === 'pending' ? 'info' : level,
+      title,
+      message,
+      label: payload.action_label,
+      app: payload.action_app,
+      intent: payload.action_intent,
+    });
+  }
+
+  return toast[level === 'pending' ? 'info' : level](title, message);
+}
 
 export { asToastInput, resolveDurationMs } from './helpers';
 export type { ToastInput, ToastRecord, ToastTone, PromiseToastMessages };

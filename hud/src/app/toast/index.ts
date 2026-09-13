@@ -1,5 +1,5 @@
-export { toast, bindToastHost, asToastInput, resolveDurationMs } from './api';
-export type { ToastHost } from './api';
+export { toast, bindToastHost, asToastInput, resolveDurationMs, applyCoreNotification } from './api';
+export type { ToastHost, CoreNotificationPayload } from './api';
 export type {
   ToastAction,
   ToastInput,

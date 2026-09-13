@@ -16,6 +16,7 @@ import { getCoreClient } from '../bridge/coreClient';
 import { ensureCamera, getMediaState, listAudioInputs, listVideoInputs } from '../bridge/mediaDevices';
 import { startAudioBus, pauseWakeWord, resumeWakeWord } from '../bridge/audioBus';
 import { authEnroll, authListUsers, type AuthUser } from '../bridge/authClient';
+import { toast } from '../toast';
 import { CameraPreview } from './CameraPreview';
 import { VisionChrome, visionBody, visionCaption, visionTitle } from './visionChrome';
 import { GlassButton, GlassPanel } from '../../components/glass/';
@@ -330,36 +331,48 @@ export function SettingsPanel() {
 
   const enrollMember = async () => {
     if (!isAdmin) {
-      addNotification({ type: 'warning', title: 'Foyer', message: 'Seul l’admin peut enroler la famille.' });
+      toast.warning('Foyer', 'Seul l’admin peut enroler la famille.');
       return;
     }
     const username = (enrollUser || enrollName).trim().toLowerCase().replace(/\s+/g, '_');
     if (!username) {
-      addNotification({ type: 'warning', title: 'Foyer', message: 'Nom / username requis.' });
+      toast.warning('Foyer', 'Nom / username requis.');
       return;
     }
     setEnrollBusy(true);
     try {
-      const res = await authEnroll({
-        username,
-        display_name: enrollName.trim() || username,
-        role: enrollRole,
-        face: true,
-        voice: true, // timbre : flag pour bascule profil au déverrouillage
-        pin: '0000',
-      });
-      if (!res.ok) {
-        addNotification({ type: 'error', title: 'Enrollment', message: res.error || 'échec' });
-        return;
-      }
-      addNotification({
-        type: 'success',
-        title: 'Membre ajouté',
-        message: `${res.user?.display_name || username} (${enrollRole}) — HUD seulement. Au verrouillage : auth → son profil.`,
-      });
-      setEnrollName('');
-      setEnrollUser('');
-      await refreshFamily();
+      await toast.promise(
+        (async () => {
+          const res = await authEnroll({
+            username,
+            display_name: enrollName.trim() || username,
+            role: enrollRole,
+            face: true,
+            voice: true,
+            pin: '0000',
+          });
+          if (!res.ok) throw new Error(res.error || 'échec');
+          setEnrollName('');
+          setEnrollUser('');
+          await refreshFamily();
+          return res.user?.display_name || username;
+        })(),
+        {
+          loading: { type: 'pending', title: 'Enrollment', message: `Ajout de ${username}…` },
+          success: (name) => ({
+            type: 'success',
+            title: 'Membre ajouté',
+            message: `${name} (${enrollRole}) — HUD seulement.`,
+          }),
+          error: (e) => ({
+            type: 'error',
+            title: 'Enrollment',
+            message: e instanceof Error ? e.message : 'échec',
+          }),
+        },
+      );
+    } catch {
+      /* toast déjà à jour */
     } finally {
       setEnrollBusy(false);
     }
@@ -423,15 +436,11 @@ export function SettingsPanel() {
 
   const startCalibrate = async () => {
     if (prefs.killSwitch.cameraOff) {
-      addNotification({
-        type: 'warning',
-        title: 'Caméra OFF',
-        message: 'Coupe rapide caméra active — Settings → Coupures, puis recalibre.',
-      });
+      toast.warning('Caméra OFF', 'Coupe rapide caméra active — Settings → Coupures, puis recalibre.');
       return;
     }
     if (!prefs.vision.holomatEnabled) {
-      addNotification({ type: 'warning', title: 'Holomat off', message: 'Active Holomat avant calibration.' });
+      toast.warning('Holomat off', 'Active Holomat avant calibration.');
       return;
     }
 
@@ -440,60 +449,52 @@ export function SettingsPanel() {
     const stream = await ensureCamera();
     if (!stream) {
       setCalibrating(false);
-      addNotification({
-        type: 'error',
-        title: 'Caméra requise',
-        message: 'Autorise la caméra (navigateur) — Holomat ne peut pas calibrer sans flux vidéo.',
-      });
+      toast.error('Caméra requise', 'Autorise la caméra (navigateur) — Holomat ne peut pas calibrer sans flux vidéo.');
       return;
     }
 
-    // Rafraîchir labels devices
     const cams = await listVideoInputs();
     if (cams.length) setCamOptions(cams);
 
     const client = getCoreClient();
     if (!client.connected) {
       setCalibrating(false);
-      // Fallback local machine stub
       localStorage.setItem('jarvis.holomat_calibration', JSON.stringify({
         calibrated: true,
         cameraDeviceId: prefs.vision.cameraDeviceId,
         at: new Date().toISOString(),
       }));
       setHoloStatus({ camera: 'ok', calibrated: true });
-      addNotification({
-        type: 'warning',
-        title: 'Calibration locale',
-        message: 'Core hors ligne — marque calibrated en local. Relance jarvis_core pour persister data/holomat/calibration.json',
-      });
+      toast.warning('Calibration locale', 'Core hors ligne — marque calibrated en local. Relance jarvis_core pour persister data/holomat/calibration.json');
       return;
     }
 
     try {
-      const res = await client.request(
-        { type: 'holomat', action: 'calibrate_start', camera_on: true, cameraDeviceId: prefs.vision.cameraDeviceId },
-        d => d.type === 'holomat_calibrate_result',
-        8000,
+      await toast.promise(
+        (async () => {
+          const res = await client.request(
+            { type: 'holomat', action: 'calibrate_start', camera_on: true, cameraDeviceId: prefs.vision.cameraDeviceId },
+            d => d.type === 'holomat_calibrate_result',
+            8000,
+          );
+          if (!res.ok) throw new Error(String(res.message || res.error || 'erreur'));
+          setHoloStatus({ camera: 'ok', calibrated: true });
+          return true;
+        })(),
+        {
+          loading: { type: 'pending', title: 'Calibration', message: 'Cadrez le plan…' },
+          success: { type: 'success', title: 'Calibration enregistrée', message: 'Persistance Core : data/holomat/calibration.json' },
+          error: (e) => ({
+            type: 'error',
+            title: 'Calibration',
+            message: e instanceof Error ? e.message : 'Timeout Core — réessaie.',
+          }),
+        },
       );
-      setCalibrating(false);
-      if (res.ok) {
-        setHoloStatus({ camera: 'ok', calibrated: true });
-        addNotification({
-          type: 'success',
-          title: 'Calibration enregistrée',
-          message: 'Persistance Core : data/holomat/calibration.json',
-        });
-      } else {
-        addNotification({
-          type: 'error',
-          title: 'Calibration refusée',
-          message: String(res.message || res.error || 'erreur'),
-        });
-      }
     } catch {
+      /* toast déjà à jour */
+    } finally {
       setCalibrating(false);
-      addNotification({ type: 'error', title: 'Calibration', message: 'Timeout Core — réessaie.' });
     }
   };
 

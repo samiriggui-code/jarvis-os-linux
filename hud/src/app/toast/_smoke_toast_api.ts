@@ -10,6 +10,7 @@ import {
   resolveDurationMs,
   resolvePromiseToast,
   toast,
+  applyCoreNotification,
   type ToastRecord,
 } from './index';
 
@@ -127,6 +128,21 @@ async function main(): Promise<void> {
   } catch {
     check('promise → error', records.some((r) => r.type === 'error' && r.message === 'boom'));
   }
+
+
+  // Core pending → success/action (même titre)
+  applyCoreNotification({ title: 'Web', message: 'météo…', level: 'pending' });
+  check('core pending sticky', records.some((r) => r.type === 'pending' && r.title === 'Web'));
+  applyCoreNotification({
+    title: 'Web',
+    message: 'Il fera beau.',
+    level: 'success',
+    action_label: 'Ouvrir',
+    action_app: 'reach',
+  });
+  const coreDone = records.find((r) => r.title === 'Web' && r.type === 'success');
+  check('core pending patché success', Boolean(coreDone?.action?.app === 'reach'));
+  check('un seul toast Web', records.filter((r) => r.title === 'Web').length === 1);
 
   bindToastHost(null);
   console.log('=== ALL PASS ===');
