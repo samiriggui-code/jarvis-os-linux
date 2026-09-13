@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY core/ /app/core/
 WORKDIR /app/core
+# Modèles ONNX souvent absents/corrompus hors NUC — re-télécharge si besoin.
+RUN python -m jarvis_core.vision.fetch_models
 
 ENV PYTHONUNBUFFERED=1 \
     JARVIS_WS_HOST=0.0.0.0 \

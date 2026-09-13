@@ -427,7 +427,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
         setNameConfirm(false);
         return;
       }
-      await jarvisSay('Profil enregistre. Passons a l enrolement facial.');
+      await jarvisSay('Profil enregistré. Passons à l\'enrôlement facial.');
       setBusy(false);
       void runFace();
     } finally {
