@@ -205,14 +205,14 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
     }
   }, [isAddProfile]);
 
-  const runFace = useCallback(async () => {
+  const runFace = useCallback(async (attempt = 0) => {
     setPhase('face_enroll');
     setHudText('ENROLEMENT FACIAL');
-    setHudSub('Regardez la camera');
+    setHudSub('Regardez la caméra');
     setFaceProgress(0);
     setListeningActive(true);
     await ensureMicReady();
-    await jarvisSay('Placez-vous face a la camera. Je capture votre visage.');
+    await jarvisSay('Placez-vous face à la caméra. Je capture votre visage.');
 
     const user = await ensureSqlUser();
     if (!user) {
@@ -237,19 +237,28 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
     if (!aliveRef.current) return;
     if (!ok) {
       setListeningActive(false);
-      await jarvisSay('Capture faciale echouee. Reessayons.');
-      return runFace();
+      // Une seule relance : sinon boucle TTS « échouée » → facture ElevenLabs.
+      if (attempt >= 1) {
+        setHudText('CAPTURE ÉCHOUÉE');
+        setHudSub('Caméra ou moteur facial indisponible');
+        await jarvisSay(
+          'Capture faciale échouée. Vérifiez que la caméra est autorisée, puis réessayez.',
+        );
+        return;
+      }
+      await jarvisSay('Capture faciale échouée. Réessayons.');
+      return runFace(attempt + 1);
     }
     const committed = await commitFaceEnroll(user.username, user.id);
     if (!committed) {
       setListeningActive(false);
-      await jarvisSay('Enregistrement facial echoue.');
+      await jarvisSay('Enregistrement facial échoué.');
       return;
     }
     setFaceReady(true);
     setFaceProgress(100);
     setListeningActive(false);
-    await jarvisSay('Visage enregistre. Passons a la voix.');
+    await jarvisSay('Visage enregistré. Passons à la voix.');
     void runVoiceRef.current();
   }, [ensureMicReady, ensureSqlUser]);
 
@@ -283,7 +292,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
     const ok = await commitVoiceEnroll(user.id, kept.map((t) => t.text));
     if (!ok) {
       setListeningActive(false);
-      await jarvisSay('Enregistrement vocal echoue.');
+      await jarvisSay('Enregistrement vocal échoué.');
       return;
     }
     setVoiceReady(true);
