@@ -4,6 +4,9 @@ WORKDIR /src
 COPY hud/package.json hud/package-lock.json* ./
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
 COPY hud/ ./
+# vendor/metronic est gitignoré — stubs pour le build démo
+COPY deploy/vps-demo/stub-metronic.sh /tmp/stub-metronic.sh
+RUN chmod +x /tmp/stub-metronic.sh && /tmp/stub-metronic.sh /src/vendor/metronic
 # MediaPipe prebuild optionnel — ignore si hors-ligne
 RUN npm run build || (npx vite build)
 
