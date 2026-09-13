@@ -357,7 +357,7 @@ export const DEFAULT_HUD_PREFS: HudExperiencePreferences = {
     sessionUnlock: {
       enabled: true,
       requireFace: true,
-      requireVoice: true,
+      requireVoice: false,
       requireGesture: false,
       minConfidence: 0.75,
     },
