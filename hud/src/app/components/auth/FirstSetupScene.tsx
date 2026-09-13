@@ -172,7 +172,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
         setHudSub(err);
         await jarvisSay(
           taken
-            ? `Le prenom ${name} est deja enregistre. Choisissez un autre prenom.`
+            ? `Le prénom ${name} est déjà enregistré. Choisissez-en un autre.`
             : `Impossible de creer le profil. ${err}`,
         );
         return null;
@@ -290,8 +290,8 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
 
       setPhase('form_name');
       setHudText('PRENOM');
-      setHudSub('Tapez votre prenom');
-      await jarvisSay('Bienvenue. Tapez votre prenom, puis validez.');
+      setHudSub('Indiquez votre prénom');
+      await jarvisSay('Bienvenue. Indiquez votre prénom, puis validez.');
     })().catch((e) => console.debug('[first-setup] boot', e));
 
     return () => {
@@ -309,7 +309,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
       nameRef.current = v;
       setNameConfirm(true);
       setHudText('CONFIRMATION');
-      setHudSub(`Prenom : ${v}`);
+      setHudSub(`Prénom : ${v}`);
       await jarvisSay(`Vous avez choisi ${v}. Cliquez sur Valider, ou Reprendre.`);
     } finally {
       setBusy(false);
@@ -531,7 +531,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
                     active
                     disabled={busy}
                     icon={<RotateCcw className="w-4 h-4" />}
-                    onClick={() => { setNameConfirm(false); void jarvisSay('Reprenons. Tapez votre prenom.'); }}
+                    onClick={() => { setNameConfirm(false); void jarvisSay('Reprenons. Indiquez votre prénom.'); }}
                     style={body}
                   >
                     Reprendre
@@ -566,7 +566,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
                     active
                     disabled={busy}
                     icon={<RotateCcw className="w-4 h-4" />}
-                    onClick={() => { setTitleConfirm(false); setTitleDraft(null); void jarvisSay('Choisissez a nouveau la civilite.'); }}
+                    onClick={() => { setTitleConfirm(false); setTitleDraft(null); void jarvisSay('Choisissez à nouveau la civilité.'); }}
                     style={body}
                   >
                     Reprendre

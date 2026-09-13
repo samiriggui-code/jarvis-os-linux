@@ -69,7 +69,7 @@ async def test_voicebox_tts_disabled_jarvis_elevenlabs() -> None:
     check("tts_audio", ev.get("type") == "tts_audio")
     check("provider elevenlabs", ev.get("provider") == "elevenlabs")
     check(
-        "voice_id jarvis3",
+        "voice_id jarvis2",
         ev.get("voice_id") == JARVIS_ELEVENLABS_VOICE_ID,
         ev.get("voice_id"),
     )
@@ -168,7 +168,7 @@ def test_cache_hit_no_dynamic_provider() -> None:
 
 def test_resolve_voice_ids() -> None:
     check(
-        "jarvis to jarvis3 EL",
+        "jarvis to jarvis2 EL",
         resolve_elevenlabs_voice_id("jarvis") == JARVIS_ELEVENLABS_VOICE_ID,
     )
     check(
@@ -188,12 +188,12 @@ def test_resolve_voice_ids() -> None:
         resolve_elevenlabs_voice_id("cursor") == CURSOR_ELEVENLABS_VOICE_ID,
     )
     check(
-        "claude never jarvis3",
+        "claude never jarvis principal",
         resolve_elevenlabs_voice_id("claude") != JARVIS_ELEVENLABS_VOICE_ID,
     )
     check(
-        "cursor never jarvis3",
-        resolve_elevenlabs_voice_id("cursor") != JARVIS_ELEVENLABS_VOICE_ID,
+        "cursor same as jarvis2 (timbre partagé)",
+        resolve_elevenlabs_voice_id("cursor") == JARVIS_ELEVENLABS_VOICE_ID,
     )
 
 

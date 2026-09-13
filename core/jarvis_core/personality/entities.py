@@ -3,10 +3,10 @@
 Règle anti-faux-agent :
   ENTITY DEFINED ≠ BACKEND CONNECTED ≠ RESPONSE RECEIVED.
 
-Mapping voix (décision Samir, assets existants — ne pas réattribuer) :
-  speaker jarvis  → jarvis3   (JARVIS principal)
+Mapping voix (décision Samir 2026-09-13 — jarvis2 = voix principale) :
+  speaker jarvis  → jarvis2   (JARVIS principal — ElevenLabs Jarvis2)
   speaker claude  → jarvis    (nom historique asset)
-  speaker cursor  → jarvis2
+  speaker cursor  → jarvis2   (même timbre que JARVIS pour l’instant)
   speaker hermes  → hermes + ElevenLabs HuLbOdhRlvQQN8oPP0AJ
 """
 from __future__ import annotations
@@ -24,10 +24,13 @@ from .voice_map import (
 )
 
 # ElevenLabs — IDs source manifestes cache NUC (generate_voice_cache.py).
-JARVIS_ELEVENLABS_VOICE_ID = "HhLkLX9WkAwlzDXzuHzd"
+# jarvis2 = voix JARVIS demandée par Samir (plus jarvis3 / HhLkLX…).
+JARVIS_ELEVENLABS_VOICE_ID = "Z5gdl1qPL2yS8NNiW921"  # cache/jarvis2/manifest.json
 CLAUDE_ELEVENLABS_VOICE_ID = "F42eFqrXBZYrTDYwcHo0"  # cache/jarvis/manifest.json
-CURSOR_ELEVENLABS_VOICE_ID = "Z5gdl1qPL2yS8NNiW921"  # cache/jarvis2/manifest.json
+CURSOR_ELEVENLABS_VOICE_ID = "Z5gdl1qPL2yS8NNiW921"  # même ID que jarvis2
 HERMES_ELEVENLABS_VOICE_ID = "HuLbOdhRlvQQN8oPP0AJ"
+# Ancien jarvis3 (repli / bascule) :
+JARVIS3_ELEVENLABS_VOICE_ID = "HhLkLX9WkAwlzDXzuHzd"
 
 
 @dataclass(frozen=True)

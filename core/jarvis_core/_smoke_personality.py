@@ -101,7 +101,7 @@ def test_architecture() -> None:
 def test_entities() -> None:
     j = get_entity(SpeakerEntity.JARVIS)
     check("jarvis connected", j.backend == BackendAvailability.CONNECTED)
-    check("jarvis asset jarvis3", j.voice_cache_folder == JARVIS_MAIN_ASSET)
+    check("jarvis asset jarvis2", j.voice_cache_folder == JARVIS_MAIN_ASSET)
     c = get_entity(SpeakerEntity.CLAUDE)
     check("claude not connected", c.backend == BackendAvailability.NOT_CONNECTED)
     check("claude voice folder", c.voice_cache_folder == "jarvis")
@@ -120,8 +120,8 @@ def test_entities() -> None:
 
 def test_voice_mapping() -> None:
     check(
-        "jarvis to jarvis3",
-        resolve_voice_asset("jarvis", preset="jarvis_fr") == "jarvis3",
+        "jarvis to jarvis2",
+        resolve_voice_asset("jarvis", preset="jarvis_fr") == "jarvis2",
     )
     check(
         "jarvis not historical jarvis asset",
@@ -132,8 +132,8 @@ def test_voice_mapping() -> None:
     check("hermes to hermes", resolve_voice_asset("hermes") == "hermes")
 
     sel_j = resolve_voice("smoke-u", preset="jarvis_fr", speaker_entity="jarvis")
-    check("resolve_voice jarvis3", sel_j.profile == "jarvis3")
-    check("resolve_voice jarvis not jarvis2", sel_j.profile != "jarvis2")
+    check("resolve_voice jarvis2", sel_j.profile == "jarvis2")
+    check("resolve_voice jarvis not jarvis2", sel_j.profile != "jarvis3")
 
     sel_c = resolve_voice("smoke-u", preset="jarvis_fr", speaker_entity="claude")
     check("resolve_voice claude asset", sel_c.profile == "jarvis")

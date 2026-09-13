@@ -1,6 +1,7 @@
 /**
  * AuthScene — scène d'authentification SF complète
- * Phases : boot → identification → face_auth → voice_auth → authenticated
+ * Phases : boot → identification → face_auth → authenticated
+ * (phrase vocale MFA désactivée — devicePolicy.requireVoicePhrase=false)
  * Cahier §10.1 / §13.10 — piloté par ExperienceOrchestrator (§3.5)
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -45,6 +46,7 @@ import { GlassButton, GlassCard, GlassPanel } from '../../../components/glass';
 import { tokens } from '../../../ui/tokens';
 import { ACCENT, DANGER, MUTED, SUCCESS, TEXT, WARNING, orbFont } from '../hudTheme';
 import { visionTitle, visionCaption, visionBody } from '../visionChrome';
+import { getDevicePolicy } from '../../../ui/core/devicePolicy';
 
 const orbF = orbFont;
 
@@ -333,12 +335,12 @@ export function AuthScene({ onRequestEnroll }: Props) {
       setFactors({ ...factorsRef.current });
       return true;
     }
+    // Plus d'offre « enrôlement vocal » ici : la voix n'est pas un facteur
+    // obligatoire (Settings plus tard). Face seule déverrouille.
     if (result.reason === 'no_profiles') {
-      setOfferEnroll(true);
-      setEnrollHint('Aucun profil vocal — enrôlez la phrase d’accès (3 prises)');
       orchRef.current?.patchHud({
-        hudText: 'PROFIL VOCAL ABSENT',
-        hudSubtext: result.hudSubtext || 'Enrôlez votre voix, puis réessayez',
+        hudText: 'PHRASE VOCALE IGNORÉE',
+        hudSubtext: 'Aucun profil vocal — accès par visage seulement',
       });
     }
     return false;
@@ -647,6 +649,14 @@ export function AuthScene({ onRequestEnroll }: Props) {
                   username: result.username,
                   confidence: result.confidence,
                 };
+                // MFA vocale désactivée (pas d'enrôlement voix au 1er setup).
+                // Face seule déverrouille tant que requireVoicePhrase=false.
+                if (!getDevicePolicy().unlock.requireVoicePhrase) {
+                  factorsRef.current = { ...factorsRef.current, face: true };
+                  setFactors({ ...factorsRef.current });
+                  ok = true;
+                  break;
+                }
                 orch.patchHud({
                   hudText: 'PHRASE D\'ACCÈS',
                   hudSubtext: 'Visage reconnu — dites la phrase pour confirmer',
