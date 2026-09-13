@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { Radar } from 'lucide-react';
 import { authLogout, authRevokeAdmin, type AuthUser } from '../bridge/authClient';
 import { CHAT_STORAGE_KEY } from '../bridge/chatPipeline';
@@ -8,6 +8,7 @@ import { forceReleaseCamera } from '../bridge/mediaDevices';
 import { getCoreClient } from '../bridge/coreClient';
 import { getDeviceProfile } from '../../ui/core/device';
 import { getDevicePolicy } from '../../ui/core/devicePolicy';
+import { bindToastHost, resolveDurationMs, type ToastInput } from '../toast';
 
 export type AIState = 'idle' | 'listening' | 'processing' | 'responding';
 
@@ -136,11 +137,21 @@ export interface Message {
   source?: 'voice' | 'text' | 'local' | 'core' | 'system';
 }
 
+export type NotificationAction = {
+  label: string;
+  onClick?: () => void;
+  app?: string;
+  intent?: string;
+};
+
 export interface Notification {
   id: string;
-  type: 'info' | 'warning' | 'success' | 'error';
+  type: 'info' | 'warning' | 'success' | 'error' | 'pending';
   title: string;
   message: string;
+  /** `null` = sticky (pending / action). Absent → 6000 ms. */
+  durationMs?: number | null;
+  action?: NotificationAction;
 }
 
 export interface MemoryItem {
@@ -195,7 +206,8 @@ interface AppContextType {
   liveTranscript: string;
   setLiveTranscript: (t: string) => void;
   notifications: Notification[];
-  addNotification: (n: Omit<Notification, 'id'>) => void;
+  addNotification: (n: Omit<Notification, 'id'>) => string;
+  patchNotification: (id: string, patch: Partial<Omit<Notification, 'id'>>) => void;
   removeNotification: (id: string) => void;
   scanningActive: boolean;
   setScanningActive: (v: boolean) => void;
@@ -681,15 +693,106 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch { /* */ }
   }, []);
 
-  const removeNotification = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const dismissTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const clearDismissTimer = useCallback((id: string) => {
+    const t = dismissTimers.current.get(id);
+    if (t) {
+      clearTimeout(t);
+      dismissTimers.current.delete(id);
+    }
   }, []);
 
+  const scheduleDismiss = useCallback(
+    (id: string, durationMs: number | null | undefined) => {
+      clearDismissTimer(id);
+      if (durationMs == null) return;
+      dismissTimers.current.set(
+        id,
+        setTimeout(() => {
+          dismissTimers.current.delete(id);
+          setNotifications((prev) => prev.filter((n) => n.id !== id));
+        }, durationMs),
+      );
+    },
+    [clearDismissTimer],
+  );
+
+  const removeNotification = useCallback((id: string) => {
+    clearDismissTimer(id);
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, [clearDismissTimer]);
+
   const addNotification = useCallback((n: Omit<Notification, 'id'>) => {
-    const id = Date.now().toString();
-    setNotifications(prev => [...prev, { ...n, id }]);
-    setTimeout(() => removeNotification(id), 6000);
-  }, [removeNotification]);
+    const id = `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const durationMs = resolveDurationMs(n as ToastInput);
+    setNotifications((prev) => [...prev, { ...n, id, durationMs }]);
+    scheduleDismiss(id, durationMs);
+    return id;
+  }, [scheduleDismiss]);
+
+  const patchNotification = useCallback(
+    (id: string, patch: Partial<Omit<Notification, 'id'>>) => {
+      setNotifications((prev) => {
+        const i = prev.findIndex((n) => n.id === id);
+        if (i < 0) return prev;
+        const next = { ...prev[i]!, ...patch, id };
+        next.durationMs = resolveDurationMs(next as ToastInput);
+        const copy = [...prev];
+        copy[i] = next;
+        scheduleDismiss(id, next.durationMs);
+        return copy;
+      });
+    },
+    [scheduleDismiss],
+  );
+
+  useEffect(() => {
+    bindToastHost({
+      push: (input) =>
+        addNotification({
+          type: input.type,
+          title: input.title,
+          message: input.message,
+          durationMs: input.durationMs,
+          action: input.action
+            ? {
+                label: input.action.label,
+                onClick: input.action.onClick,
+                app: input.action.app,
+                intent: input.action.intent,
+              }
+            : undefined,
+        }),
+      patch: (id, patch) =>
+        patchNotification(id, {
+          type: patch.type,
+          title: patch.title,
+          message: patch.message,
+          durationMs: patch.durationMs,
+          action: patch.action
+            ? {
+                label: patch.action.label,
+                onClick: patch.action.onClick,
+                app: patch.action.app,
+                intent: patch.action.intent,
+              }
+            : patch.action === undefined
+              ? undefined
+              : undefined,
+        }),
+      dismiss: (id) => {
+        if (!id) {
+          for (const t of dismissTimers.current.values()) clearTimeout(t);
+          dismissTimers.current.clear();
+          setNotifications([]);
+          return;
+        }
+        removeNotification(id);
+      },
+    });
+    return () => bindToastHost(null);
+  }, [addNotification, patchNotification, removeNotification]);
 
   const addMemory = useCallback((item: Omit<MemoryItem, 'id' | 'timestamp'> & { id?: string }) => {
     setMemories(prev => [
@@ -715,7 +818,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       aiState, setAiState,
       messages, addMessage, clearMessages,
       liveTranscript, setLiveTranscript,
-      notifications, addNotification, removeNotification,
+      notifications, addNotification, patchNotification, removeNotification,
       scanningActive, setScanningActive,
       appGridOpen, setAppGridOpen,
       settingsOpen, setSettingsOpen,

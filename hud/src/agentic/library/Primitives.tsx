@@ -341,13 +341,51 @@ export function ToastStack({ props }: AgenticProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((it, i) => {
-        const t = typeof it === 'string' ? { text: it, tone: 'cyan' } : (it as { text?: string; tone?: string });
-        const rgb = toneRgb(t.tone);
+        const t =
+          typeof it === 'string'
+            ? { text: it, tone: 'cyan', status: 'idle' as const }
+            : (it as {
+                text?: string;
+                tone?: string;
+                status?: 'idle' | 'pending' | 'success' | 'error';
+                actionLabel?: string;
+              });
+        const status = t.status || 'idle';
+        const rgb =
+          status === 'pending'
+            ? toneRgb('cyan')
+            : status === 'success'
+              ? toneRgb('green')
+              : status === 'error'
+                ? toneRgb('rose')
+                : toneRgb(t.tone);
         return (
           <VisionPane key={i} material="ultraThin" padding="sm">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: `rgba(${rgb}, 1)` }} />
-              <span style={{ fontSize: 13, color: theme.text }}>{String(t.text || '')}</span>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: `rgba(${rgb}, 1)`,
+                  boxShadow: status === 'pending' ? `0 0 8px rgba(${rgb}, 0.8)` : undefined,
+                }}
+              />
+              <span style={{ fontSize: 13, color: theme.text, flex: 1 }}>{String(t.text || '')}</span>
+              {t.actionLabel ? (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: `rgba(${rgb}, 1)`,
+                    border: `1px solid rgba(${rgb}, 0.45)`,
+                    borderRadius: 6,
+                    padding: '2px 8px',
+                  }}
+                >
+                  {t.actionLabel}
+                </span>
+              ) : null}
             </div>
           </VisionPane>
         );

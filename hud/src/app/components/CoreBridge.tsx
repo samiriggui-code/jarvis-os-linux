@@ -8,6 +8,7 @@ import { bootVerificationStore } from '../bridge/verificationStore';
 import { bootVisionSceneStore } from '../bridge/visionSceneStore';
 import { getAppById } from '../apps/catalog';
 import type { AuthUser } from '../bridge/authClient';
+import { toast } from '../toast';
 
 export function CoreBridge() {
   const {
@@ -50,10 +51,25 @@ export function CoreBridge() {
         else if (state === 'listening') setAiState('listening');
         else setAiState('idle'); // VoiceChatBridge rouvre l'écoute si conversation ouverte
       },
-      onNotification: (message) => {
-        addNotification({ type: 'info', title: 'JARVIS', message });
-        if (message && !message.startsWith('JARVIS Core prêt') && !message.startsWith('Core en ligne')) {
-          addMessage({ type: 'ai', text: message, source: 'core' });
+      onNotification: (payload) => {
+        const level = payload.level ?? 'info';
+        const title = payload.title || 'JARVIS';
+        if (payload.action_label) {
+          toast.action({
+            type: level === 'pending' ? 'info' : level,
+            title,
+            message: payload.message,
+            label: payload.action_label,
+            app: payload.action_app,
+            intent: payload.action_intent,
+          });
+        } else if (level === 'pending') {
+          toast.message({ type: 'pending', title, message: payload.message, durationMs: null });
+        } else {
+          toast[level](title, payload.message);
+        }
+        if (payload.message && !payload.message.startsWith('JARVIS Core prêt') && !payload.message.startsWith('Core en ligne')) {
+          addMessage({ type: 'ai', text: payload.message, source: 'core' });
           setAiState('responding');
           // Ne force plus idle à 1.8s — laisse TTS + VoiceChatBridge gérer le TX/RX
         }

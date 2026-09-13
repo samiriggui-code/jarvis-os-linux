@@ -104,7 +104,7 @@ export type CoreToHudEvent =
   | { type: 'approval_request'; run_id: string; approval_id: string; preview: string }
   | { type: 'summon_panel'; media: 'video' | 'iframe' | 'image'; src: string; title: string; position?: 'center' | 'left' | 'right' }
   | { type: 'dismiss_panels' }
-  | { type: 'display_notification'; message: string; level?: 'info' | 'success' | 'warning' | 'error' }
+  | { type: 'display_notification'; message: string; level?: 'info' | 'success' | 'warning' | 'error' | 'pending'; title?: string; action_label?: string; action_app?: string; action_intent?: string }
   | {
       type: 'dialogue_line';
       event: string;

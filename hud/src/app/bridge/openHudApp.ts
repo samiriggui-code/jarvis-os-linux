@@ -25,7 +25,13 @@ export type OpenHudAppFx = {
   setAppGridOpen?: (v: boolean) => void;
   requestDashboard: () => void;
   openSettings?: (section?: 'profil' | 'voix' | 'vision' | 'comportement' | 'coupure' | 'foyer') => void;
-  addNotification: (n: { type: 'info' | 'warning' | 'success' | 'error'; title: string; message: string }) => void;
+  addNotification: (n: {
+    type: 'info' | 'warning' | 'success' | 'error' | 'pending';
+    title: string;
+    message: string;
+    durationMs?: number | null;
+    action?: { label: string; onClick?: () => void; app?: string; intent?: string };
+  }) => void;
   isAdmin?: boolean;
   role?: string | null;
   setInputMode?: (m: 'voice' | 'recovery') => void;
