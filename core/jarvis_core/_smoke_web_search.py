@@ -193,6 +193,67 @@ def _test_normal_chat_never_gets_web_plugin() -> None:
     check("chat normal (_openrouter_complete) ne contient jamais 'plugins'", "plugins" not in src)
 
 
+async def _test_executor_primes_hud_and_remembers() -> None:
+    """Régression : open_space reach AVANT la recherche + mémoire session branchée."""
+    from jarvis_core.chat_search_memory import get_last_web_search
+    from jarvis_core.executors.web import WebExecutorsMixin
+
+    class _Orch(WebExecutorsMixin):
+        def __init__(self) -> None:
+            self.messages: list[dict] = []
+            self.providers = type("P", (), {})()
+
+            async def _search(query: str) -> dict:
+                return {
+                    "query": query,
+                    "provider": "openrouter",
+                    "mode": "fast",
+                    "type": "web",
+                    "speech": "Il fera beau demain.",
+                    "results": [{"title": "Météo", "url": "https://example.com/m", "snippet": "soleil"}],
+                    "sources": ["https://example.com/m"],
+                    "metadata": {
+                        "searches_used": 1,
+                        "latency_ms": 12,
+                        "cost_estimate_usd": 0.01,
+                        "success": True,
+                        "fallback_used": False,
+                    },
+                }
+
+            self.providers.web_search = _search
+
+        def _session_user_id(self) -> str:
+            return "smoke-web"
+
+        async def broadcast(self, msg: dict) -> None:
+            self.messages.append(msg)
+
+        async def speak(self, text: str, user_id: str = "") -> dict:
+            return {"type": "tts", "text": text, "user_id": user_id}
+
+        async def say(self, *a, **k) -> None:
+            return None
+
+    orch = _Orch()
+    with patch(
+        "jarvis_core.surfaces.publisher.publish_result_surface",
+        new_callable=AsyncMock,
+    ) as pub:
+        out = await orch._execute_web_search({"prompt": "météo demain"})
+
+    check("executor ok", out.get("ok") is True)
+    primes = [
+        m for m in orch.messages
+        if m.get("type") == "hud_command" and m.get("action") == "open_space" and m.get("app") == "reach"
+    ]
+    check("open_space reach émis (prime HUD)", len(primes) >= 1)
+    check("publish_result_surface appelé après succès", pub.await_count == 1)
+    mem = get_last_web_search(orch, "smoke-web")
+    check("mémoire lastWebSearch enregistrée", mem is not None and mem.get("query") == "météo demain")
+    check("mémoire URL top résultat", bool(mem and mem.get("url") == "https://example.com/m"))
+
+
 async def main() -> None:
     print("=== smoke web.search FAST V1 ===")
     await _test_openrouter_success_stops_immediately()
@@ -204,6 +265,7 @@ async def main() -> None:
     _test_web_search_tool_variant_selection()
     _test_voice_ready_strips_and_caps()
     _test_normal_chat_never_gets_web_plugin()
+    await _test_executor_primes_hud_and_remembers()
     print("=== ALL PASS ===")
 
 

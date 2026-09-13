@@ -17,12 +17,18 @@ logger = logging.getLogger("jarvis.core")
 class WebExecutorsMixin:
 
     async def _execute_web_search(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from ..chat_search_memory import remember_web_search
         from ..surfaces.publisher import publish_result_surface
 
         uid = self._session_user_id() or "local"
         query = str(payload.get("prompt") or "").strip()
         if not query:
             return {"ok": False, "reason": "requête vide"}
+
+        # Prime HUD immédiatement (régression live 2026-08-16 : la tuile
+        # n'apparaissait qu'après 5–8 s de recherche). open_space avant l'appel
+        # réseau ; ResultPanel arrive ensuite via publish_result_surface.
+        await self.broadcast({"type": "hud_command", "action": "open_space", "app": "reach"})
 
         result = await self.providers.web_search(query)
         meta = result.get("metadata") or {}
@@ -52,6 +58,19 @@ class WebExecutorsMixin:
             f"{r.get('title') or r.get('url')} — {r.get('url')}"
             for r in (result.get("results") or [])
         ]
+        top_url = ""
+        for r in (result.get("results") or []):
+            if r.get("url"):
+                top_url = str(r["url"])
+                break
+
+        remember_web_search(
+            self,
+            uid,
+            query=query,
+            summary=speech,
+            url=top_url,
+        )
 
         await publish_result_surface(
             self,
