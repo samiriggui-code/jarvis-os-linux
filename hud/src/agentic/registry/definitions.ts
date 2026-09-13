@@ -529,21 +529,31 @@ export const definitions: Record<string, ComponentDefinition> = {
   },
   ToastStack: {
     name: 'ToastStack',
-    description: 'Pile de toasts / sonner-like (messages courts empilés).',
+    description: 'Pile de toasts glass (info / pending / success / error + CTA action).',
     category: 'feedback',
     props: z.object({
       items: z
-        .array(z.union([z.string(), z.object({ text: z.string(), tone: z.string().optional() })]))
+        .array(
+          z.union([
+            z.string(),
+            z.object({
+              text: z.string(),
+              tone: z.string().optional(),
+              status: z.enum(['idle', 'pending', 'success', 'error']).optional(),
+              actionLabel: z.string().optional(),
+            }),
+          ]),
+        )
         .default([]),
     }),
-    states: ['idle'],
+    states: ['idle', 'pending'],
     permissions: [],
     requiredContext: [],
     supportedActions: {},
     preferredRegion: 'overlay',
     preferredSize: 'compact',
     priority: 85,
-    tags: ['toast', 'sonner', 'notification', 'feedback'],
+    tags: ['toast', 'notification', 'feedback', 'promise', 'action'],
   },
   ServiceHub: {
     name: 'ServiceHub',

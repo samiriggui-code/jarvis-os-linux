@@ -72,8 +72,19 @@ class VoiceManager:
         }
 
     async def probe(self) -> bool:
-        """Sonde `/health`. Ne lève jamais."""
+        """Sonde `/health`. Ne lève jamais.
+
+        Si `JARVIS_VOICEBOX_TTS=0`, on ne sonde PAS voicebox : le TTS live
+        passe par ElevenLabs. Sinon le superviseur marque « voice » degraded
+        toutes les 15 s pour un service volontairement absent.
+        """
         self._last_probe = time.monotonic()
+        if not voicebox_tts_enabled():
+            self.available = True
+            self.last_error = None
+            self.backend = "elevenlabs"
+            logger.info("voicebox TTS off — provider=ElevenLabs (sonde voicebox ignorée)")
+            return True
         try:
             info = await self.client.health()
         except VoiceboxUnavailable as exc:
@@ -90,12 +101,10 @@ class VoiceManager:
         self.available = True
         self.last_error = None
         self.backend = str(info.get("backend") or info.get("device") or "") or None
-        tts_note = " · tts=skipped" if not voicebox_tts_enabled() else ""
         logger.info(
-            "voicebox prêt · %s · backend=%s%s",
+            "voicebox prêt · %s · backend=%s",
             self.client.base,
             self.backend or "?",
-            tts_note,
         )
         return True
 

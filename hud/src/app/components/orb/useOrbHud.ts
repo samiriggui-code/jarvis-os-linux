@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import type { OrbState } from '../../types';
 import { speakDev, stopDev } from '../../bridge/ttsDev';
 import { isCoreOnline } from '../CoreBridge';
+import { toast } from '../../toast';
 import {
   getAudioLevel,
   startAudioBus,
@@ -38,7 +39,7 @@ export function mapOrbToAi(s: OrbState): 'idle' | 'listening' | 'processing' | '
  * Wake « Jarvis » → listening
  */
 export function useOrbHud() {
-  const { aiState, setAiState, messages, addNotification, micTestActive } = useApp();
+  const { aiState, setAiState, messages, micTestActive } = useApp();
   const orbState = micTestActive ? 'listening' : mapAiToOrb(aiState);
   const meta = micTestActive
     ? { label: 'TEST MIC', color: '#0A84FF', sub: 'NIVEAU SEUL — PAS DE STT' }
@@ -52,29 +53,21 @@ export function useOrbHud() {
     void startAudioBus().then(ok => {
       if (alive) setMicOk(ok);
       if (alive && !ok) {
-        addNotification({
-          type: 'warning',
-          title: 'Micro',
-          message: 'Autorise le micro pour que l\'orbe pulse avec ta voix.',
-        });
+        toast.warning('Micro', 'Autorise le micro pour que l\'orbe pulse avec ta voix.');
       }
     });
     return () => { alive = false; };
-  }, [addNotification]);
+  }, []);
 
   useEffect(() => {
     return subscribeWakeWord(() => {
       if (micTestActive) return;
       if (aiState === 'idle' || aiState === 'responding') {
         setAiState('listening');
-        addNotification({
-          type: 'success',
-          title: 'JARVIS',
-          message: 'Réveil — pose ta question (une pause après « Jarvis » est OK).',
-        });
+        toast.success('JARVIS', 'Réveil — pose ta question (une pause après « Jarvis » est OK).');
       }
     });
-  }, [aiState, setAiState, addNotification, micTestActive]);
+  }, [aiState, setAiState, micTestActive]);
 
   useEffect(() => {
     const unsub = subscribeAudioLevel(micLevel => {

@@ -1,6 +1,7 @@
 /**
  * AuthScene — scène d'authentification SF complète
- * Phases : boot → identification → face_auth → voice_auth → authenticated
+ * Phases : boot → identification → face_auth → authenticated
+ * (accès = visage seul — plus de « Jarvis, active-toi »)
  * Cahier §10.1 / §13.10 — piloté par ExperienceOrchestrator (§3.5)
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -15,10 +16,6 @@ import { useMicOrbAnalyser } from './useMicOrbAnalyser';
 import { speakDev, initTtsDev, stopDev } from '../../bridge/ttsDev';
 import { runFaceAuthFlow } from '../../engine/faceAuthSimulator';
 import { runFaceVerifyLive } from '../../bridge/faceAuthLive';
-import {
-  formatVoiceChallenge,
-  runVoiceVerifyLive,
-} from '../../bridge/voiceAuthLive';
 import { subscribeTtsSpeaking } from '../../bridge/ttsCore';
 import type { FaceHologramState } from '../../engine/faceHologramTypes';
 import {
@@ -281,68 +278,6 @@ export function AuthScene({ onRequestEnroll }: Props) {
    * 2ᵉ facteur : capture micro → Core `verify_phrase` (comme LockScene).
    * `sequence_start` seul attend `voice.matched` sans audio HUD → timeout.
    */
-  const confirmVoicePassphrase = useCallback(async (): Promise<boolean> => {
-    const challenge = formatVoiceChallenge();
-    setVoiceListening(true);
-    setVoiceHeard('');
-    orchRef.current?.patchHud({
-      hudText: "PHRASE D'ACCÈS",
-      hudSubtext: `Dites : « ${challenge} »`,
-      orbState: 'listening',
-      avatarMode: 'listening',
-      isSpeaking: false,
-    });
-    const stream = (await tryPrimeMic()) || (await ensureMic());
-    if (!stream || getMediaState().mic !== 'granted') {
-      setVoiceListening(false);
-      orchRef.current?.patchHud({
-        hudText: 'MICRO REQUIS',
-        hudSubtext: 'Autorisez le microphone pour confirmer',
-        orbState: 'listening',
-      });
-      setMediaHint('Autorisez le micro, puis réessayez');
-      return false;
-    }
-    const hint = faceUserRef.current?.username || getLastUsername() || undefined;
-    const result = await runVoiceVerifyLive({
-      isAlive: () => aliveRef.current,
-      usernameHint: hint || undefined,
-      attempts: 4,
-      durationMs: 5_500,
-      patchHud: (hudText, hudSubtext) => {
-        orchRef.current?.patchHud({
-          hudText,
-          hudSubtext,
-          orbState: 'listening',
-          avatarMode: 'listening',
-        });
-      },
-      onHeard: (text) => {
-        const t = text.replace(/[«»"']/g, '').trim();
-        if (!t || /^[.\s…·•\-–—]+$/.test(t) || /^\.{1,6}$/.test(t) || t.length < 2) {
-          setVoiceHeard('');
-          return;
-        }
-        setVoiceHeard(t);
-      },
-    });
-    setVoiceListening(false);
-    if (result.text) setVoiceHeard(result.text);
-    if (result.ok) {
-      factorsRef.current = { ...factorsRef.current, voice: true };
-      setFactors({ ...factorsRef.current });
-      return true;
-    }
-    if (result.reason === 'no_profiles') {
-      setOfferEnroll(true);
-      setEnrollHint('Aucun profil vocal — enrôlez la phrase d’accès (3 prises)');
-      orchRef.current?.patchHud({
-        hudText: 'PROFIL VOCAL ABSENT',
-        hudSubtext: result.hudSubtext || 'Enrôlez votre voix, puis réessayez',
-      });
-    }
-    return false;
-  }, []);
 
   /**
    * Bouton enroll après `no_profile` : ouvrir FirstSetup directement.
@@ -610,7 +545,7 @@ export function AuthScene({ onRequestEnroll }: Props) {
 
           // Pas de `sequence_start` ici — la phrase d'accès vocale ne se
           // déclenche plus qu'APRÈS un visage reconnu (deuxième facteur),
-          // jamais en parallèle du scan facial. Voir `confirmVoicePassphrase`.
+          // jamais en parallèle du scan facial. MFA vocale retirée.
           const useLive = isCoreOnline() && !faceFailDemo;
           let ok = false;
           let failReason = '';
@@ -647,30 +582,12 @@ export function AuthScene({ onRequestEnroll }: Props) {
                   username: result.username,
                   confidence: result.confidence,
                 };
-                orch.patchHud({
-                  hudText: 'PHRASE D\'ACCÈS',
-                  hudSubtext: 'Visage reconnu — dites la phrase pour confirmer',
-                  orbState: 'listening',
-                  avatarMode: 'listening',
-                });
-                const voiceOk = await confirmVoicePassphrase();
-                if (!aliveRef.current) return;
-                if (voiceOk) {
-                  ok = true;
-                  break;
-                }
-                // Visage reconnu mais pas de confirmation vocale : on ne
-                // déverrouille pas — deux facteurs requis, on retente.
-                faceUserRef.current = null;
-                orch.patchHud({
-                  hudText: 'PHRASE NON RECONNUE',
-                  hudSubtext: 'Visage reconnu, confirmez avec la phrase d\'accès',
-                  orbState: 'listening',
-                  avatarMode: 'listening',
-                });
-                await new Promise(r => setTimeout(r, 1200));
-                if (!aliveRef.current) return;
-                continue;
+                // Visage = seul facteur d'accès (Samir 2026-09-13).
+                // Plus de MFA « Jarvis, active-toi » ni d'enrôlement vocal ici.
+                factorsRef.current = { ...factorsRef.current, face: true };
+                setFactors({ ...factorsRef.current });
+                ok = true;
+                break;
               }
               failReason = result.reason || '';
               failHudSubtext = result.hudSubtext || '';

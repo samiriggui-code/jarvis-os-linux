@@ -10,8 +10,7 @@ import { MUTED, monoFont } from './hudTheme';
 
 export function AppDock() {
   const {
-    setAppGridOpen, setSettingsOpen, setGestureOpen, addNotification,
-    launchApp, openApps, activeAppId, requestDashboard, openSettings, coreAuth,
+    setAppGridOpen, setSettingsOpen, setGestureOpen, launchApp, openApps, activeAppId, requestDashboard, openSettings, coreAuth,
   } = useApp();
   const [hovered, setHovered] = useState<string | null>(null);
   const pinned = getPinnedApps();
@@ -27,7 +26,6 @@ export function AppDock() {
       setAppGridOpen,
       requestDashboard,
       openSettings,
-      addNotification,
       isAdmin,
       role: coreAuth?.user?.role,
     });

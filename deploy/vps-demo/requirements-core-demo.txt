@@ -1,0 +1,14 @@
+websockets>=12.0
+python-dotenv>=1.0.0
+PyYAML>=6.0
+numpy>=2.0
+Pillow>=10.0
+psutil>=6.0
+SQLAlchemy>=2.0.36
+alembic>=1.14.0
+psycopg[binary]>=3.2.0
+httpx>=0.27.0
+ddgs>=9.15.0
+# Auth faciale Holomat (YuNet + SFace). Démo = OpenCV only (pas mediapipe).
+# 4.10 : SFace ONNX stable (4.14 plante sur certains dumps corrompus/anciens).
+opencv-python-headless==4.10.0.84

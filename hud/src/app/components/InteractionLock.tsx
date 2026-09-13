@@ -7,13 +7,14 @@ import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wrench, Mic } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { toast } from '../toast';
 import { GlassButton } from '../../components/glass';
 import { glassLevel, tokens } from '../../ui/tokens';
 
 const mono = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' };
 
 export function InteractionLock() {
-  const { inputMode, toggleRecoveryMode, setInputMode, addNotification } = useApp();
+  const { inputMode, toggleRecoveryMode, setInputMode } = useApp();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,14 +48,11 @@ export function InteractionLock() {
     const w = window as Window & { __jarvisSetInputMode?: (m: 'voice' | 'recovery') => void };
     w.__jarvisSetInputMode = (m) => {
       setInputMode(m);
-      addNotification({
-        type: m === 'recovery' ? 'warning' : 'info',
-        title: m === 'recovery' ? 'Recovery' : 'Voix',
-        message: m === 'recovery' ? 'Maintenance clavier/souris.' : 'Retour kiosque vocal.',
-      });
+            if (m === 'recovery') toast.warning('Recovery', 'Maintenance clavier/souris.');
+      else toast.info('Voix', 'Retour kiosque vocal.');
     };
     return () => { delete w.__jarvisSetInputMode; };
-  }, [setInputMode, addNotification]);
+  }, [setInputMode]);
 
   return (
     <AnimatePresence>

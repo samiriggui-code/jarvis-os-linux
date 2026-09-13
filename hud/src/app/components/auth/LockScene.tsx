@@ -1,24 +1,22 @@
 /**
  * LockScene — re-auth après soft-lock.
- * Phrase vocale uniquement (plus de face / caméra).
+ * Visage seul (plus de phrase « Jarvis, active-toi »).
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { Lock, Mic, ShieldAlert } from 'lucide-react';
+import { Lock, Camera, ShieldAlert } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { initTtsDev, stopDev } from '../../bridge/ttsDev';
 import {
   ExperienceOrchestrator,
   type OrchestratorState,
 } from '../../engine/experienceOrchestrator';
-import { authLogin, getLastUsername } from '../../bridge/authClient';
-import { runVoiceVerifyLive, VOICE_CHALLENGE, formatVoiceChallenge } from '../../bridge/voiceAuthLive';
+import { authLogin } from '../../bridge/authClient';
+import { runFaceVerifyLive } from '../../bridge/faceAuthLive';
 import { getCoreClient } from '../../bridge/coreClient';
-import { ensureMic, getMediaState, tryPrimeMic } from '../../bridge/mediaDevices';
-import { startAudioBus } from '../../bridge/audioBus';
+import { ensureCamera, getMediaState, tryPrimeCamera } from '../../bridge/mediaDevices';
 import { isCoreOnline } from '../CoreBridge';
-import { AuthVoiceWave } from './AuthVoiceWave';
-import { useMicOrbAnalyser } from './useMicOrbAnalyser';
+import { FaceCamView } from './FaceCamView';
 import { OrbSpatial } from './OrbSpatial';
 import { GlassButton, GlassPanel } from '../../../components/glass';
 import { tokens } from '../../../ui/tokens';
@@ -39,12 +37,12 @@ interface Props {
 }
 
 export function LockScene({ onUnlock }: Props) {
-  const { unlockSession, coreAuth } = useApp();
+  const { unlockSession } = useApp();
   const [progress, setProgress] = useState(0);
   const [failCount, setFailCount] = useState(0);
   const [permanentDeny, setPermanentDeny] = useState(false);
-  const [micOk, setMicOk] = useState(false);
-  const { micAnalyser, micLevel } = useMicOrbAnalyser(micOk);
+  const [cameraOk, setCameraOk] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
   const [hint, setHint] = useState('');
   const [orchState, setOrchState] = useState<OrchestratorState>({
     stepIndex: -1,
@@ -89,29 +87,26 @@ export function LockScene({ onUnlock }: Props) {
   useEffect(() => {
     initTtsDev();
     aliveRef.current = true;
-    void tryPrimeMic().then((s) => {
-      if (s && getMediaState().mic === 'granted') {
-        setMicOk(true);
-        void startAudioBus();
-      }
+    void tryPrimeCamera().then((s) => {
+      if (s && getMediaState().camera === 'granted') setCameraOk(true);
     });
 
     const STEPS = [
       {
         id: 'locked',
         hudText: 'SESSION VERROUILLÉE',
-        hudSubtext: 'Authentification vocale',
+        hudSubtext: 'Authentification faciale',
         orbState: 'thinking' as const,
         avatarMode: 'idle' as const,
         minDuration: 400,
         pauseAfter: 200,
       },
       {
-        id: 'voice_scan',
-        hudText: 'VOICE AUTH',
-        hudSubtext: `Dites : « ${VOICE_CHALLENGE} »`,
+        id: 'face_scan',
+        hudText: 'FACE AUTH',
+        hudSubtext: 'Placez votre visage face à la caméra',
         orbState: 'listening' as const,
-        avatarMode: 'listening' as const,
+        avatarMode: 'scanning' as const,
         waitForAsync: async () => {
           if (!aliveRef.current) return;
 
@@ -126,30 +121,29 @@ export function LockScene({ onUnlock }: Props) {
               continue;
             }
 
-            const stream = (await tryPrimeMic()) || (await ensureMic());
-            if (!stream || getMediaState().mic !== 'granted') {
-              setMicOk(false);
-              setHint('Autorisez le micro pour continuer');
+            const stream = (await tryPrimeCamera()) || (await ensureCamera());
+            if (!stream || getMediaState().camera !== 'granted') {
+              setCameraOk(false);
+              setHint('Autorisez la caméra pour continuer');
               orchRef.current?.patchHud({
-                hudText: 'MICRO REQUIS',
-                hudSubtext: 'Cliquez AUTORISER MICRO',
+                hudText: 'CAMÉRA REQUISE',
+                hudSubtext: 'Cliquez AUTORISER CAMÉRA',
               });
               await new Promise((r) => setTimeout(r, 1500));
               continue;
             }
-            setMicOk(true);
+            setCameraOk(true);
             setHint('');
-            void startAudioBus();
 
-            const usernameHint = getLastUsername();
-            const challenge = formatVoiceChallenge();
-
-            const result = await runVoiceVerifyLive({
+            const result = await runFaceVerifyLive({
               isAlive: () => aliveRef.current,
-              usernameHint: usernameHint || undefined,
+              reason: 'unlock',
               patchHud: (hudText, hudSubtext) => {
                 orchRef.current?.patchHud({ hudText, hudSubtext });
                 setProgress((p) => Math.min(90, p + 12));
+              },
+              patchFace: (update) => {
+                if (typeof update.progress === 'number') setScanProgress(update.progress);
               },
             });
 
@@ -164,6 +158,19 @@ export function LockScene({ onUnlock }: Props) {
               return;
             }
 
+            const soft =
+              result.reason === 'no_face' ||
+              result.reason === 'timeout' ||
+              result.reason === 'no_camera';
+            if (soft) {
+              orchRef.current?.patchHud({
+                hudText: result.hudText || 'SCAN FACIAL',
+                hudSubtext: result.hudSubtext || 'Placez votre visage face à la caméra',
+              });
+              await new Promise((r) => setTimeout(r, 900));
+              continue;
+            }
+
             const next = failRef.current + 1;
             failRef.current = next;
             setFailCount(next);
@@ -174,14 +181,14 @@ export function LockScene({ onUnlock }: Props) {
             }
             orchRef.current?.patchHud({
               hudText: 'IDENTITÉ NON CONFIRMÉE',
-              hudSubtext: `Réessayez — ${next}/5 · « ${challenge} »`,
+              hudSubtext: `Réessayez — ${next}/5`,
             });
             await new Promise((r) => setTimeout(r, 1000));
           }
         },
       },
       {
-        id: 'voice_ok',
+        id: 'face_ok',
         hudText: 'IDENTITÉ CONFIRMÉE',
         hudSubtext: 'Restauration session',
         orbState: 'responding' as const,
@@ -192,7 +199,7 @@ export function LockScene({ onUnlock }: Props) {
           const stash = hitRef.current;
           if (!stash?.user_id && !stash?.username) return;
           void coreUnlock({
-            method: 'voice_reauth',
+            method: 'face_reauth',
             user_id: stash?.user_id,
             username: stash?.username,
           });
@@ -200,7 +207,11 @@ export function LockScene({ onUnlock }: Props) {
       },
     ];
 
-    const orch = new ExperienceOrchestrator({ ttsEnabled: false, speakFn: async () => {}, stopFn: stopDev });
+    const orch = new ExperienceOrchestrator({
+      ttsEnabled: false,
+      speakFn: async () => {},
+      stopFn: stopDev,
+    });
     orchRef.current = orch;
     const unsub = orch.subscribe((s) => setOrchState({ ...s }));
     orch.load(STEPS);
@@ -215,9 +226,13 @@ export function LockScene({ onUnlock }: Props) {
     };
   }, [coreUnlock]);
 
-  const unlockedVisual = progress >= 100 || orchState.currentStep?.id === 'voice_ok';
-  const lockColor = unlockedVisual ? tokens.color.success : permanentDeny ? tokens.color.danger : tokens.color.accent;
-  const scanning = orchState.currentStep?.id === 'voice_scan';
+  const unlockedVisual = progress >= 100 || orchState.currentStep?.id === 'face_ok';
+  const lockColor = unlockedVisual
+    ? tokens.color.success
+    : permanentDeny
+      ? tokens.color.danger
+      : tokens.color.accent;
+  const scanning = orchState.currentStep?.id === 'face_scan';
 
   return (
     <motion.div
@@ -231,61 +246,59 @@ export function LockScene({ onUnlock }: Props) {
         <ThemeModeToggle compact />
       </div>
 
-      <GlassPanel level="regular" radius="lg" padding="lg" className="relative z-10 flex flex-col items-center gap-5 w-full max-w-md" style={{ borderRadius: 32 }}>
+      <GlassPanel
+        level="regular"
+        radius="lg"
+        padding="lg"
+        className="relative z-10 flex w-full max-w-md flex-col items-center gap-5"
+        style={{ borderRadius: 32 }}
+      >
         <div className="flex items-center gap-2">
           {permanentDeny ? (
-            <ShieldAlert className="w-4 h-4" style={{ color: tokens.color.danger }} />
+            <ShieldAlert className="h-4 w-4" style={{ color: tokens.color.danger }} />
           ) : (
-            <Lock className="w-4 h-4" style={{ color: lockColor }} />
+            <Lock className="h-4 w-4" style={{ color: lockColor }} />
           )}
           <span style={{ ...visionTitle, color: lockColor, fontSize: 13 }}>
             {permanentDeny ? 'Accès refusé' : unlockedVisual ? 'Session ouverte' : 'Session verrouillée'}
           </span>
         </div>
 
-        <div className="relative flex items-center justify-center" style={{ width: 200, height: 200 }}>
-          <OrbSpatial
-            size={168}
-            state={unlockedVisual ? 'responding' : 'idle'}
-            volume={0.08}
-            playbackVolume={0}
-          />
+        <div className="relative flex items-center justify-center" style={{ width: 220, height: 220 }}>
+          {scanning || cameraOk ? (
+            <FaceCamView
+              active={scanning || cameraOk}
+              progress={scanProgress}
+              label={scanning ? 'Analyse…' : 'Holomat · caméra'}
+              size={200}
+            />
+          ) : (
+            <OrbSpatial
+              size={168}
+              state={unlockedVisual ? 'responding' : 'idle'}
+              volume={0.08}
+            />
+          )}
         </div>
 
-        {(micOk || scanning) && (
-          <AuthVoiceWave
-            mode={
-              permanentDeny
-                ? 'denied'
-                : unlockedVisual
-                  ? 'ok'
-                  : scanning
-                    ? 'listening'
-                    : 'idle'
-            }
-            level={micLevel}
-          />
-        )}
-
-        {!micOk && !unlockedVisual && !permanentDeny && (
+        {!cameraOk && !unlockedVisual && !permanentDeny && (
           <GlassButton
             tone="accent"
             active
-            icon={<Mic className="w-4 h-4" />}
+            icon={<Camera className="h-4 w-4" />}
             style={{ ...orbF, fontSize: 13, padding: '12px 16px' }}
             onClick={() => {
-              void ensureMic().then((s) => {
-                if (s && getMediaState().mic === 'granted') {
-                  setMicOk(true);
+              void ensureCamera().then((s) => {
+                if (s && getMediaState().camera === 'granted') {
+                  setCameraOk(true);
                   setHint('');
-                  void startAudioBus();
                 } else {
-                  setHint(getMediaState().micError || 'Micro refusé');
+                  setHint(getMediaState().cameraError || 'Caméra refusée');
                 }
               });
             }}
           >
-            Autoriser le micro
+            Autoriser la caméra
           </GlassButton>
         )}
 

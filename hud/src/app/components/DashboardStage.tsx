@@ -9,6 +9,7 @@ import { GlassPanel } from '../../components/glass';
 import { tokens } from '../../ui/tokens';
 import { ACCENT, bodyFont, monoFont, MUTED, SUCCESS, TEXT, WARNING } from './hudTheme';
 import { visionCaption } from './visionChrome';
+import { toast } from '../toast';
 
 const mono = monoFont;
 const raj = bodyFont;
@@ -123,7 +124,7 @@ function AgentsTab() {
 }
 
 function AppsTab() {
-  const { launchApp, addNotification } = useApp();
+  const { launchApp } = useApp();
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))' }}>
       {APPS_CATALOG.map(app => (
@@ -133,7 +134,7 @@ function AppsTab() {
           whileTap={{ scale: 0.95 }}
           onClick={() => {
             launchApp(app);
-            addNotification({ type: 'info', title: `${app.name} lancé`, message: 'Habillage HUD prêt — en attente du flux agent.' });
+            toast.info(`${app.name} lancé`, 'Habillage HUD prêt — en attente du flux agent.');
           }}
           className="flex flex-col items-center gap-2 p-3 rounded-xl cursor-pointer"
           style={{ background: tokens.color.surface, border: `1px solid ${tokens.color.border}` }}

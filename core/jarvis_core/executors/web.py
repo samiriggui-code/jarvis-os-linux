@@ -24,6 +24,17 @@ class WebExecutorsMixin:
         if not query:
             return {"ok": False, "reason": "requête vide"}
 
+        # Prime HUD tout de suite (régression live 2026-08-16 : tuile vide 5–8 s).
+        await self.broadcast({"type": "hud_command", "action": "open_space", "app": "reach"})
+        await self.broadcast(
+            self.cmd(
+                "display_notification",
+                title="Recherche",
+                message=query[:80],
+                level="pending",
+            )
+        )
+
         result = await self.providers.web_search(query)
         meta = result.get("metadata") or {}
 
@@ -39,6 +50,14 @@ class WebExecutorsMixin:
         )
 
         if not meta.get("success"):
+            await self.broadcast(
+                self.cmd(
+                    "display_notification",
+                    title="Recherche",
+                    message=result.get("speech") or "Recherche impossible.",
+                    level="error",
+                )
+            )
             await self.say(
                 "device_unreachable",
                 bindings={"device": "recherche web"},
@@ -60,6 +79,16 @@ class WebExecutorsMixin:
             body=speech,
             source=f"web.search · {result.get('provider')}",
             items=items,
+        )
+        await self.broadcast(
+            self.cmd(
+                "display_notification",
+                title="Recherche",
+                message=speech[:140],
+                level="success",
+                action_label="Ouvrir",
+                action_app="reach",
+            )
         )
         ev = await self.speak(speech, user_id=uid)
         await self.broadcast(ev)

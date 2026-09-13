@@ -4,8 +4,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-HOST = "127.0.0.1"
-PORT = 8765
+import os
+
+# 127.0.0.1 = local/NUC ; 0.0.0.0 = Docker / reverse-proxy
+HOST = os.environ.get("JARVIS_WS_HOST", "127.0.0.1").strip() or "127.0.0.1"
+PORT = int(os.environ.get("JARVIS_WS_PORT", "8765") or "8765")
 
 
 class SalonNullWs:

@@ -65,6 +65,7 @@
 | 2026-08 | voicebox sur VPS = docker-compose amont |
 | 2026-08-11 | **Voice Filter candidat = `hologramme`** (`core/data/voice/voice_filter_candidate.yaml`, lab + `vendor/test.mp3`). WAV cache = **bruts** ; filtre à la lecture. **Pas encore** runtime HUD branché. Régénération phrases fixes = **ElevenLabs** (`generate_voice_cache`) ; live maison = **voicebox** ; hors domicile = ElevenLabs live. |
 | 2026-08-11 | **Voix ElevenLabs principale = `HhLkLX9WkAwlzDXzuHzd`** (`voice_name: jarvis3` dans `cache_config.yaml`). Ancien `jarvis2` / `Z5gdl1qPL2yS8NNiW921` = bascule inverse. Cache à régénérer sur go Samir. |
+| 2026-09-13 | **Voix ElevenLabs principale = jarvis2 `Z5gdl1qPL2yS8NNiW921`** (demande Samir : « c’est mon jarvis2 »). `jarvis3` / `HhLkLX9WkAwlzDXzuHzd` = bascule inverse. TTS FR : accents obligatoires (`prénom`, `civilité`, `déjà`) — pas de français amputée. |
 | 2026-08-11 | **Voice Filter hologramme ACTIF** runtime HUD : `hud/src/app/bridge/voiceFilter.ts` branché sur `ttsCore` (lecture `tts_audio`). WAV restent bruts. |
 | 2026-08 | `vendor/` = sas temporaire ; Agent-Reach dispatché ; CopilotKit supprimé |
 | 2026-08 | Core + HUD tournent sur **portable en dev** ; NUC = Hermes + PG seulement |

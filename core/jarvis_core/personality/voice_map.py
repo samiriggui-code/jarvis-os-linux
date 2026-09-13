@@ -1,8 +1,8 @@
-"""Mapping speaker_entity → assets voix (décision Samir 2026-08-14).
+"""Mapping speaker_entity → assets voix (décision Samir 2026-09-13).
 
 ``speaker_entity`` (identité fonctionnelle) ≠ nom historique du dossier WAV.
 
-    jarvis  → jarvis3   (JARVIS principal)
+    jarvis  → jarvis2   (JARVIS principal — ElevenLabs Jarvis2)
     claude  → jarvis    (asset historique « jarvis »)
     cursor  → jarvis2
     hermes  → hermes    (+ ElevenLabs HuLbOdhRlvQQN8oPP0AJ)
@@ -13,7 +13,7 @@ import os
 
 from .types import SpeakerEntity
 
-JARVIS_MAIN_ASSET = "jarvis3"
+JARVIS_MAIN_ASSET = "jarvis2"
 CLAUDE_VOICE_ASSET = "jarvis"
 CURSOR_VOICE_ASSET = "jarvis2"
 HERMES_VOICE_ASSET = "hermes"

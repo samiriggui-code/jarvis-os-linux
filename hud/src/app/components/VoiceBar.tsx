@@ -13,6 +13,7 @@ import { useOrbHud } from './orb/useOrbHud';
 import { useSpatialTheme } from '../../spatial/theme/SpatialTheme';
 import { getDevicePolicy } from '../../ui/core/devicePolicy';
 import { tokens } from '../../ui/tokens';
+import { toast } from '../toast';
 
 /**
  * VoiceBar — micro + wave EQ (concept Apex bas).
@@ -56,7 +57,7 @@ export function VoiceBar({
   simVoice?: boolean;
 }) {
   const {
-    aiState, setAiState, addNotification, liveTranscript, addMessage, setRightPanel,
+    aiState, setAiState, liveTranscript, addMessage, setRightPanel,
     inputMode,
   } = useApp();
   const { orbState, volume, playbackVolume } = useOrbHud();
@@ -140,11 +141,7 @@ export function VoiceBar({
       if (!ok) {
         void ensureMic().then((stream) => {
           if (!stream) {
-            addNotification({
-              type: 'warning',
-              title: 'Micro',
-              message: 'Autorise le micro dans le navigateur.',
-            });
+            toast.warning('Micro', 'Autorise le micro dans le navigateur.',);
           }
         });
         return;
