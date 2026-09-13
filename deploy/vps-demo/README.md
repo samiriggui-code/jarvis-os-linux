@@ -17,8 +17,9 @@ export ELEVENLABS_API_KEY=...
 docker compose -f deploy/vps-demo/docker-compose.yml up -d --build
 ```
 
-- HUD : `http://IP_VPS/`
-- WS : `ws://IP_VPS/ws` (proxifié nginx → Core)
+- HUD local : `http://127.0.0.1:18080/` (bind loopback — Traefik public)
+- Prod VPS : Traefik `jarvis.global-it-ss.com` → `127.0.0.1:18080`
+- WS : `wss://jarvis.global-it-ss.com/ws` (nginx → Core `:8765`)
 
 ## Arrêt
 
