@@ -47,24 +47,38 @@ export function HudAuthGate() {
   };
 
   // Admin distant → enroll membre (IDENTIFY), jamais confondu avec INSTALL.
+  // Si first_run : toujours INSTALL admin — jamais le libellé « Utilisateur ».
   useEffect(() => {
     const onEnroll = (ev: Event) => {
       const detail = (ev as CustomEvent<{ display_name?: string; username?: string }>).detail;
       const preset = (detail?.display_name || detail?.username || '').trim() || undefined;
       setEnrollPreset(preset);
+      if (coreAuth.firstRun === true || coreAuth.userCount === 0) {
+        go({ mode: 'install', step: 'wizard' });
+        return;
+      }
       go({ mode: 'identify', step: 'enroll_member' });
     };
     window.addEventListener('jarvis:start-enrollment', onEnroll as EventListener);
     return () => window.removeEventListener('jarvis:start-enrollment', onEnroll as EventListener);
-  }, []);
+  }, [coreAuth.firstRun, coreAuth.userCount]);
 
   useEffect(() => {
     if (sessionUnlocked) return;
 
     const cur = routeRef.current;
-    // Ne pas écraser un wizard / enroll en cours.
-    if (typeof cur === 'object' && cur.mode === 'identify' && cur.step === 'enroll_member') return;
+    // Ne pas écraser un wizard install en cours.
     if (typeof cur === 'object' && cur.mode === 'install' && cur.step === 'wizard') return;
+    // Enroll membre en cours : OK seulement s'il existe déjà un admin.
+    if (
+      typeof cur === 'object' &&
+      cur.mode === 'identify' &&
+      cur.step === 'enroll_member' &&
+      coreAuth.firstRun !== true &&
+      (coreAuth.userCount ?? 0) > 0
+    ) {
+      return;
+    }
 
     if (!coreAuth.ready) {
       go('waiting');
@@ -197,6 +211,24 @@ export function HudAuthGate() {
   }
 
   if (route.mode === 'identify' && route.step === 'enroll_member') {
+    // Ceinture : 0 user / first_run → toujours parcours admin.
+    if (coreAuth.firstRun === true || (coreAuth.userCount ?? 0) === 0) {
+      return (
+        <FirstSetupScene
+          mode="first_run"
+          presetName={enrollPreset}
+          onComplete={() => {
+            void authStatus().then((st) => {
+              setCoreAuth({
+                firstRun: st.first_run,
+                userCount: st.user_count,
+              });
+            });
+            go({ mode: 'identify', step: 'auth' });
+          }}
+        />
+      );
+    }
     return (
       <FirstSetupScene
         mode="add_profile"
@@ -215,6 +247,12 @@ export function HudAuthGate() {
   return (
     <AuthScene
       onRequestEnroll={() => {
+        // 0 profil = INSTALL admin, jamais « Utilisateur »
+        if (coreAuth.firstRun === true || (coreAuth.userCount ?? 0) === 0) {
+          console.info('[AUTH] HudAuthGate → install wizard (first admin)');
+          go({ mode: 'install', step: 'wizard' });
+          return;
+        }
         console.info('[AUTH] HudAuthGate → enroll_member');
         go({ mode: 'identify', step: 'enroll_member' });
       }}
