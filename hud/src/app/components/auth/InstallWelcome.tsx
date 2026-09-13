@@ -42,8 +42,8 @@ export function InstallWelcome({ onStart }: { onStart: () => void }) {
               margin: '14px 0 0',
             }}
           >
-            Créez le compte administrateur : prénom, civilité, puis la phrase « Jarvis, active-toi ».
-            Auth vocale uniquement — pas de caméra.
+            Créez le compte administrateur : prénom, civilité, puis capture du visage.
+            La voix pourra être ajoutée plus tard.
           </p>
           <div style={{ marginTop: 22, display: 'flex', justifyContent: 'center' }}>
             <GlassButton

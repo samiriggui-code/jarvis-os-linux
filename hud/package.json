@@ -12,7 +12,8 @@
     "prebuild": "node scripts/fetch-mediapipe.mjs",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview --host 127.0.0.1 --port 5173"
+    "preview": "vite preview --host 127.0.0.1 --port 5173",
+    "smoke:toast": "tsx src/app/toast/_smoke_toast_api.ts"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

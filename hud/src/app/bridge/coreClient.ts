@@ -21,7 +21,14 @@ function resolveWsUrl(): string {
 
 export type CoreClientHandlers = {
   onConnected?: (ok: boolean) => void;
-  onNotification?: (message: string) => void;
+  onNotification?: (payload: {
+    message: string;
+    level?: 'info' | 'success' | 'warning' | 'error' | 'pending';
+    title?: string;
+    action_label?: string;
+    action_app?: string;
+    action_intent?: string;
+  }) => void;
   onOrbState?: (state: string) => void;
   onAuthStatus?: (payload: Record<string, unknown>) => void;
   onUserAuthenticated?: (payload: Record<string, unknown>) => void;
@@ -305,7 +312,19 @@ class CoreClient {
     }
 
     if (cmd === 'display_notification' && typeof data.message === 'string') {
-      this.handlers.onNotification?.(data.message);
+      const level = typeof data.level === 'string' ? data.level : undefined;
+      const title = typeof data.title === 'string' ? data.title : undefined;
+      const action_label = typeof data.action_label === 'string' ? data.action_label : undefined;
+      const action_app = typeof data.action_app === 'string' ? data.action_app : undefined;
+      const action_intent = typeof data.action_intent === 'string' ? data.action_intent : undefined;
+      this.handlers.onNotification?.({
+        message: data.message,
+        level: level as 'info' | 'success' | 'warning' | 'error' | 'pending' | undefined,
+        title,
+        action_label,
+        action_app,
+        action_intent,
+      });
       const tts = import.meta.env.VITE_TTS_STUB === 'true';
       if (tts && !this.coreDrivesTts) {
         const voice = import.meta.env.VITE_TTS_VOICE_NAME || undefined;

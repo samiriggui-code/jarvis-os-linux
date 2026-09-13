@@ -26,7 +26,16 @@ class HolomatHandlerMixin:
         # reste indépendant : un device sans cam n'éteint pas le service.
         camera = "unknown" if self._camera_ok is None else ("ok" if self._camera_ok else "missing")
 
-        from ...vision.face_engine import PRESENCE_HITS_NEEDED
+        # Import tardif : face_engine tire cv2 — si OpenCV manque, on répond
+        # proprement au HUD au lieu de faire planter tout le handler.
+        try:
+            from ...vision.face_engine import PRESENCE_HITS_NEEDED
+        except ImportError as exc:
+            await ws.send(json.dumps({
+                "type": "holomat_error",
+                "error": f"face_engine_unavailable:{exc}",
+            }))
+            return
 
         if action == "camera":
             # Périphérique local du client — ne touche pas la brique holomat.

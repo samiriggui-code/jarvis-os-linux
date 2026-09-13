@@ -11,6 +11,7 @@ import { gesturesPolicyEnabled, getDevicePolicy } from '../../ui/core/devicePoli
 import { startGestureBridge, stopGestureBridge } from '../bridge/gestureLive';
 import { clickAtCursor, disposeCursor, moveCursor } from '../bridge/gestureCursor';
 import { pauseWakeWord } from '../bridge/audioBus';
+import { toast } from '../toast';
 
 const RIGHT_PANELS = ['console', 'search'] as const;
 const LS_PREFS = 'jarvis.hud_preferences';
@@ -34,7 +35,6 @@ export function GestureBridge() {
     openApps,
     activeAppId,
     focusApp,
-    addNotification,
     gestureOpen,
   } = useApp();
 
@@ -50,11 +50,7 @@ export function GestureBridge() {
 
     startGestureBridge().then((ok) => {
       if (!alive || ok) return;
-      addNotification({
-        type: 'warning',
-        title: 'Pilotage gestuel indisponible',
-        message: 'Caméra refusée ou assets MediaPipe absents (npm run mediapipe).',
-      });
+      toast.warning('Pilotage gestuel indisponible', 'Caméra refusée ou assets MediaPipe absents (npm run mediapipe).',);
     });
 
     const cycle = <T,>(list: readonly T[], current: T, step: number): T => {
@@ -89,13 +85,13 @@ export function GestureBridge() {
         case 'mute':
           patchMicMuted(true);
           pauseWakeWord();
-          addNotification({ type: 'info', title: 'Gestes', message: 'Micro coupé.' });
+          toast.info('Gestes', 'Micro coupé.');
           break;
         case 'activate_voice':
           window.dispatchEvent(new CustomEvent('jarvis:activate-voice'));
           break;
         case 'ack_done':
-          addNotification({ type: 'success', title: 'Gestes', message: 'OK.' });
+          toast.success('Gestes', 'OK.');
           break;
         default:
           console.debug('[gesture] action sans effet :', action);
@@ -124,7 +120,6 @@ export function GestureBridge() {
   }, [
     sessionUnlocked,
     gestureOpen,
-    addNotification,
     setAppGridOpen,
     setRightPanel,
     focusApp,

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Search, Cloud, HardDrive, GitBranch, Tag, Clock, Plus } from 'lucide-react';
 import { useApp, type MemoryItem } from '../context/AppContext';
 import { getCoreClient } from '../bridge/coreClient';
+import { toast } from '../toast';
 import { GlassPanel } from '../../components/glass/GlassPanel';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { tokens } from '../../ui/tokens';
@@ -33,7 +34,7 @@ function mapCoreItem(m: CoreMemory): MemoryItem {
 export function MemoryPanel() {
   const {
     memories, setMemories, addMemory, memorySync, setMemorySync,
-    coreAuth, addNotification,
+    coreAuth,
   } = useApp();
   const [query, setQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -81,46 +82,55 @@ export function MemoryPanel() {
     const title = draftTitle.trim() || 'Souvenir';
     const content = draftContent.trim();
     if (!content) {
-      addNotification({ type: 'warning', title: 'Mémoire', message: 'Écris le contenu du souvenir.' });
+      toast.warning('Mémoire', 'Écris le contenu du souvenir.');
       return;
     }
     const client = getCoreClient();
     if (!client.connected) {
-      addNotification({ type: 'warning', title: 'Mémoire', message: 'Core hors ligne — relance jarvis_core.' });
+      toast.warning('Mémoire', 'Core hors ligne — relance jarvis_core.');
       return;
     }
+
     try {
-      const res = await client.request(
+      await toast.promise(
+        (async () => {
+          const res = await client.request(
+            {
+              type: 'memory',
+              action: 'add',
+              user_id: uid,
+              title,
+              content,
+              tags: ['notes'],
+            },
+            (d) => d.type === 'memory_result',
+            5000,
+          );
+          if (!res.ok) {
+            throw new Error(String(res.error || 'échec'));
+          }
+          if (Array.isArray(res.items)) {
+            setMemories((res.items as CoreMemory[]).map(mapCoreItem));
+          } else if (res.item) {
+            addMemory(mapCoreItem(res.item as CoreMemory));
+          }
+          setDraftTitle('');
+          setDraftContent('');
+          setAdding(false);
+          return title;
+        })(),
         {
-          type: 'memory',
-          action: 'add',
-          user_id: uid,
-          title,
-          content,
-          tags: ['notes'],
+          loading: { type: 'pending', title: 'Mémoire', message: 'Enregistrement…' },
+          success: (saved) => ({ type: 'success', title: 'Mémoire', message: `« ${saved} » sauvé (local).` }),
+          error: (e) => ({
+            type: 'error',
+            title: 'Mémoire',
+            message: e instanceof Error ? e.message : 'timeout Core',
+          }),
         },
-        (d) => d.type === 'memory_result',
-        5000,
       );
-      if (!res.ok) {
-        addNotification({ type: 'error', title: 'Mémoire', message: String(res.error || 'échec') });
-        return;
-      }
-      if (Array.isArray(res.items)) {
-        setMemories((res.items as CoreMemory[]).map(mapCoreItem));
-      } else if (res.item) {
-        addMemory(mapCoreItem(res.item as CoreMemory));
-      }
-      setDraftTitle('');
-      setDraftContent('');
-      setAdding(false);
-      addNotification({ type: 'success', title: 'Mémoire', message: 'Souvenir sauvé dans Core (local).' });
-    } catch (e) {
-      addNotification({
-        type: 'error',
-        title: 'Mémoire',
-        message: e instanceof Error ? e.message : 'timeout Core',
-      });
+    } catch {
+      /* toast.promise a déjà affiché l'erreur */
     }
   };
 

@@ -11,6 +11,7 @@ import { VerificationCard } from '../../agentic/library/VerificationCard';
 import { VisionChrome, visionBody, visionCaption, visionMono } from './visionChrome';
 import { GlassButton, GlassPanel } from '../../components/glass/';
 import { tokens } from '../../ui/tokens';
+import { toast } from '../toast';
 
 function TypingText({ text }: { text: string }) {
   const [displayed, setDisplayed] = useState('');
@@ -39,8 +40,7 @@ function TypingText({ text }: { text: string }) {
 export function CommandConsole() {
   const {
     messages, addMessage, clearMessages, liveTranscript, aiState, setAiState,
-    addNotification,
-  } = useApp();
+    } = useApp();
   const fx = useChatFx();
   const verification = useVerification();
   const [input, setInput] = useState('');
@@ -62,7 +62,7 @@ export function CommandConsole() {
     if (isCoreOnline() && sendChatToCore(text)) {
       void interpretCommand(text, fx);
       setIsTyping(false);
-      addNotification({ type: 'info', title: 'Core', message: 'Transcrit → Provider…' });
+      toast.info('Core', 'Transcrit → Provider…');
       return;
     }
 
