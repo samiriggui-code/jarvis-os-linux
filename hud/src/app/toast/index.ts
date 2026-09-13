@@ -8,3 +8,11 @@ export type {
   PromiseToastMessages,
 } from './types';
 export { messagesFromPromiseOpts, resolvePromiseToast } from './helpers';
+
+export {
+  applyApprovalToast,
+  dismissApprovalToast,
+  syncApprovalToastsFromDocument,
+} from './approval';
+export type { ApprovalToastInput } from './approval';
+

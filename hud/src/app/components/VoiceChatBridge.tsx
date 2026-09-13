@@ -18,6 +18,7 @@ import { isCoreOnline, sendChatToCore } from './CoreBridge';
 import { getCoreClient } from '../bridge/coreClient';
 import { isTtsPlaying, stopTtsPlayback } from '../bridge/ttsCore';
 import { silenceAuthNarration } from '../context/AppContext';
+import { toast } from '../toast';
 
 /** Silence avant retour veille (conversation ouverte). */
 const CONVERSATION_IDLE_MS = 90_000;
@@ -31,7 +32,7 @@ const RELISTEN_FALLBACK_MS = 8_000;
 export function VoiceChatBridge() {
   const {
     aiState, setAiState, addMessage, setLiveTranscript,
-    addNotification, setRightPanel, micTestActive, sessionUnlocked,
+    setRightPanel, micTestActive, sessionUnlocked,
   } = useApp();
   const fx = useChatFx();
   const busy = useRef(false);
@@ -63,11 +64,7 @@ export function VoiceChatBridge() {
     clearListenTimer();
     listenTimer.current = setTimeout(() => {
       if (!busy.current && !awaitingRelisten.current && !isTtsPlaying()) {
-        addNotification({
-          type: 'info',
-          title: 'Veille',
-          message: 'Conversation en pause — redis « Jarvis ».',
-        });
+        toast.info('Veille', 'Conversation en pause — redis « Jarvis ».',);
         goStandby();
       }
     }, ms);
@@ -216,11 +213,7 @@ export function VoiceChatBridge() {
     setLiveTranscript('À votre écoute…');
 
     if (!isSttAvailable()) {
-      addNotification({
-        type: 'warning',
-        title: 'STT',
-        message: 'Speech Recognition indisponible (Chrome).',
-      });
+      toast.warning('STT', 'Speech Recognition indisponible (Chrome).',);
       return;
     }
 
@@ -304,11 +297,7 @@ export function VoiceChatBridge() {
         if (attempt < 5) {
           sttRetryTimer.current = setTimeout(() => startStt(attempt + 1), 400 + attempt * 200);
         } else {
-          addNotification({
-            type: 'warning',
-            title: 'Micro',
-            message: 'Écoute difficile — redis « Jarvis » ou clique le micro.',
-          });
+          toast.warning('Micro', 'Écoute difficile — redis « Jarvis » ou clique le micro.',);
           setLiveTranscript('Redis « Jarvis »…');
         }
       }

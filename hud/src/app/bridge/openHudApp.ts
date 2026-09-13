@@ -17,6 +17,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { getAppById, type HudApp } from '../apps/catalog';
 import { getCoreClient } from './coreClient';
+import { toast } from '../toast';
 
 export type OpenHudAppFx = {
   launchApp: (app: { id: string; name: string; color: string; icon: LucideIcon }) => void;
@@ -25,13 +26,6 @@ export type OpenHudAppFx = {
   setAppGridOpen?: (v: boolean) => void;
   requestDashboard: () => void;
   openSettings?: (section?: 'profil' | 'voix' | 'vision' | 'comportement' | 'coupure' | 'foyer') => void;
-  addNotification: (n: {
-    type: 'info' | 'warning' | 'success' | 'error' | 'pending';
-    title: string;
-    message: string;
-    durationMs?: number | null;
-    action?: { label: string; onClick?: () => void; app?: string; intent?: string };
-  }) => void;
   isAdmin?: boolean;
   role?: string | null;
   setInputMode?: (m: 'voice' | 'recovery') => void;
@@ -45,7 +39,7 @@ export function openHudApp(appOrId: HudApp | string, fx: OpenHudAppFx): OpenResu
   if (!app) return { ok: false, message: 'Application inconnue.' };
 
   if (app.status === 'soon') {
-    fx.addNotification({ type: 'info', title: app.name, message: 'Pas encore disponible.' });
+    toast.info(app.name, 'Pas encore disponible.');
     return { ok: false, message: `${app.name} — bientôt.` };
   }
 
@@ -54,11 +48,7 @@ export function openHudApp(appOrId: HudApp | string, fx: OpenHudAppFx): OpenResu
     fx.role === 'ADMIN';
 
   if (app.adminOnly && !admin) {
-    fx.addNotification({
-      type: 'warning',
-      title: app.name,
-      message: 'Réservé à l’administrateur (Dashboard / Policy).',
-    });
+    toast.warning(app.name, 'Réservé à l’administrateur (Dashboard / Policy).',);
     return { ok: false, message: 'Permission refusée — ADMIN requis.' };
   }
 
@@ -72,7 +62,7 @@ export function openHudApp(appOrId: HudApp | string, fx: OpenHudAppFx): OpenResu
   if (app.id === 'vision') {
     fx.openSettings?.('vision');
     fx.setGestureOpen?.(true);
-    fx.addNotification({ type: 'info', title: 'Holomat', message: 'Vision / gestes — Settings + panneau gestes.' });
+    toast.info('Holomat', 'Vision / gestes — Settings + panneau gestes.');
     return { ok: true, message: 'Holomat / gestes.' };
   }
 
@@ -87,11 +77,7 @@ export function openHudApp(appOrId: HudApp | string, fx: OpenHudAppFx): OpenResu
     if (!app.intent) {
       // Une tuile « surface » sans intention n'a aucun chemin d'exécution. Le dire
       // plutôt que d'ouvrir une fenêtre vide : c'est une erreur de catalogue.
-      fx.addNotification({
-        type: 'warning',
-        title: app.name,
-        message: 'Aucune intention déclarée pour cette tuile.',
-      });
+      toast.warning(app.name, 'Aucune intention déclarée pour cette tuile.',);
       return { ok: false, message: `${app.name} — intention manquante.` };
     }
 
@@ -105,11 +91,7 @@ export function openHudApp(appOrId: HudApp | string, fx: OpenHudAppFx): OpenResu
     });
 
     if (app.vpsLimited) {
-      fx.addNotification({
-        type: 'info',
-        title: app.name,
-        message: 'Accès limité — allowlist + Policy. Pas de root libre.',
-      });
+      toast.info(app.name, 'Accès limité — allowlist + Policy. Pas de root libre.',);
     }
     return { ok: true, message: `${app.name} — demande envoyée au Core.` };
   }

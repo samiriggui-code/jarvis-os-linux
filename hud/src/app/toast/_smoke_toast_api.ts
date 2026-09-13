@@ -87,6 +87,16 @@ async function main(): Promise<void> {
     }) === null,
   );
   check('success 6s', resolveDurationMs({ type: 'success', title: 'x', message: '' }) === 6000);
+  check(
+    'secondaryAction sticky',
+    resolveDurationMs({
+      type: 'warning',
+      title: 'x',
+      message: '',
+      secondaryAction: { label: 'Non' },
+    }) === null,
+  );
+
 
   const msgs = messagesFromPromiseOpts({
     loading: 'Recherche…',
@@ -103,6 +113,15 @@ async function main(): Promise<void> {
   toast.action({ title: 'Policy', message: 'Confirmer ?', label: 'Ouvrir', app: 'reach' });
   const act = records.find((r) => r.action?.label === 'Ouvrir');
   check('action push', Boolean(act?.action?.app === 'reach' && act.durationMs === null));
+
+  toast.action({
+    title: 'Approval',
+    message: 'home.control',
+    label: 'Autoriser',
+    secondaryLabel: 'Refuser',
+  });
+  const dual = records.find((r) => r.title === 'Approval');
+  check('dual CTA', Boolean(dual?.action?.label === 'Autoriser' && dual?.secondaryAction?.label === 'Refuser'));
 
   const p = toast.promise(Promise.resolve('météo'), {
     loading: { type: 'pending', title: 'Recherche', message: '…' },

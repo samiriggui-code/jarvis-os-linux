@@ -152,6 +152,7 @@ export interface Notification {
   /** `null` = sticky (pending / action). Absent → 6000 ms. */
   durationMs?: number | null;
   action?: NotificationAction;
+  secondaryAction?: NotificationAction;
 }
 
 export interface MemoryItem {
@@ -763,6 +764,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 intent: input.action.intent,
               }
             : undefined,
+          secondaryAction: input.secondaryAction
+            ? {
+                label: input.secondaryAction.label,
+                onClick: input.secondaryAction.onClick,
+                app: input.secondaryAction.app,
+                intent: input.secondaryAction.intent,
+              }
+            : undefined,
         }),
       patch: (id, patch) =>
         patchNotification(id, {
@@ -778,6 +787,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 intent: patch.action.intent,
               }
             : patch.action === undefined
+              ? undefined
+              : undefined,
+          secondaryAction: patch.secondaryAction
+            ? {
+                label: patch.secondaryAction.label,
+                onClick: patch.secondaryAction.onClick,
+                app: patch.secondaryAction.app,
+                intent: patch.secondaryAction.intent,
+              }
+            : patch.secondaryAction === undefined
               ? undefined
               : undefined,
         }),

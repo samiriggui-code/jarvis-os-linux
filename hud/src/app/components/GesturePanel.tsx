@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Hand, Camera, Activity, ChevronRight, Zap } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { toast } from '../toast';
 import { VisionChrome, visionBody, visionCaption, visionMono } from './visionChrome';
 import { GlassButton, GlassPanel } from '../../components/glass/';
 import { tokens } from '../../ui/tokens';
@@ -80,7 +81,7 @@ function HandSkeleton({ gesture }: { gesture: string }) {
 }
 
 export function GesturePanel() {
-  const { gestureOpen, setGestureOpen, openSettings, addNotification } = useApp();
+  const { gestureOpen, setGestureOpen, openSettings } = useApp();
   const [activeGesture, setActiveGesture] = useState(GESTURES[0].name);
   const [confidence, setConfidence] = useState(89.4);
   const [detecting, setDetecting] = useState(true);
@@ -92,7 +93,7 @@ export function GesturePanel() {
       if (Math.random() > 0.85) {
         const next = GESTURES[Math.floor(Math.random() * GESTURES.length)];
         setActiveGesture(next.name);
-        addNotification({ type: 'info', title: 'Geste détecté', message: `${next.name} — ${next.desc}` });
+        toast.info('Geste détecté', `${next.name} — ${next.desc}`);
       }
     }, 2000);
     return () => clearInterval(interval);

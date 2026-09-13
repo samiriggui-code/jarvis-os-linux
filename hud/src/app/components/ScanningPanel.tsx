@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { VisionChrome, visionBody, visionCaption, visionMono } from './visionChrome';
 import { GlassButton, GlassPanel } from '../../components/glass/';
 import { tokens } from '../../ui/tokens';
+import { toast } from '../toast';
 
 type ScanPhase = 'initializing' | 'scanning' | 'analyzing' | 'complete';
 
@@ -39,7 +40,7 @@ const DATA_POINTS = Array(40).fill(0).map((_, i) => ({
 }));
 
 export function ScanningPanel() {
-  const { scanningActive, setScanningActive, addNotification } = useApp();
+  const { scanningActive, setScanningActive } = useApp();
   const [phase, setPhase] = useState<ScanPhase>('initializing');
   const [progress, setProgress] = useState(0);
   const [visibleResults, setVisibleResults] = useState(0);
@@ -68,7 +69,7 @@ export function ScanningPanel() {
             SCAN_RESULTS.forEach((_, i) => {
               setTimeout(() => setVisibleResults(v => v + 1), i * 200);
             });
-            addNotification({ type: 'success', title: 'Scan terminé', message: 'Analyse à spectre complet terminée. Aucune anomalie détectée.' });
+            toast.success('Scan terminé', 'Analyse à spectre complet terminée. Aucune anomalie détectée.');
           }, 1200);
         }
         setProgress(Math.min(100, prog));

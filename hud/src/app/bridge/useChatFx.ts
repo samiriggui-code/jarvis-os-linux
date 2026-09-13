@@ -8,7 +8,7 @@ import { getCoreClient } from './coreClient';
 export function useChatFx(): ChatSideEffects {
   const {
     setScanningActive, setSettingsOpen, setAppGridOpen, setGestureOpen,
-    launchApp, requestDashboard, openSettings, addNotification, coreAuth,
+    launchApp, requestDashboard, openSettings, coreAuth,
     setInputMode, openMissionControlDev, closeMissionControlDev,
   } = useApp();
 
@@ -26,7 +26,6 @@ export function useChatFx(): ChatSideEffects {
       launchApp,
       requestDashboard,
       openSettings,
-      addNotification,
       isAdmin,
       role,
       setInputMode,
@@ -57,7 +56,7 @@ export function useChatFx(): ChatSideEffects {
     }),
     [
       setScanningActive, setSettingsOpen, setAppGridOpen, setGestureOpen,
-      launchApp, requestDashboard, openSettings, addNotification, isAdmin, role,
+      launchApp, requestDashboard, openSettings, isAdmin, role,
       setInputMode, openMissionControlDev, closeMissionControlDev,
     ],
   );

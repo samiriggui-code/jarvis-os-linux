@@ -24,7 +24,7 @@ export function resolvePromiseToast<T>(
 export function resolveDurationMs(input: ToastInput): number | null {
   if (input.durationMs !== undefined) return input.durationMs;
   if (input.type === 'pending') return null;
-  if (input.action) return null;
+  if (input.action || input.secondaryAction) return null;
   return 6000;
 }
 

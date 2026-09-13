@@ -193,7 +193,7 @@ function SelectDevice({ label, value, onChange, options }: {
 export function SettingsPanel() {
   const {
     settingsOpen, setSettingsOpen, settingsSection, setSettingsSection,
-    setGestureOpen, addNotification, coreAuth, micTestActive, setMicTestActive,
+    setGestureOpen, coreAuth, micTestActive, setMicTestActive,
   } = useApp();
   const [section, setSection] = useState<Section>(settingsSection);
   const [saved, setSaved] = useState(false);
@@ -292,40 +292,24 @@ export function SettingsPanel() {
     if (micTestActive) {
       setMicTestActive(false);
       resumeWakeWord();
-      addNotification({
-        type: 'info',
-        title: 'Test micro',
-        message: 'Fin — orbe bas-gauche éteinte. Wake « Jarvis » reprend.',
-      });
+      toast.info('Test micro', 'Fin — orbe bas-gauche éteinte. Wake « Jarvis » reprend.',);
       return;
     }
     const ok = await startAudioBus();
     if (!ok) {
-      addNotification({
-        type: 'error',
-        title: 'Micro',
-        message: 'Autorise le microphone (navigateur) pour le test.',
-      });
+      toast.error('Micro', 'Autorise le microphone (navigateur) pour le test.',);
       return;
     }
     pauseWakeWord(); // pas de STT / wake pendant le test → orbe niveau seul
     setMicTestActive(true);
-    addNotification({
-      type: 'success',
-      title: 'Test micro',
-      message: 'Orbe bas-gauche active — parle : niveau RMS seulement (pas Whisper / commande).',
-    });
+    toast.success('Test micro', 'Orbe bas-gauche active — parle : niveau RMS seulement (pas Whisper / commande).',);
   };
 
   const refreshFamily = async () => {
     const list = await authListUsers();
     if (list.ok) setFamily(list.users);
     else {
-      addNotification({
-        type: 'warning',
-        title: 'Foyer',
-        message: list.error || 'Liste indisponible (admin + Core requis).',
-      });
+      toast.warning('Foyer', list.error || 'Liste indisponible (admin + Core requis).',);
     }
   };
 
@@ -415,19 +399,17 @@ export function SettingsPanel() {
     }
 
     setSaved(true);
-    addNotification({
-      type: coreOk ? 'success' : 'warning',
-      title: 'Préférences HUD',
-      message: coreOk
-        ? `Sauvé Core → data/users/${uid}/ (hud_preferences + gesture_profile)`
-        : 'Sauvé localStorage (Core hors ligne — relancer jarvis_core).',
-    });
+    if (coreOk) {
+      toast.success('Préférences HUD', `Sauvé Core → data/users/${uid}/`);
+    } else {
+      toast.warning('Préférences HUD', 'Sauvé localStorage (Core hors ligne — relancer jarvis_core).');
+    }
     setTimeout(() => setSaved(false), 3000);
   };
 
   const openLiveGestures = () => {
     if (prefs.killSwitch.cameraOff) {
-      addNotification({ type: 'warning', title: 'Caméra coupée', message: 'Désactive la coupure caméra avant les gestes.' });
+      toast.warning('Caméra coupée', 'Désactive la coupure caméra avant les gestes.');
       return;
     }
     setSettingsOpen(false);
@@ -506,11 +488,8 @@ export function SettingsPanel() {
     }));
     const s = await ensureCamera();
     setCamPreviewOn(!!s);
-    addNotification({
-      type: s ? 'success' : 'error',
-      title: s ? 'Caméra ON' : 'Caméra refusée',
-      message: s ? 'Aperçu ci-dessous — prêt pour calibration Holomat.' : (getMediaState().cameraError || 'Permission refusée'),
-    });
+    if (s) toast.success('Caméra ON', 'Aperçu ci-dessous — prêt pour calibration Holomat.');
+    else toast.error('Caméra refusée', getMediaState().cameraError || 'Permission refusée');
   };
 
   return (

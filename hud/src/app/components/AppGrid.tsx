@@ -19,7 +19,7 @@ import { visionCaption } from './visionChrome';
 export function AppGrid() {
   const {
     appGridOpen, setAppGridOpen, setSettingsOpen, setGestureOpen,
-    addNotification, launchApp, requestDashboard, openSettings, coreAuth,
+    launchApp, requestDashboard, openSettings, coreAuth,
   } = useApp();
   const [cat, setCat] = useState<'Tout' | AppCat>('Tout');
 
@@ -36,7 +36,6 @@ export function AppGrid() {
       setAppGridOpen,
       requestDashboard,
       openSettings,
-      addNotification,
       isAdmin,
       role: coreAuth?.user?.role,
     });

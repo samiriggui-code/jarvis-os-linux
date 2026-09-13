@@ -6,7 +6,7 @@
  *   await toast.promise(job, { loading: '…', success: '…', error: '…' })
  */
 import { messagesFromPromiseOpts, resolveDurationMs } from './helpers';
-import type { PromiseToastMessages, ToastInput, ToastRecord, ToastTone } from './types';
+import type { PromiseToastMessages, ToastAction, ToastInput, ToastRecord, ToastTone } from './types';
 
 export type ToastHost = {
   push: (n: ToastInput) => string;
@@ -32,13 +32,34 @@ function pushTone(type: ToastTone, title: string, message = ''): string {
 }
 
 function normalizeActionInput(
-  input: ToastInput & { label: string; onClick?: () => void; app?: string; intent?: string },
+  input: Omit<ToastInput, 'action' | 'secondaryAction' | 'type'> & {
+    type?: ToastTone;
+    label: string;
+    onClick?: () => void;
+    app?: string;
+    intent?: string;
+    secondaryLabel?: string;
+    secondaryOnClick?: () => void;
+    secondaryApp?: string;
+    secondaryIntent?: string;
+    secondaryAction?: ToastAction;
+  },
 ): ToastInput {
-  const { label, onClick, app, intent, ...rest } = input;
+  const {
+    label, onClick, app, intent,
+    secondaryLabel, secondaryOnClick, secondaryApp, secondaryIntent, secondaryAction,
+    ...rest
+  } = input;
+  const secondary =
+    secondaryAction ??
+    (secondaryLabel
+      ? { label: secondaryLabel, onClick: secondaryOnClick, app: secondaryApp, intent: secondaryIntent }
+      : undefined);
   return {
     ...rest,
     type: rest.type ?? 'info',
     action: { label, onClick, app, intent },
+    secondaryAction: secondary,
     durationMs: rest.durationMs === undefined ? null : rest.durationMs,
   };
 }
@@ -53,12 +74,16 @@ export const toast = {
 
   /** Toast sticky avec CTA (bouton). */
   action: (
-    input: Omit<ToastInput, 'action' | 'type'> & {
+    input: Omit<ToastInput, 'action' | 'secondaryAction' | 'type'> & {
       type?: ToastTone;
       label: string;
       onClick?: () => void;
       app?: string;
       intent?: string;
+      secondaryLabel?: string;
+      secondaryOnClick?: () => void;
+      secondaryApp?: string;
+      secondaryIntent?: string;
     },
   ): string => requireHost().push(normalizeActionInput({ type: 'info', ...input })),
 
@@ -89,6 +114,7 @@ export const toast = {
           type,
           durationMs: resolveDurationMs({ ...ok, type }),
           action: undefined,
+          secondaryAction: undefined,
         });
         return value;
       },
@@ -100,6 +126,7 @@ export const toast = {
           type,
           durationMs: resolveDurationMs({ ...fail, type }),
           action: undefined,
+          secondaryAction: undefined,
         });
         throw err;
       },
@@ -128,7 +155,7 @@ export function applyCoreNotification(payload: CoreNotificationPayload): string 
   if (level === 'pending') {
     const existing = pendingByTitle.get(title);
     if (existing) {
-      toast.update(existing, { type: 'pending', title, message, durationMs: null, action: undefined });
+      toast.update(existing, { type: 'pending', title, message, durationMs: null, action: undefined, secondaryAction: undefined });
       return existing;
     }
     const id = toast.message({ type: 'pending', title, message, durationMs: null });
@@ -139,7 +166,7 @@ export function applyCoreNotification(payload: CoreNotificationPayload): string 
   const pendingId = pendingByTitle.get(title);
   if (pendingId) {
     pendingByTitle.delete(title);
-    const type: ToastTone = level === 'pending' ? 'success' : level;
+    const type: ToastTone = level;
     const action = payload.action_label
       ? {
           label: payload.action_label,
@@ -152,6 +179,7 @@ export function applyCoreNotification(payload: CoreNotificationPayload): string 
       title,
       message,
       action,
+      secondaryAction: undefined,
       durationMs: action ? null : resolveDurationMs({ type, title, message, action }),
     });
     return pendingId;
@@ -159,7 +187,7 @@ export function applyCoreNotification(payload: CoreNotificationPayload): string 
 
   if (payload.action_label) {
     return toast.action({
-      type: level === 'pending' ? 'info' : level,
+      type: level,
       title,
       message,
       label: payload.action_label,
@@ -168,7 +196,7 @@ export function applyCoreNotification(payload: CoreNotificationPayload): string 
     });
   }
 
-  return toast[level === 'pending' ? 'info' : level](title, message);
+  return toast[level](title, message);
 }
 
 export { asToastInput, resolveDurationMs } from './helpers';

@@ -20,6 +20,7 @@ import { tokens } from '../../../ui/tokens';
 import { AuthCinematicBackdrop } from './AuthCinematicBackdrop';
 import { ThemeModeToggle } from '../ThemeModeToggle';
 import { visionCaption, visionTitle, visionBody } from '../visionChrome';
+import { toast } from '../../toast';
 
 type GateRoute =
   | 'waiting'
@@ -34,7 +35,7 @@ function sameRoute(a: GateRoute, b: GateRoute): boolean {
 }
 
 export function HudAuthGate() {
-  const { sessionUnlocked, sessionWasUnlocked, coreAuth, setCoreAuth, addNotification } = useApp();
+  const { sessionUnlocked, sessionWasUnlocked, coreAuth, setCoreAuth } = useApp();
   const [route, setRoute] = useState<GateRoute>('waiting');
   const [waitMs, setWaitMs] = useState(0);
   const [enrollPreset, setEnrollPreset] = useState<string | undefined>();
@@ -156,7 +157,7 @@ export function HudAuthGate() {
                 setWaitMs(0);
                 getCoreClient().connect();
                 getCoreClient().sendAuth('status');
-                addNotification({ type: 'info', title: 'Core', message: 'Nouvelle tentative…' });
+                toast.info('Core', 'Nouvelle tentative…');
               }}
             >
               Réessayer

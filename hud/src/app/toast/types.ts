@@ -18,6 +18,8 @@ export type ToastInput = {
   /** `null` = sticky (pending / action). Défaut 6000. */
   durationMs?: number | null;
   action?: ToastAction;
+  /** 2e CTA (ex. Refuser sur approval Policy). */
+  secondaryAction?: ToastAction;
 };
 
 export type ToastRecord = ToastInput & { id: string };

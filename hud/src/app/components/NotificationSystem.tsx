@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Info, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
-import { useApp, type Notification } from '../context/AppContext';
+import { useApp, type Notification, type NotificationAction } from '../context/AppContext';
 import { getAppById } from '../apps/catalog';
 import { getCoreClient } from '../bridge/coreClient';
 import { GlassPanel } from '../../components/glass';
@@ -15,12 +15,16 @@ const typeConfig = {
   pending: { icon: Loader2, color: ACCENT, tone: 'regular' as const },
 };
 
-function runNotificationAction(notif: Notification, launchApp: ReturnType<typeof useApp>['launchApp']) {
-  const action = notif.action;
-  if (!action) return;
-  action.onClick?.();
-  if (action.app) {
-    const app = getAppById(action.app);
+function runNotificationAction(
+  notif: Notification,
+  launchApp: ReturnType<typeof useApp>['launchApp'],
+  action?: NotificationAction,
+) {
+  const act = action ?? notif.action;
+  if (!act) return;
+  act.onClick?.();
+  if (act.app) {
+    const app = getAppById(act.app);
     if (app) {
       launchApp({
         id: app.id,
@@ -30,13 +34,44 @@ function runNotificationAction(notif: Notification, launchApp: ReturnType<typeof
       });
     }
   }
-  if (action.intent) {
+  if (act.intent) {
     try {
-      getCoreClient().send({ type: 'intent', intent: action.intent, prompt: notif.message });
+      getCoreClient().send({ type: 'intent', intent: act.intent, prompt: notif.message });
     } catch {
       /* Core offline */
     }
   }
+}
+
+function ActionButton({
+  label,
+  color,
+  muted,
+  onClick,
+}: {
+  label: string;
+  color: string;
+  muted?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.96 }}
+      onClick={onClick}
+      className="px-2 py-0.5 rounded cursor-pointer"
+      style={{
+        ...bodyFont,
+        fontSize: 10,
+        fontWeight: 600,
+        color: muted ? MUTED : color,
+        background: muted ? 'rgba(255,255,255,0.04)' : `${color}18`,
+        border: muted ? '1px solid rgba(255,255,255,0.12)' : `1px solid ${color}40`,
+      }}
+    >
+      {label}
+    </motion.button>
+  );
 }
 
 function NotifCard({ notif }: { notif: Notification }) {
@@ -48,11 +83,11 @@ function NotifCard({ notif }: { notif: Notification }) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 40, scale: 0.96 }}
+      initial={{ opacity: 0, x: -40, scale: 0.96 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 40, scale: 0.94 }}
+      exit={{ opacity: 0, x: -40, scale: 0.94 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      style={{ width: 220 }}
+      style={{ width: 236 }}
     >
       <GlassPanel level={cfg.tone} radius="md" padding="xs" style={{ overflow: 'hidden' }}>
         <div className="flex items-start gap-2">
@@ -74,26 +109,30 @@ function NotifCard({ notif }: { notif: Notification }) {
                 {notif.message}
               </p>
             ) : null}
-            {notif.action ? (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => {
-                  runNotificationAction(notif, launchApp);
-                  removeNotification(notif.id);
-                }}
-                className="mt-1.5 px-2 py-0.5 rounded cursor-pointer"
-                style={{
-                  ...bodyFont,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: cfg.color,
-                  background: `${cfg.color}18`,
-                  border: `1px solid ${cfg.color}40`,
-                }}
-              >
-                {notif.action.label}
-              </motion.button>
+            {notif.action || notif.secondaryAction ? (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {notif.action ? (
+                  <ActionButton
+                    label={notif.action.label}
+                    color={cfg.color}
+                    onClick={() => {
+                      runNotificationAction(notif, launchApp, notif.action);
+                      removeNotification(notif.id);
+                    }}
+                  />
+                ) : null}
+                {notif.secondaryAction ? (
+                  <ActionButton
+                    label={notif.secondaryAction.label}
+                    color={cfg.color}
+                    muted
+                    onClick={() => {
+                      runNotificationAction(notif, launchApp, notif.secondaryAction);
+                      removeNotification(notif.id);
+                    }}
+                  />
+                ) : null}
+              </div>
             ) : null}
           </div>
           {!pending ? (
@@ -130,7 +169,7 @@ export function NotificationSystem() {
   return (
     <div
       className="fixed flex flex-col gap-1.5 pointer-events-none"
-      style={{ top: 64, right: 12, zIndex: 300, maxWidth: 228 }}
+      style={{ top: 72, left: 16, zIndex: 300, maxWidth: 248 }}
     >
       <AnimatePresence mode="popLayout">
         {notifications.slice(0, 4).map((n) => (

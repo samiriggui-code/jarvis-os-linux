@@ -8,11 +8,11 @@ import { bootVerificationStore } from '../bridge/verificationStore';
 import { bootVisionSceneStore } from '../bridge/visionSceneStore';
 import { getAppById } from '../apps/catalog';
 import type { AuthUser } from '../bridge/authClient';
-import { applyCoreNotification } from '../toast';
+import { applyCoreNotification, applyApprovalToast, syncApprovalToastsFromDocument, toast } from '../toast';
 
 export function CoreBridge() {
   const {
-    addNotification, setAiState, addMessage, setCoreAuth, sessionUnlocked,
+    setAiState, addMessage, setCoreAuth, sessionUnlocked,
     lockSession, closeApp, openApps, activeAppId, launchApp, requestDashboard,
   } = useApp();
 
@@ -37,13 +37,8 @@ export function CoreBridge() {
         if (ok) {
           try { requestToolTimelineSnapshot(); } catch { /* */ }
         }
-        addNotification({
-          type: ok ? 'success' : 'warning',
-          title: ok ? 'Core en ligne' : 'Core hors ligne',
-          message: ok
-            ? 'Lien WebSocket JARVIS Core établi.'
-            : 'Relance python -m jarvis_core dans core/',
-        });
+        if (ok) toast.success('Core en ligne', 'Lien WebSocket JARVIS Core établi.');
+        else toast.warning('Core hors ligne', 'Relance python -m jarvis_core dans core/');
       },
       onOrbState: (state) => {
         if (state === 'thinking' || state === 'processing') setAiState('processing');
@@ -71,11 +66,7 @@ export function CoreBridge() {
       onUserAuthenticated: (payload) => {
         const user = payload.user as AuthUser | undefined;
         if (user) setCoreAuth({ user, firstRun: false });
-        addNotification({
-          type: 'success',
-          title: 'Identité confirmée',
-          message: `${user?.username ?? 'user'} · ${user?.role ?? '?'}`,
-        });
+        toast.success('Identité confirmée', `${user?.username ?? 'user'} · ${user?.role ?? '?'}`);
       },
 
       onVoiceTranscript: (payload) => {
@@ -84,11 +75,7 @@ export function CoreBridge() {
           addMessage({ type: 'user', text: texte, source: 'voice' });
           return;
         }
-        addNotification({
-          type: 'warning',
-          title: 'Transcription',
-          message: String(payload.reason || payload.error || 'aucune parole détectée'),
-        });
+        toast.warning('Transcription', String(payload.reason || payload.error || 'aucune parole détectée'));
       },
 
       onVoicePlayback: (payload) => {
@@ -96,11 +83,7 @@ export function CoreBridge() {
       },
 
       onVoiceError: (payload) => {
-        addNotification({
-          type: 'error',
-          title: 'Voix',
-          message: String(payload.error ?? 'erreur inconnue'),
-        });
+        toast.error('Voix', String(payload.error ?? 'erreur inconnue'));
       },
 
       onSupervisorStatus: (payload) => {
@@ -114,8 +97,27 @@ export function CoreBridge() {
 
     const stopPeripherals = startPeripheralWatch();
 
-    return () => { stopPeripherals(); /* le WS, lui, reste ouvert */ };
-  }, [addNotification, setAiState, addMessage, setCoreAuth, sessionUnlocked]);
+    // Policy approvals → toast dual-CTA (en complément de ApprovalCard surface).
+    const unsubApprovals = client.subscribe((data) => {
+      const kind = data.type;
+      if (kind === 'approval_request') {
+        applyApprovalToast({
+          approvalId: String(data.approval_id ?? ''),
+          action: String(data.preview ?? data.intent ?? 'action'),
+          runId: data.run_id ? String(data.run_id) : undefined,
+        });
+        return;
+      }
+      if (kind === 'SURFACE_SNAPSHOT') {
+        const doc =
+          (data.payload as { document?: unknown } | undefined)?.document ??
+          (data as { document?: unknown }).document;
+        if (doc) syncApprovalToastsFromDocument(doc);
+      }
+    });
+
+    return () => { unsubApprovals(); stopPeripherals(); /* le WS, lui, reste ouvert */ };
+  }, [setAiState, addMessage, setCoreAuth, sessionUnlocked]);
 
   // Actions quotidiennes Core → HUD (verrouiller, mute, espaces…).
   useEffect(() => {
