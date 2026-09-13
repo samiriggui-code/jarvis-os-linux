@@ -244,15 +244,8 @@ ENROLLMENT = Sequence(
         Step("enrollment_name_saved"),
         Step("enrollment_ask_profile_type", awaits="enroll.profile", timeout_s=30.0,
              wait_event="ack_working"),
-        # -- Empreinte vocale
-        Step("voice_enroll_start", when="voice_ready"),
-        # `voice_prompt_wait` plutôt que `ack_working` : ici la personne est
-        # censée PARLER. Si rien ne vient, « Rapprochez-vous du microphone »
-        # est un diagnostic, pas une politesse d'attente.
-        Step("voice_enroll_repeat", awaits="enroll.voice", timeout_s=25.0, when="voice_ready",
-             wait_event="voice_prompt_wait"),
-        Step("voice_sample_saved", when="voice_ready"),
-        Step("voice_analysis_done", when="voice_ready"),
+        # -- Empreinte vocale : DÉSACTIVÉE au 1er setup (trop pénible / fragile).
+        # Réactiver plus tard via Settings, pas via cette séquence.
         # -- Profil facial. Séquence chorégraphiée avec le scan à l'écran :
         # l'ordre des étapes suit l'animation, ne pas le réordonner.
         Step("face_scan_init", when="face_ready"),

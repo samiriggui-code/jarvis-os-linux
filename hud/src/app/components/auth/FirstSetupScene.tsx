@@ -1,7 +1,7 @@
 /**
- * FirstSetupScene — formulaire d'enrôlement (clic) puis face + voix.
- * Flux : boot → prénom → civilité → naissance → visage → voix ×3 → done.
- * Après HUD chargé : plus de champs — on parle, Jarvis exécute.
+ * FirstSetupScene — formulaire d'enrôlement (clic) puis visage.
+ * Flux : boot → prénom → civilité → naissance → visage → done.
+ * Voix volontairement hors parcours (trop fragile au 1er boot).
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -9,8 +9,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mic, User, Check, RotateCcw, Calendar } from 'lucide-react';
 import { initTtsDev, stopDev } from '../../bridge/ttsDev';
 import { authEnroll, authStatus, setLastUsername } from '../../bridge/authClient';
-import { captureEnrollmentPhrase } from '../../bridge/micRecorder';
-import { commitVoiceEnroll, VOICE_CHALLENGE } from '../../bridge/voiceAuthLive';
 import { runFaceEnrollLive, commitFaceEnroll } from '../../bridge/faceAuthLive';
 import { FaceCamView } from './FaceCamView';
 import { getCoreClient } from '../../bridge/coreClient';
@@ -61,7 +59,6 @@ type SetupPhase =
   | 'form_title'
   | 'form_birth'
   | 'face_enroll'
-  | 'voice_enroll'
   | 'complete';
 
 const PHASE_LABELS: Record<Exclude<SetupPhase, 'boot'>, string> = {
@@ -70,7 +67,6 @@ const PHASE_LABELS: Record<Exclude<SetupPhase, 'boot'>, string> = {
   form_title: 'Civilité',
   form_birth: 'Naissance',
   face_enroll: 'Visage',
-  voice_enroll: 'Voix',
   complete: 'Terminé',
 };
 
@@ -79,7 +75,6 @@ const FORM_DOTS: SetupPhase[] = [
   'form_title',
   'form_birth',
   'face_enroll',
-  'voice_enroll',
   'complete',
 ];
 
@@ -111,13 +106,12 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
   const [faceReady, setFaceReady] = useState(false);
   const [faceProgress, setFaceProgress] = useState(0);
   const [voiceReady, setVoiceReady] = useState(false);
-  const [voiceTake, setVoiceTake] = useState<{ index: number; total: number } | null>(null);
   const [micOk, setMicOk] = useState(false);
   const [listeningActive, setListeningActive] = useState(false);
   const [ttsSpeaking, setTtsSpeaking] = useState(false);
   const [speakPulse, setSpeakPulse] = useState(0);
   const { micAnalyser, micLevel } = useMicOrbAnalyser(
-    micOk && (listeningActive || phase === 'face_enroll' || phase === 'voice_enroll') && !ttsSpeaking,
+    micOk && (listeningActive || phase === 'face_enroll') && !ttsSpeaking,
   );
   useEffect(() => subscribeTtsSpeaking(setTtsSpeaking), []);
   useEffect(() => {
@@ -141,7 +135,6 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
   const adminDoneRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-  const runVoiceRef = useRef<() => Promise<void>>(async () => {});
 
   const ensureMicReady = useCallback(async (): Promise<boolean> => {
     const stream = (await tryPrimeMic()) || (await ensureMic());
@@ -273,48 +266,6 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
     onCompleteRef.current?.();
   }, [ensureMicReady, ensureSqlUser]);
 
-  /** Optionnel — plus appelé au 1er setup. 1 prise max, sinon on saute. */
-  const runVoice = useCallback(async () => {
-    setPhase('voice_enroll');
-    setHudText('ENROLEMENT VOCAL');
-    setHudSub(`Dites : « ${VOICE_CHALLENGE} » — ou passez`);
-    setListeningActive(true);
-    if (!(await ensureMicReady())) {
-      setListeningActive(false);
-      setVoiceReady(true);
-      setPhase('complete');
-      onCompleteRef.current?.();
-      return;
-    }
-
-    const user = await ensureSqlUser();
-    if (!user) {
-      setListeningActive(false);
-      return;
-    }
-
-    await jarvisSay(`Dites une fois : ${VOICE_CHALLENGE}. Sinon on continue sans.`);
-    const takes = await captureEnrollmentPhrase(1, 4_000, (i, total) => {
-      if (!aliveRef.current) return;
-      setVoiceTake({ index: i, total });
-      setHudSub(`Prise ${i}/${total} — « ${VOICE_CHALLENGE} »`);
-    });
-    if (!aliveRef.current) return;
-    setVoiceTake(null);
-    const kept = takes.filter((t) => t.ok && t.text.trim());
-    if (kept.length >= 1) {
-      await commitVoiceEnroll(user.id, kept.map((t) => t.text));
-    }
-    setVoiceReady(true);
-    setListeningActive(false);
-    setPhase('complete');
-    setHudText('PROFIL CREE');
-    setHudSub(`Bienvenue ${nameRef.current}`);
-    await jarvisSay(`Profil créé. Bienvenue ${titleRef.current || ''} ${nameRef.current}.`.replace(/\s+/g, ' '));
-    try { localStorage.setItem('jarvis_first_run', '1'); } catch { /* */ }
-    onCompleteRef.current?.();
-  }, [ensureMicReady, ensureSqlUser]);
-  runVoiceRef.current = runVoice;
 
   // Boot puis formulaire
   useEffect(() => {
@@ -454,7 +405,7 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
 
   const waveMode =
     voiceReady || faceReady ? 'ok'
-    : phase === 'voice_enroll' || phase === 'face_enroll' || listeningActive ? 'listening'
+    : phase === 'face_enroll' || listeningActive ? 'listening'
     : 'idle';
 
   return (
@@ -688,44 +639,6 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
                       Autoriser le micro
                     </GlassButton>
                   )}
-                </div>
-              )}
-
-              {/* ── Voix ── */}
-              {phase === 'voice_enroll' && (
-                <div className="flex flex-col items-center gap-3 w-full">
-                  <div className="w-full flex justify-center">
-                    <AuthVoiceWave mode={waveMode} level={micLevel} />
-                  </div>
-                  {!micOk && (
-                    <GlassButton tone="accent" active icon={<Mic className="w-4 h-4" />} onClick={() => void ensureMicReady()} style={{ ...orbF, fontSize: 10 }}>
-                      Autoriser le micro
-                    </GlassButton>
-                  )}
-                  {voiceTake && (
-                    <div className="text-center">
-                      <p style={{ ...visionTitle, color: tokens.color.accent, fontSize: 12 }}>
-                        Passe {voiceTake.index} / {voiceTake.total}
-                      </p>
-                      <p style={{ ...visionBody, fontSize: 11 }}>Dites : « {VOICE_CHALLENGE} »</p>
-                    </div>
-                  )}
-                  <GlassButton
-                    tone="ghost"
-                    onClick={() => {
-                      setListeningActive(false);
-                      setVoiceReady(true);
-                      setPhase('complete');
-                      setHudText('PROFIL CREE');
-                      setHudSub(`Bienvenue ${nameRef.current}`);
-                      void jarvisSay('Voix ignorée. Profil administrateur prêt.');
-                      try { localStorage.setItem('jarvis_first_run', '1'); } catch { /* */ }
-                      onCompleteRef.current?.();
-                    }}
-                    style={{ ...orbF, fontSize: 10 }}
-                  >
-                    Passer la voix
-                  </GlassButton>
                 </div>
               )}
 
