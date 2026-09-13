@@ -1,7 +1,8 @@
 """Filet déterministe chat → web.search (tuile reach).
 
-Intercepte les formulations de recherche avant le chat Hermes libre.
-Spec : ordre Gateway dans ``ws/handlers/chat.py`` — triggers → **ici** → sémantique.
+Intercepte les formulations de recherche avant le chat libre / routage
+sémantique. Spec : ordre Gateway dans ``ws/handlers/chat.py`` —
+triggers → **ici** → sémantique → Provider Manager.
 """
 
 from __future__ import annotations
