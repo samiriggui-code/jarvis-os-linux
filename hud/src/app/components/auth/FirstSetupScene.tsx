@@ -258,16 +258,34 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
     setFaceReady(true);
     setFaceProgress(100);
     setListeningActive(false);
-    await jarvisSay('Visage enregistré. Passons à la voix.');
-    void runVoiceRef.current();
+    // Voix = optionnelle (trop fragile / pénible au 1er boot). Face suffit.
+    setVoiceReady(true);
+    setPhase('complete');
+    setHudText('PROFIL CREE');
+    setHudSub(`Bienvenue ${nameRef.current}`);
+    await jarvisSay(
+      `Profil administrateur créé. Bienvenue ${titleRef.current || ''} ${nameRef.current}. La voix pourra être ajoutée plus tard.`.replace(
+        /\s+/g,
+        ' ',
+      ),
+    );
+    try { localStorage.setItem('jarvis_first_run', '1'); } catch { /* */ }
+    onCompleteRef.current?.();
   }, [ensureMicReady, ensureSqlUser]);
 
+  /** Optionnel — plus appelé au 1er setup. 1 prise max, sinon on saute. */
   const runVoice = useCallback(async () => {
     setPhase('voice_enroll');
     setHudText('ENROLEMENT VOCAL');
-    setHudSub(`Dites : « ${VOICE_CHALLENGE} »`);
+    setHudSub(`Dites : « ${VOICE_CHALLENGE} » — ou passez`);
     setListeningActive(true);
-    if (!(await ensureMicReady())) return;
+    if (!(await ensureMicReady())) {
+      setListeningActive(false);
+      setVoiceReady(true);
+      setPhase('complete');
+      onCompleteRef.current?.();
+      return;
+    }
 
     const user = await ensureSqlUser();
     if (!user) {
@@ -275,8 +293,8 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
       return;
     }
 
-    await jarvisSay(`Répétez trois fois : ${VOICE_CHALLENGE}`);
-    const takes = await captureEnrollmentPhrase(3, 5_500, (i, total) => {
+    await jarvisSay(`Dites une fois : ${VOICE_CHALLENGE}. Sinon on continue sans.`);
+    const takes = await captureEnrollmentPhrase(1, 4_000, (i, total) => {
       if (!aliveRef.current) return;
       setVoiceTake({ index: i, total });
       setHudSub(`Prise ${i}/${total} — « ${VOICE_CHALLENGE} »`);
@@ -284,23 +302,15 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
     if (!aliveRef.current) return;
     setVoiceTake(null);
     const kept = takes.filter((t) => t.ok && t.text.trim());
-    if (kept.length < 2) {
-      setListeningActive(false);
-      await jarvisSay('Pas assez de prises correctes. Dites clairement : Jarvis, active-toi.');
-      return runVoice();
-    }
-    const ok = await commitVoiceEnroll(user.id, kept.map((t) => t.text));
-    if (!ok) {
-      setListeningActive(false);
-      await jarvisSay('Enregistrement vocal échoué.');
-      return;
+    if (kept.length >= 1) {
+      await commitVoiceEnroll(user.id, kept.map((t) => t.text));
     }
     setVoiceReady(true);
     setListeningActive(false);
     setPhase('complete');
     setHudText('PROFIL CREE');
     setHudSub(`Bienvenue ${nameRef.current}`);
-    await jarvisSay(`Profil cree. Bienvenue ${titleRef.current || ''} ${nameRef.current}.`.replace(/\s+/g, ' '));
+    await jarvisSay(`Profil créé. Bienvenue ${titleRef.current || ''} ${nameRef.current}.`.replace(/\s+/g, ' '));
     try { localStorage.setItem('jarvis_first_run', '1'); } catch { /* */ }
     onCompleteRef.current?.();
   }, [ensureMicReady, ensureSqlUser]);
@@ -700,6 +710,22 @@ export function FirstSetupScene({ mode = 'first_run', onComplete, presetName }: 
                       <p style={{ ...visionBody, fontSize: 11 }}>Dites : « {VOICE_CHALLENGE} »</p>
                     </div>
                   )}
+                  <GlassButton
+                    tone="ghost"
+                    onClick={() => {
+                      setListeningActive(false);
+                      setVoiceReady(true);
+                      setPhase('complete');
+                      setHudText('PROFIL CREE');
+                      setHudSub(`Bienvenue ${nameRef.current}`);
+                      void jarvisSay('Voix ignorée. Profil administrateur prêt.');
+                      try { localStorage.setItem('jarvis_first_run', '1'); } catch { /* */ }
+                      onCompleteRef.current?.();
+                    }}
+                    style={{ ...orbF, fontSize: 10 }}
+                  >
+                    Passer la voix
+                  </GlassButton>
                 </div>
               )}
 
