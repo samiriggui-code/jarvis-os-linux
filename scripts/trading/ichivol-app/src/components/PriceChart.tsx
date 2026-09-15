@@ -61,7 +61,8 @@ export function PriceChart({ candles, onSignals }: Props) {
     if (!el) return
 
     const chart = createChart(el, {
-      autoSize: true,
+      width: el.clientWidth || 800,
+      height: el.clientHeight || 480,
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: COLORS.muted,
@@ -78,6 +79,15 @@ export function PriceChart({ candles, onSignals }: Props) {
         horzLine: { color: 'rgba(138,160,168,0.35)' },
       },
     })
+
+    const ro = new ResizeObserver(() => {
+      if (!hostRef.current) return
+      chart.applyOptions({
+        width: hostRef.current.clientWidth,
+        height: hostRef.current.clientHeight,
+      })
+    })
+    ro.observe(el)
 
     const candle = chart.addSeries(
       CandlestickSeries,
@@ -125,6 +135,7 @@ export function PriceChart({ candles, onSignals }: Props) {
     seriesRef.current = { candle, tenkan, kijun, spanA, spanB, volume }
 
     return () => {
+      ro.disconnect()
       chart.remove()
       chartRef.current = null
       seriesRef.current = null

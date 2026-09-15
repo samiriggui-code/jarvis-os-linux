@@ -8,6 +8,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: true,
+    allowedHosts: true,
     proxy: {
       '/binance': {
         target: BINANCE,
@@ -18,6 +20,8 @@ export default defineConfig({
   },
   preview: {
     port: 4173,
+    host: true,
+    allowedHosts: true,
     proxy: {
       '/binance': {
         target: BINANCE,
