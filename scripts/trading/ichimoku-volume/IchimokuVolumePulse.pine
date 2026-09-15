@@ -67,7 +67,6 @@ cloudBot = math.min(senkouA[displacement], senkouB[displacement])
 
 aboveCloud = close > cloudTop
 belowCloud = close < cloudBot
-inCloud    = not aboveCloud and not belowCloud
 
 cloudBullish = senkouA[displacement] >= senkouB[displacement]  // twist haussier
 
